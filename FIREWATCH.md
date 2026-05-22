@@ -10,20 +10,21 @@ Firewatch does these things end to end:
 - Creates and reuses one subreddit-level Firewatch queue post.
 - Lets mods manually send any post to Firewatch from the post menu.
 - Creates demo posts that run through the same signal pipeline as real events.
-- Tracks Devvit trigger events for comments, reports, deletes, mod actions, and
-  AutoModerator filter events.
+- Tracks Devvit trigger events for post creates/edits, comments, reports,
+  deletes, mod actions, and AutoModerator filter events.
 - Scores posts with deterministic signals and displays the reasons.
 - Lets one mod take ownership of a post.
 - Lets mods add a sticky reminder, remove selected comments, add Reddit removal
   notes, lock a post, save a handoff note, and mark the post handled.
 - Generates copyable handoff and final notes.
 - Deletes stored post or comment content when Reddit delete triggers arrive.
+- Expires stored incident records after 30 days.
 
 ## Scoring Signals
 
 The review score is calculated from:
 
-- comment velocity in the last hour
+- comment bursts in the last hour
 - comment reports and post report count
 - watched word matches
 - watched domain matches

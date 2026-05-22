@@ -16,6 +16,7 @@ import {
   getConfig,
   getIncidentById,
   getIncidents,
+  getRememberedIncidentPostId,
   lockIncident,
   removeFlaggedComment,
   resolveIncident,
@@ -26,16 +27,21 @@ export const api = new Hono();
 
 api.get('/init', async (c) => {
   try {
-    const selectedPostId =
+    const contextSelectedPostId =
       typeof context.postData?.incidentPostId === 'string'
         ? context.postData.incidentPostId
         : undefined;
-    const [incidents, selectedIncident, config, username] = await Promise.all([
+    const [incidents, config, username] = await Promise.all([
       getIncidents(),
-      selectedPostId ? getIncidentById(selectedPostId) : undefined,
       getConfig(),
       reddit.getCurrentUsername(),
     ]);
+    const selectedPostId =
+      contextSelectedPostId ??
+      (await getRememberedIncidentPostId(username ?? undefined));
+    const selectedIncident = selectedPostId
+      ? await getIncidentById(selectedPostId)
+      : undefined;
     const mergedIncidents =
       selectedIncident &&
       !incidents.some((incident) => incident.postId === selectedIncident.postId)

@@ -32,10 +32,11 @@ authorized moderators through the app.
 
 ## Data Retention
 
-Queue records are retained to support moderator review and handoff. When Reddit
-post or comment delete triggers are received, Firewatch deletes stored content
-for that post or comment from Redis. Community moderators can remove the app
-from their subreddit to stop new collection.
+Queue records are retained to support moderator review and handoff. Stored
+incident records expire after 30 days. When Reddit post or comment delete
+triggers are received, Firewatch deletes stored content for that post or
+comment from Redis. Community moderators can remove the app from their
+subreddit to stop new collection.
 
 ## Contact
 

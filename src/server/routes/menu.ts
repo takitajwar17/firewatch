@@ -2,9 +2,9 @@ import { Hono } from 'hono';
 import type { MenuItemRequest, UiResponse } from '@devvit/web/shared';
 import {
   createDemoIncident,
-  createFirewatchPost,
   getConfigFormDefaults,
   getOrCreateFirewatchBoardPost,
+  rememberSelectedIncident,
   upsertIncidentSignal,
 } from '../core/firewatch';
 
@@ -36,10 +36,12 @@ menu.post('/escalate-post', async (c) => {
     const input = await c.req.json<MenuItemRequest>();
     const incident = await upsertIncidentSignal({
       type: 'manual_escalation',
+      source: 'mod_action',
       postId: input.targetId,
       reason: 'Sent from the post menu by a mod',
     });
-    const post = await createFirewatchPost({ incidentPostId: incident.postId });
+    await rememberSelectedIncident(incident.postId);
+    const post = await getOrCreateFirewatchBoardPost();
 
     return c.json<UiResponse>(
       {
@@ -61,7 +63,8 @@ menu.post('/escalate-post', async (c) => {
 menu.post('/create-demo-incident', async (c) => {
   try {
     const incident = await createDemoIncident();
-    const post = await createFirewatchPost({ incidentPostId: incident.postId });
+    await rememberSelectedIncident(incident.postId);
+    const post = await getOrCreateFirewatchBoardPost();
 
     return c.json<UiResponse>(
       {

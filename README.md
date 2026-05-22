@@ -7,9 +7,9 @@ take common moderation actions, and save handoff/final notes.
 ## What It Does
 
 - Scores posts with deterministic, explainable signals.
-- Tracks new comments, comment reports, post reports, watched words, watched
-  domains, repeated wording, reply pile-ons, moderator sends, moderator removal
-  actions, and AutoModerator filter events.
+- Tracks matching post creates/edits, new comments, comment reports, post
+  reports, watched words, watched domains, repeated wording, reply pile-ons,
+  moderator sends, moderator removal actions, and AutoModerator filter events.
 - Shows queued posts with review score, top reasons, comments to review,
   repeated wording, involved users, recent activity, suggested next step, trend,
   and action history.
@@ -42,7 +42,8 @@ control and every score is explained by visible reasons.
 Firewatch stores queue state for installed communities, including post IDs,
 comment IDs, public usernames, public comment excerpts, configured filters,
 moderator actions taken through the app, and generated notes. This data is used
-only to show moderation workflow state inside the app.
+only to show moderation workflow state inside the app. Stored incident records
+expire after 30 days and are also cleaned when Reddit delete events arrive.
 
 ## Hackathon Positioning
 

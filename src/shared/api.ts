@@ -1,15 +1,30 @@
 export type IncidentLevel = 'watch' | 'heat' | 'fire' | 'wildfire';
 
-export type IncidentStatus = 'active' | 'monitoring' | 'resolved';
+export type IncidentStatus =
+  | 'open'
+  | 'watching'
+  | 'review'
+  | 'claimed'
+  | 'cooldown'
+  | 'locked'
+  | 'handled'
+  | 'resolved';
 
 export type SignalType =
+  | 'post_create'
+  | 'post_update'
   | 'comment_create'
   | 'comment_report'
   | 'post_report'
   | 'manual_escalation'
   | 'mod_action'
-  | 'automod_filter'
-  | 'demo_seed';
+  | 'automod_filter';
+
+export type SignalSource =
+  | 'user'
+  | 'report'
+  | 'mod_action'
+  | 'firewatch_notice';
 
 export type FirewatchConfig = {
   keywords: string[];
@@ -46,7 +61,6 @@ export type IncidentAction = {
     | 'cleanup'
     | 'comment_removed'
     | 'locked'
-    | 'lockdown'
     | 'escalated'
     | 'resolved'
     | 'demo_seeded';
@@ -60,6 +74,7 @@ export type IncidentAction = {
 export type IncidentSignal = {
   id: string;
   type: SignalType;
+  source: SignalSource;
   createdAt: number;
   postId: string;
   commentId?: string;
