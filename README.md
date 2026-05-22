@@ -14,8 +14,10 @@ take common moderation actions, and save handoff/final notes.
   repeated wording, involved users, recent activity, suggested next step, trend,
   and action history.
 - Lets one moderator take a post so other mods can see who is handling it.
-- Lets moderators add a sticky reminder, remove selected comments with a Reddit
-  removal note, lock the post, save a handoff note, and mark the post handled.
+- Lets moderators add a sticky reminder, approve acceptable comments, remove
+  rule-breaking comments with a Reddit removal note, ban a user after removing
+  their queued comments, lock the post, save a handoff note, and mark the post
+  handled.
 - Includes a demo post creator that makes a real source post and populates the
   queue through the same signal pipeline used by production events.
 - Removes stored post/comment content when Reddit delete triggers are received.
@@ -28,7 +30,8 @@ take common moderation actions, and save handoff/final notes.
 3. Use **Create Firewatch demo post** or the dashboard button to create a test
    post.
 4. On any post, choose **Send to Firewatch** to put that post in the queue.
-5. Review the score and reasons, take the post, and choose the needed action.
+5. Review the score and reasons, take the post, approve acceptable comments,
+   remove rule-breaking comments, or ban a user if needed.
 6. Use **Save handoff note** or **Mark handled** when the mod team needs a note.
 
 ## Signals
@@ -51,3 +54,9 @@ Firewatch is built for the Reddit Mod Tools and Migrated Apps Hackathon in the
 New Mod Tool category. The goal is to reduce mod load during fast-moving posts
 by compressing detection, context gathering, ownership, action, and handoff into
 one Devvit-native workflow.
+
+## Submission Assets
+
+- Devpost/app listing copy: [docs/hackathon-submission.md](docs/hackathon-submission.md)
+- Demo video script: [docs/demo-script.md](docs/demo-script.md)
+- Release checklist: [docs/release-checklist.md](docs/release-checklist.md)

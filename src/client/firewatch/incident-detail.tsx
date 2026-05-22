@@ -47,7 +47,7 @@ export const IncidentDetail = ({
   const [activeTab, setActiveTab] = useState('overview');
   const [cleanupReason, setCleanupReason] = useState('Rule-breaking comment');
   const unresolvedComments = incident.flaggedComments.filter(
-    (comment) => !comment.removed
+    (comment) => !comment.removed && !comment.reviewed
   );
 
   const runModAction: ActionRunner = async (action, endpoint, body) => {
@@ -58,7 +58,11 @@ export const IncidentDetail = ({
       setActiveTab('reports');
     }
 
-    if (action.startsWith('t1_') || action.startsWith('ban:')) {
+    if (
+      action.startsWith('t1_') ||
+      action.startsWith('approve:') ||
+      action.startsWith('ban:')
+    ) {
       setActiveTab('comments');
     }
 
@@ -81,7 +85,7 @@ export const IncidentDetail = ({
           value={String(incident.stats.reportSignals)}
         />
         <MetricCard
-          description="Unremoved comments that still need a mod decision."
+          description="Comments that still need approval, removal, or a ban decision."
           icon={<ClipboardList />}
           label="Comments to review"
           value={String(unresolvedComments.length)}
@@ -135,7 +139,7 @@ export const IncidentDetail = ({
           <SectionHeader
             className="xl:col-span-full"
             title="Comment review"
-            description="Unremoved comments, removal reason, and actioned history."
+            description="Approve acceptable comments, remove rule-breaking comments, or ban users."
           />
           <FlaggedCommentsCard
             busyAction={busyAction}

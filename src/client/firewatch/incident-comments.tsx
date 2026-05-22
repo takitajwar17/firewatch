@@ -29,9 +29,11 @@ export const FlaggedCommentsCard = ({
   onAction: ActionRunner;
   onCleanupReasonChange: (value: string) => void;
 }) => {
-  const needsReview = incident.flaggedComments.filter((comment) => !comment.removed);
+  const needsReview = incident.flaggedComments.filter(
+    (comment) => !comment.removed && !comment.reviewed
+  );
   const alreadyActioned = incident.flaggedComments.filter(
-    (comment) => comment.removed
+    (comment) => comment.removed || comment.reviewed
   );
 
   return (
@@ -39,18 +41,18 @@ export const FlaggedCommentsCard = ({
       <CardHeader>
         <CardTitle>Needs review</CardTitle>
         <CardDescription>
-          Unremoved comments that match reports, watched words, or watched domains.
+          Comments that match reports, watched words, or watched domains.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {needsReview.length === 0 ? (
-          <EmptyText>No unremoved comments need review.</EmptyText>
+          <EmptyText>No comments need review.</EmptyText>
         ) : (
           <>
             <FieldBlock
-              description="Saved in the mod log for this post."
+              description="Used when removing comments or banning a user."
               htmlFor="fw-cleanup-reason"
-              label="Removal reason"
+              label="Removal and ban reason"
             >
               <Input
                 id="fw-cleanup-reason"
@@ -65,6 +67,7 @@ export const FlaggedCommentsCard = ({
                   const authorLabel = formatUsername(comment.author);
                   const permalink = comment.permalink;
                   const canBanAuthor = authorLabel !== 'unknown user';
+                  const approveAction = `approve:${comment.id}`;
                   const banAction = `ban:${comment.author}`;
 
                   return (
@@ -93,6 +96,25 @@ export const FlaggedCommentsCard = ({
                               Open
                             </Button>
                           ) : null}
+                          <Button
+                            disabled={Boolean(busyAction)}
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                              onAction(
+                                approveAction,
+                                `/api/incidents/${incident.postId}/comments/${comment.id}/approve`
+                              )
+                            }
+                          >
+                            {busyAction === approveAction ? (
+                              <RefreshCw
+                                className="animate-spin"
+                                data-icon="inline-start"
+                              />
+                            ) : null}
+                            {busyAction === approveAction ? 'Working' : 'Approve'}
+                          </Button>
                           <Button
                             disabled={Boolean(busyAction)}
                             size="sm"
@@ -149,7 +171,7 @@ export const FlaggedCommentsCard = ({
             <div>
               <h3 className="text-sm font-medium leading-5">Already actioned</h3>
               <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                Removed comments stay here for the handoff note, but no longer
+                Reviewed comments stay here for the handoff note, but no longer
                 count as active review work.
               </p>
             </div>
@@ -162,7 +184,8 @@ export const FlaggedCommentsCard = ({
                     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                       <div className="min-w-0">
                         <p className="text-sm font-medium leading-5">
-                          {formatUsername(comment.author)} - removed
+                          {formatUsername(comment.author)} -{' '}
+                          {comment.removed ? 'removed' : 'approved'}
                         </p>
                         <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted-foreground">
                           {comment.body}

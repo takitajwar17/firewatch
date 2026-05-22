@@ -146,6 +146,7 @@ export const readErrorMessage = async (res: Response) => {
 
 export const actionLabel = (action: string) => {
   if (action.startsWith('ban:')) return 'Ban user';
+  if (action.startsWith('approve:')) return 'Approve comment';
   if (action.startsWith('t1_')) return 'Remove comment';
 
   const labels: Record<string, string> = {
@@ -171,6 +172,7 @@ export const actionSuccessMessage = (action: string) => {
   if (action.startsWith('ban:')) {
     return 'User banned after their review comments were removed.';
   }
+  if (action.startsWith('approve:')) return 'Comment approved.';
   if (action.startsWith('t1_')) return 'Comment handled.';
 
   const messages: Record<string, string> = {

@@ -145,7 +145,7 @@ export const getResponseSuggestion = (
       level,
       steps: [
         'Review the remaining unremoved comments.',
-        'Remove the comments that break the rules or leave them if they are acceptable.',
+        'Approve acceptable comments or remove comments that break the rules.',
         'Mark handled after no comments remain in review.',
       ],
     };
@@ -164,7 +164,7 @@ export const getResponseSuggestion = (
       level,
       steps: [
         'Open the Comments tab.',
-        'Review or remove the flagged comments.',
+        'Approve acceptable comments or remove comments that break the rules.',
         'Mark handled after the review queue is clear.',
       ],
     };
@@ -412,14 +412,31 @@ export const calculateIncident = (
       .filter(Boolean)
       .map(normalizeCommentId)
   );
+  const reviewedCommentIds = new Set<string>(
+    [
+      ...incident.flaggedComments
+        .filter((comment) => comment.reviewed)
+        .map((comment) => comment.id),
+      ...incident.actions.flatMap((action) =>
+        action.type === 'comment_approved' ? (action.targetIds ?? []) : []
+      ),
+    ]
+      .filter(Boolean)
+      .map(normalizeCommentId)
+  );
   const userSignals = recentSignals.filter((signal) => signal.source === 'user');
   const activeUserSignals = userSignals.filter(
-    (signal) => !signal.commentId || !removedCommentIds.has(signal.commentId)
+    (signal) =>
+      !signal.commentId ||
+      (!removedCommentIds.has(signal.commentId) &&
+        !reviewedCommentIds.has(signal.commentId))
   );
   const scoreSignals = recentSignals.filter(
     (signal) =>
       (signal.source === 'user' || signal.source === 'report') &&
-      (!signal.commentId || !removedCommentIds.has(signal.commentId))
+      (!signal.commentId ||
+        (!removedCommentIds.has(signal.commentId) &&
+          !reviewedCommentIds.has(signal.commentId)))
   );
   const visibleSignals = recentSignals.filter(
     (signal) => signal.source !== 'firewatch_notice'
@@ -626,6 +643,7 @@ export const calculateIncident = (
 
   for (const signal of normalizedSignals) {
     if (signal.commentId && removedCommentIds.has(signal.commentId)) continue;
+    if (signal.commentId && reviewedCommentIds.has(signal.commentId)) continue;
     const flagged = scoreComment(signal, config);
     if (!flagged) continue;
 
@@ -640,16 +658,25 @@ export const calculateIncident = (
       ...comment,
       author: normalizeUsername(comment.author) ?? 'unknown user',
       removed: false,
+      reviewed: false,
     }))
     .sort((a, b) => b.score - a.score);
   const alreadyActionedComments = incident.flaggedComments
     .filter(
-      (comment) => comment.removed || removedCommentIds.has(normalizeCommentId(comment.id))
+      (comment) =>
+        comment.removed ||
+        comment.reviewed ||
+        removedCommentIds.has(normalizeCommentId(comment.id)) ||
+        reviewedCommentIds.has(normalizeCommentId(comment.id))
     )
     .map((comment) => ({
       ...comment,
       author: normalizeUsername(comment.author) ?? 'unknown user',
-      removed: true,
+      removed:
+        comment.removed || removedCommentIds.has(normalizeCommentId(comment.id)),
+      reviewed:
+        Boolean(comment.reviewed) ||
+        reviewedCommentIds.has(normalizeCommentId(comment.id)),
     }));
   const actionedIds = new Set(activeFlaggedComments.map((comment) => comment.id));
   const flaggedComments = [

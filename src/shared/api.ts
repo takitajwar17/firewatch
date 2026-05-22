@@ -51,6 +51,7 @@ export type FlaggedComment = {
   score: number;
   reasons: string[];
   removed?: boolean;
+  reviewed?: boolean;
 };
 
 export type IncidentAction = {
@@ -59,6 +60,7 @@ export type IncidentAction = {
     | 'claimed'
     | 'cool_down'
     | 'cleanup'
+    | 'comment_approved'
     | 'comment_removed'
     | 'user_banned'
     | 'locked'

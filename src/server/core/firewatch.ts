@@ -574,6 +574,51 @@ const removeCommentIfReal = async (
   return true;
 };
 
+const approveCommentIfReal = async (incident: Incident, commentId: string) => {
+  const normalizedCommentId = normalizeCommentId(commentId);
+  if (isDemoComment(incident, normalizedCommentId)) return false;
+
+  const comment = await reddit.getCommentById(normalizedCommentId);
+  await comment.approve();
+  return true;
+};
+
+export const approveFlaggedComment = async (
+  postId: string,
+  commentId: string
+) => {
+  const normalizedPostId = normalizePostId(postId);
+  const normalizedCommentId = normalizeCommentId(commentId);
+  const sourceIncident = await getIncident(normalizedPostId);
+  if (!sourceIncident) throw new Error('Post is not in Firewatch yet');
+
+  const actor = await actorName();
+  const approvedOnReddit = await approveCommentIfReal(
+    sourceIncident,
+    normalizedCommentId
+  );
+  const incident = await appendAction(normalizedPostId, {
+    type: 'comment_approved',
+    actor,
+    detail: approvedOnReddit
+      ? `Approved comment ${normalizedCommentId}`
+      : `Marked demo comment ${normalizedCommentId} approved`,
+    targetIds: [normalizedCommentId],
+  });
+  const nextIncident: Incident = {
+    ...incident,
+    flaggedComments: incident.flaggedComments.map((flaggedComment) =>
+      flaggedComment.id === normalizedCommentId
+        ? { ...flaggedComment, reviewed: true }
+        : flaggedComment
+    ),
+  };
+  const refreshedIncident = await refreshIncident(nextIncident);
+
+  await saveIncident(refreshedIncident);
+  return refreshedIncident;
+};
+
 export const removeFlaggedComment = async (
   postId: string,
   commentId: string,
@@ -601,7 +646,7 @@ export const removeFlaggedComment = async (
     ...incident,
     flaggedComments: incident.flaggedComments.map((flaggedComment) =>
       flaggedComment.id === normalizedCommentId
-        ? { ...flaggedComment, removed: true }
+        ? { ...flaggedComment, removed: true, reviewed: false }
         : flaggedComment
     ),
   };
@@ -626,17 +671,18 @@ export const banUserAndRemoveComments = async (
   const targetComments = sourceIncident.flaggedComments.filter(
     (comment) =>
       !comment.removed &&
+      !comment.reviewed &&
       normalizeUsername(comment.author)?.toLowerCase() ===
         normalizedUsername.toLowerCase()
   );
   if (targetComments.length === 0) {
-    throw new Error(`No unremoved comments from u/${normalizedUsername}`);
+    throw new Error(`No unreviewed comments from u/${normalizedUsername}`);
   }
 
   const targetIds = targetComments.map((comment) => comment.id);
   const contextCommentId = targetIds[0];
   if (!contextCommentId) {
-    throw new Error(`No unremoved comments from u/${normalizedUsername}`);
+    throw new Error(`No unreviewed comments from u/${normalizedUsername}`);
   }
   const actionReason =
     reason?.trim() || `Banned u/${normalizedUsername} from r/${context.subredditName}`;
@@ -687,7 +733,7 @@ export const banUserAndRemoveComments = async (
     ...incident,
     flaggedComments: incident.flaggedComments.map((flaggedComment) =>
       targetIds.includes(flaggedComment.id)
-        ? { ...flaggedComment, removed: true }
+        ? { ...flaggedComment, removed: true, reviewed: false }
         : flaggedComment
     ),
   };
@@ -742,7 +788,9 @@ const buildEscalationSummary = (incident: Incident) => {
   const handler =
     incident.claim?.username ??
     incident.actions.find((action) => action.type === 'claimed')?.actor;
-  const unresolved = incident.flaggedComments.filter((comment) => !comment.removed);
+  const unresolved = incident.flaggedComments.filter(
+    (comment) => !comment.removed && !comment.reviewed
+  );
   const topReasons = incident.reasons
     .slice(0, 4)
     .map((reason) => `${reason.label}: ${reason.detail}`)

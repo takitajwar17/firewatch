@@ -9,6 +9,7 @@ import type {
   Incident,
 } from '../../shared/api';
 import {
+  approveFlaggedComment,
   banUserAndRemoveComments,
   claimIncident,
   coolDownIncident,
@@ -121,6 +122,12 @@ api.post('/incidents/:postId/comments/:commentId/remove', async (c) => {
       body.reason
     );
   });
+});
+
+api.post('/incidents/:postId/comments/:commentId/approve', async (c) => {
+  return incidentAction(c, () =>
+    approveFlaggedComment(c.req.param('postId'), c.req.param('commentId'))
+  );
 });
 
 api.post('/incidents/:postId/users/:username/ban', async (c) => {

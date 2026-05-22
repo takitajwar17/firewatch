@@ -14,8 +14,10 @@ Firewatch does these things end to end:
   deletes, mod actions, and AutoModerator filter events.
 - Scores posts with deterministic signals and displays the reasons.
 - Lets one mod take ownership of a post.
-- Lets mods add a sticky reminder, remove selected comments, add Reddit removal
-  notes, lock a post, save a handoff note, and mark the post handled.
+- Lets mods add a sticky reminder, approve acceptable comments, remove
+  rule-breaking comments with Reddit removal notes, ban a user after removing
+  their queued comments, lock a post, save a handoff note, and mark the post
+  handled.
 - Generates copyable handoff and final notes.
 - Deletes stored post or comment content when Reddit delete triggers arrive.
 - Expires stored incident records after 30 days.
@@ -44,8 +46,8 @@ posts, or mark anything handled. A moderator must click the action.
    post.
 4. Review the post, reasons, comments, users, repeated wording, and activity.
 5. Click **Take post** if handling it.
-6. Use **Sticky reminder**, **Remove**, **Lock post**, **Save handoff note**, or
-   **Mark handled** as needed.
+6. Use **Sticky reminder**, **Approve**, **Remove**, **Ban user**,
+   **Lock post**, **Save handoff note**, or **Mark handled** as needed.
 
 ## Platform Notes
 

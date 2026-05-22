@@ -1,0 +1,52 @@
+# Firewatch Release Checklist
+
+## Code
+
+- `npm run type-check`
+- `npm run lint`
+- `npm run build`
+- `npm run dev:edge`
+- Open the playtest URL and verify:
+  - queue loads
+  - demo post can be created
+  - comment approve works
+  - comment remove works
+  - user ban removes queued comments first
+  - sticky reminder posts once
+  - lock post updates status
+  - handoff note saves
+  - handled is blocked while comments still need review
+
+## Reddit Developer App Listing
+
+- Display name: `Firewatch`
+- Description: use the text in `docs/hackathon-submission.md`
+- Privacy policy: public hosted `PRIVACY.md` URL
+- Terms: public hosted `TERMS.md` URL
+- NSFW: off
+- Upload latest private version.
+- Install in `r/firewatch17_dev`.
+- Confirm app permissions match the README.
+
+## Devpost
+
+- App listing URL: `https://developers.reddit.com/apps/firewatch17`
+- Reddit username: `u/Sorry-Highway9666`
+- Category: Best New Mod Tool
+- Tool Overview: use `docs/hackathon-submission.md`
+- Project Impact: use `docs/hackathon-submission.md`
+- Demo video: use `docs/demo-script.md`
+- Screenshots:
+  - Overview
+  - Comments
+  - Mod notes
+  - App listing/install page
+
+## Final Sanity Checks
+
+- No claim that Firewatch uses AI or automatic enforcement.
+- No claim that communities have adopted it unless they actually have.
+- No hidden demo-only behavior in the core workflow.
+- No app-generated comments included in user repeated wording.
+- No `Handled` status while comments still need review.
+

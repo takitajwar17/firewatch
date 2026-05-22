@@ -93,7 +93,7 @@ export const IncidentHero = ({
   const postLocked = incident.status === 'locked';
   const permalink = incident.permalink;
   const unresolvedCount = incident.flaggedComments.filter(
-    (comment) => !comment.removed
+    (comment) => !comment.removed && !comment.reviewed
   ).length;
 
   return (

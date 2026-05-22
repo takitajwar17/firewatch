@@ -21,8 +21,8 @@ from communities where it is not installed.
 ## How Data Is Used
 
 Stored data is used to display queue state, explain review scores, coordinate
-moderator response, and generate handoff/final notes for moderators in the
-installed community.
+moderator response, remember whether queued comments were approved or removed,
+and generate handoff/final notes for moderators in the installed community.
 
 ## Data Sharing
 
