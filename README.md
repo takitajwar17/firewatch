@@ -1,54 +1,49 @@
 # Firewatch
 
-Incident command for Reddit moderators, built for the Reddit Mod Tools and
-Migrated Apps Hackathon.
+Firewatch is an incident command board for Reddit moderators. It helps mod
+teams notice fast-moving thread escalation, understand why a thread is risky,
+claim ownership of the response, apply common response playbooks, and generate
+an after-action summary.
 
-Firewatch tracks thread-level escalation signals, gives mods a live incident
-panel, lets one moderator claim ownership, applies response actions, and
-generates an after-action summary.
+## What It Does
 
-## Getting Started
+- Scores active threads using deterministic, explainable signals.
+- Tracks comment velocity, report activity, configured keywords, suspicious
+  domains, clustered reply branches, and manual moderator escalation.
+- Shows a live incident panel with the current risk score, top reasons, flagged
+  comments, recent signals, and action history.
+- Lets one moderator claim an incident so the rest of the team can see who is
+  handling it.
+- Provides response actions for posting a cooldown reminder, locking a thread,
+  removing flagged comments, and resolving the incident.
+- Generates a concise after-action summary for mod handoff and review.
 
-Prerequisites:
+## Moderator Workflow
 
-- Node 22+
-- A Reddit account with Developer Platform access
-- A small test subreddit you moderate, or let Devvit create one during playtest
+1. Open the subreddit menu and choose **Open Firewatch board**.
+2. Use **Configure Firewatch** to tune heated keywords, suspicious domains, and
+   score thresholds for the community.
+3. On any post, choose **Escalate to Firewatch** to create an incident manually.
+4. Review the score and reasons, claim the incident, and choose an appropriate
+   response.
+5. Resolve the incident to create an after-action summary.
 
-## Commands
+## Signals
 
-- `npm run build`: builds client and server bundles.
-- `npm run type-check`: runs TypeScript project checks.
-- `npm run lint`: runs ESLint.
-- `npm run login`: logs the Devvit CLI into Reddit.
-- `npm run dev`: starts Devvit playtest on Reddit.
-- `npm run deploy`: uploads a private app version.
-- `npm run launch`: submits the app for review.
+Firewatch is intentionally deterministic. It does not make hidden AI moderation
+decisions or automatically punish users based on a black-box score. Moderators
+stay in control and every risk score is explained by visible reasons.
 
-## Human Setup Required
+## Privacy And Data
 
-Reddit's current Devvit app wizard requires account login and produces an app
-initialization code. To connect this local project to your Reddit app:
+Firewatch stores incident state for installed communities, including post IDs,
+comment IDs, public usernames, public comment excerpts, configured keywords,
+moderator actions taken through the app, and generated incident summaries. This
+data is used only to show moderation workflow state inside the app.
 
-1. Go to https://developers.reddit.com/new while logged into your Reddit account.
-2. Create an app named `firewatch` using the React or Devvit Web starter.
-3. Copy the initialization code shown by Reddit.
-4. Run `npx devvit init <code>` in this directory, or share the generated code
-   here. Do not use `--force`; this directory is already a Devvit app and the
-   init command should only attach it to your Reddit-created app.
+## Hackathon Positioning
 
-After that, run:
-
-```sh
-npm run login
-npm run dev
-```
-
-## MVP Scope
-
-- Subreddit menu: open the Firewatch incident board.
-- Subreddit menu: configure keywords, suspicious domains, and thresholds.
-- Post menu: manually escalate a thread into Firewatch.
-- Triggers: ingest comment creation, comment reports, and post reports.
-- Dashboard: score incidents, show reasons, claim ownership, cool down, lock,
-  remove flagged comments, resolve, and generate an after-action summary.
+Firewatch is built for the Reddit Mod Tools and Migrated Apps Hackathon in the
+New Mod Tool category. The goal is to reduce moderator load during fast-moving
+threads by compressing detection, context gathering, coordination, response,
+and reporting into one Devvit-native workflow.

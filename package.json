@@ -1,6 +1,6 @@
 {
   "private": true,
-  "name": "firewatch",
+  "name": "firewatch17",
   "version": "0.0.0",
   "license": "BSD-3-Clause",
   "type": "module",
@@ -8,6 +8,7 @@
     "build": "vite build",
     "deploy": "npm run type-check && npm run lint && devvit upload",
     "dev": "devvit playtest",
+    "dev:edge": "NODE_OPTIONS=--require=./scripts/reddit-network-patch.cjs devvit playtest",
     "launch": "npm run deploy && devvit publish",
     "lint": "eslint 'src/**/*.{ts,tsx}'",
     "login": "devvit login",
