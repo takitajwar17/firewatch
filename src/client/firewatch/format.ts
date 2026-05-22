@@ -6,7 +6,7 @@ import type {
 
 export const statusBadgeVariant: Record<
   string,
-  'secondary' | 'outline' | 'destructive'
+  'secondary' | 'outline' | 'destructive' | 'success'
 > = {
   open: 'outline',
   watching: 'outline',
@@ -14,8 +14,8 @@ export const statusBadgeVariant: Record<
   claimed: 'outline',
   cooldown: 'outline',
   locked: 'destructive',
-  handled: 'secondary',
-  resolved: 'secondary',
+  handled: 'success',
+  resolved: 'success',
 };
 
 export const levelBadgeVariant: Record<

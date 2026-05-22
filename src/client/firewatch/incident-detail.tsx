@@ -80,7 +80,7 @@ export const IncidentDetail = ({
 
       <SectionHeader
         title="What needs attention"
-        description="Start with comments waiting for a decision, then close out the post."
+        description="Reports, comments, users, and reply clusters for this post."
       />
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard
@@ -139,7 +139,7 @@ export const IncidentDetail = ({
           <SectionHeader
             className="xl:col-span-full"
             title="Post review"
-            description="Why Firewatch sent this post here, how attention changed, and who is still involved."
+            description="Signals, post tools, impact, and users still attached to review work."
           />
           <div className="flex flex-col gap-4">
             <RiskReasonsCard incident={incident} />
@@ -165,7 +165,7 @@ export const IncidentDetail = ({
           <SectionHeader
             className="xl:col-span-full"
             title="Comment review"
-            description="Approve acceptable comments, remove rule-breaking comments, or ban users."
+            description="Review flagged comments and use user actions when needed."
           />
           <FlaggedCommentsCard
             busyAction={busyAction}
@@ -182,7 +182,7 @@ export const IncidentDetail = ({
           <SectionHeader
             className="xl:col-span-full"
             title="Activity"
-            description="Reddit signals and mod actions in chronological order."
+            description="Signals and mod actions in time order."
           />
           <LatestSignalsCard incident={incident} />
           <ActionLogCard incident={incident} />
@@ -192,7 +192,7 @@ export const IncidentDetail = ({
           <SectionHeader
             className="xl:col-span-full"
             title="Mod notes"
-            description="Handoff and final notes for the mod team."
+            description="Handoff and final notes."
           />
           <SummariesCard incident={incident} />
           <ActionLogCard incident={incident} compact />

@@ -44,7 +44,7 @@ export const LatestSignalsCard = ({ incident }: { incident: Incident }) => {
                   {index > 0 ? <Separator /> : null}
                   <div className="flex items-start justify-between gap-3 py-3">
                     <div className="min-w-0">
-                      <p className="text-sm font-medium capitalize leading-5">
+                      <p className="text-sm font-semibold capitalize leading-5">
                         {formatSignalType(signal)}
                         {signal.author
                           ? ` - ${formatUsername(signal.author)}`
@@ -118,7 +118,7 @@ const SummaryBlock = ({ label, value }: { label: string; value: string }) => {
   };
 
   return (
-    <div className="rounded-lg border bg-muted/20 p-3">
+    <div className="rounded-md border bg-secondary p-3">
       <div className="flex items-center justify-between gap-3">
         <Badge variant="outline">{label}</Badge>
         <Button size="sm" variant="outline" onClick={onCopy}>
@@ -126,7 +126,7 @@ const SummaryBlock = ({ label, value }: { label: string; value: string }) => {
           {copied ? 'Copied' : 'Copy'}
         </Button>
       </div>
-      <pre className="mt-3 max-h-72 overflow-auto rounded-lg border bg-background p-3 text-xs leading-6 text-foreground">
+      <pre className="mt-3 max-h-72 overflow-auto rounded-md border bg-card p-3 text-xs leading-6 text-foreground">
         {value}
       </pre>
     </div>
@@ -158,7 +158,7 @@ export const ActionLogCard = ({
                 {index > 0 ? <Separator /> : null}
                 <div className="flex items-start justify-between gap-3 py-3">
                   <div className="min-w-0">
-                    <p className="text-sm font-medium leading-5">{action.detail}</p>
+                    <p className="text-sm font-semibold leading-5">{action.detail}</p>
                     <p className="mt-1 text-xs leading-5 text-muted-foreground">
                       {formatUsername(action.actor)}
                     </p>

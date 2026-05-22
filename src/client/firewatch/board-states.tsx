@@ -12,14 +12,14 @@ export const LoadingBoard = () => (
       <Skeleton className="h-5 w-96 max-w-full" />
     </div>
     <div className="grid gap-3 md:grid-cols-4">
-      <Skeleton className="h-24 rounded-lg" />
-      <Skeleton className="h-24 rounded-lg" />
-      <Skeleton className="h-24 rounded-lg" />
-      <Skeleton className="h-24 rounded-lg" />
+      <Skeleton className="h-20 rounded-md" />
+      <Skeleton className="h-20 rounded-md" />
+      <Skeleton className="h-20 rounded-md" />
+      <Skeleton className="h-20 rounded-md" />
     </div>
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-      <Skeleton className="h-[520px] rounded-lg" />
-      <Skeleton className="h-[520px] rounded-lg" />
+      <Skeleton className="h-[520px] rounded-md" />
+      <Skeleton className="h-[520px] rounded-md" />
     </div>
   </div>
 );
@@ -51,9 +51,9 @@ export const EmptyBoard = ({
   busy: boolean;
   onCreateDemo: DemoCreateHandler;
 }) => (
-  <div className="mx-auto flex w-full max-w-md flex-col gap-5 py-8">
+  <div className="mx-auto flex w-full max-w-md flex-col gap-4 py-8">
     <div className="flex flex-col gap-2.5">
-      <h1 className="text-2xl font-medium leading-tight sm:text-3xl">
+      <h1 className="text-xl font-semibold leading-tight">
         No posts need review
       </h1>
       <p className="text-sm leading-6 text-muted-foreground">
@@ -66,7 +66,7 @@ export const EmptyBoard = ({
       {FIREWATCH_DEMO_SCENARIOS.map((scenario) => (
         <Button
           key={scenario.id}
-          className="h-auto min-h-10 justify-start px-3 py-2 text-left text-sm font-medium"
+          className="h-auto min-h-9 justify-start px-3 py-2 text-left text-sm font-semibold"
           disabled={busy}
           variant="outline"
           onClick={() => onCreateDemo(scenario.id)}

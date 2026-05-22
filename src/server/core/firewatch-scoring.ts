@@ -405,6 +405,44 @@ const countActionTargets = (
     0
   );
 
+const COMMENT_REMOVAL_ACTION_TYPES = new Set<Incident['actions'][number]['type']>(
+  [
+    'cleanup',
+    'comment_removed',
+    'comment_spammed',
+    'comment_thread_removed',
+    'user_banned',
+    'user_content_removed',
+  ]
+);
+
+const REMOVAL_ACTION_TYPES = new Set<Incident['actions'][number]['type']>([
+  'cleanup',
+  'comment_removed',
+  'comment_spammed',
+  'comment_thread_removed',
+  'post_removed',
+  'post_spammed',
+  'user_banned',
+  'user_content_removed',
+]);
+
+const normalizeActionCommentTarget = (targetId: string) => {
+  if (targetId.startsWith('t3_')) return undefined;
+  return normalizeCommentId(targetId);
+};
+
+const actionCommentTargets = (action: Incident['actions'][number]) =>
+  (action.targetIds ?? [])
+    .map(normalizeActionCommentTarget)
+    .filter(
+      (targetId): targetId is ReturnType<typeof normalizeCommentId> =>
+        Boolean(targetId)
+    );
+
+const countRemovalTargets = (action: Incident['actions'][number]) =>
+  REMOVAL_ACTION_TYPES.has(action.type) ? (action.targetIds?.length ?? 1) : 0;
+
 const buildImpactSnapshot = ({
   activeFlaggedComments,
   flaggedComments,
@@ -432,15 +470,10 @@ const buildImpactSnapshot = ({
   const moderationActions = incident.actions.filter(
     (action) => action.type !== 'demo_seeded'
   );
-  const removals =
-    countActionTargets(incident.actions, 'post_removed') +
-    countActionTargets(incident.actions, 'post_spammed') +
-    countActionTargets(incident.actions, 'comment_removed') +
-    countActionTargets(incident.actions, 'comment_spammed') +
-    countActionTargets(incident.actions, 'comment_thread_removed') +
-    countActionTargets(incident.actions, 'cleanup') +
-    countActionTargets(incident.actions, 'user_content_removed') +
-    countActionTargets(incident.actions, 'user_banned');
+  const removals = incident.actions.reduce(
+    (total, action) => total + countRemovalTargets(action),
+    0
+  );
   const resolvedAt = incident.resolvedAt ?? now();
 
   return {
@@ -488,8 +521,8 @@ export const calculateIncident = (
         .filter((comment) => comment.removed)
         .map((comment) => comment.id),
       ...incident.actions.flatMap((action) =>
-        action.type === 'cleanup' || action.type === 'user_banned'
-          ? (action.targetIds ?? [])
+        COMMENT_REMOVAL_ACTION_TYPES.has(action.type)
+          ? actionCommentTargets(action)
           : []
       ),
       ...normalizedSignals
@@ -503,7 +536,7 @@ export const calculateIncident = (
         )
         .map((signal) => signal.commentId ?? ''),
     ]
-      .filter(Boolean)
+      .filter((commentId): commentId is string => Boolean(commentId))
       .map(normalizeCommentId)
   );
   const reviewedCommentIds = new Set<string>(
@@ -595,11 +628,7 @@ export const calculateIncident = (
   ).length;
   const removalsLastHour = incident.actions.reduce((total, action) => {
     if (action.createdAt < oneHourAgo) return total;
-    if (action.type === 'comment_removed') return total + 1;
-    if (action.type === 'cleanup' || action.type === 'user_banned') {
-      return total + (action.targetIds?.length ?? 1);
-    }
-    return total;
+    return total + countRemovalTargets(action);
   }, 0);
   const reasons: RiskReason[] = [];
   const velocityOverflow = Math.max(
@@ -825,11 +854,7 @@ export const calculateIncident = (
     removals:
       externalRemovalActions.length +
       incident.actions.reduce((total, action) => {
-        if (action.type === 'comment_removed') return total + 1;
-        if (action.type === 'cleanup' || action.type === 'user_banned') {
-          return total + (action.targetIds?.length ?? 1);
-        }
-        return total;
+        return total + countRemovalTargets(action);
       }, 0),
     flaggedCount: activeFlaggedComments.length,
     uniqueParticipants: usersInReview.size,

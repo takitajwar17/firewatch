@@ -44,7 +44,7 @@ export const CommunitySettingsPage = ({
   <div className="flex flex-col gap-5">
     <SectionHeader
       title="Settings"
-      description="Subreddit-wide Firewatch settings. These apply to every post in this community."
+      description="Subreddit-wide settings for watched terms, thresholds, and available mod actions."
     />
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
       <CommunityFiltersCard
@@ -151,7 +151,7 @@ const CommunityFiltersCard = ({
         >
           <div className="flex flex-col gap-5">
             <div className="flex flex-col gap-3">
-              <p className="text-sm font-medium leading-5">
+              <p className="text-sm font-semibold leading-5">
                 Attention thresholds
               </p>
               <p className="text-xs leading-5 text-muted-foreground">
@@ -181,7 +181,7 @@ const CommunityFiltersCard = ({
             </div>
 
             <div className="flex flex-col gap-3">
-              <p className="text-sm font-medium leading-5">Signal weights</p>
+              <p className="text-sm font-semibold leading-5">Signal weights</p>
               <p className="text-xs leading-5 text-muted-foreground">
                 Set a weight to 0 to ignore that signal. Higher weights make
                 Firewatch raise attention faster.
@@ -239,7 +239,7 @@ const CommunityFiltersCard = ({
         ) : null}
 
         <Button
-          className="h-10 w-fit text-sm font-medium"
+          className="h-8 w-fit text-sm font-semibold"
           disabled={busy || invalidThresholds}
           onClick={() =>
             onSave({
@@ -341,10 +341,9 @@ const ActionPermissionsControl = ({
   return (
     <div className="flex flex-col gap-3">
       <div>
-        <p className="text-sm font-medium leading-5">Allowed mod actions</p>
+        <p className="text-sm font-semibold leading-5">Allowed mod actions</p>
         <p className="mt-1 text-xs leading-5 text-muted-foreground">
-          Common Firewatch workflow actions stay visible. Less common Reddit
-          tools are still available behind contextual menus.
+          Choose which Reddit actions appear in post and comment review.
         </p>
       </div>
 
@@ -355,7 +354,7 @@ const ActionPermissionsControl = ({
       />
 
       <DisclosurePanel
-        description="Post, comment, and user tools used only when a mod opens More Reddit actions."
+        description="Post, comment, and user tools shown in contextual action menus."
         title="Advanced Reddit permissions"
       >
         <div className="grid gap-4">
@@ -399,7 +398,7 @@ const ActionToggleGroup = ({
 }) => (
   <div className="flex flex-col gap-2">
     {title ? (
-      <p className="text-xs font-medium leading-5 text-muted-foreground">
+      <p className="text-xs font-semibold leading-5 text-muted-foreground">
         {title}
       </p>
     ) : null}
@@ -407,15 +406,19 @@ const ActionToggleGroup = ({
       {fields.map((field) => (
         <label
           key={field.id}
-          className="flex min-h-11 items-center gap-2 rounded-lg border bg-background/70 px-3 py-2 text-sm font-medium"
+          className="group flex min-h-11 cursor-pointer items-center justify-between gap-3 rounded-md border bg-card px-3 py-2 text-sm font-semibold transition-colors hover:bg-accent"
         >
-          <input
-            checked={actionControls[field.id]}
-            className="size-4"
-            type="checkbox"
-            onChange={(event) => onChange(field.id, event.target.checked)}
-          />
-          {field.label}
+          <span className="min-w-0 truncate">{field.label}</span>
+          <span className="relative inline-flex h-6 w-10 shrink-0 items-center">
+            <input
+              checked={actionControls[field.id]}
+              className="peer sr-only"
+              type="checkbox"
+              onChange={(event) => onChange(field.id, event.target.checked)}
+            />
+            <span className="absolute inset-0 rounded-full bg-muted ring-1 ring-border transition-colors peer-checked:bg-primary peer-focus-visible:ring-2 peer-focus-visible:ring-ring/35" />
+            <span className="absolute left-0.5 size-5 rounded-full bg-card shadow-sm transition-transform peer-checked:translate-x-4" />
+          </span>
         </label>
       ))}
     </div>
@@ -433,7 +436,7 @@ const SettingsTextarea = ({
 }: ComponentProps<'textarea'>) => (
   <textarea
     className={cn(
-      'min-h-24 w-full resize-y rounded-lg border border-input bg-background/95 px-3 py-2 text-sm leading-6 outline-none transition-colors placeholder:text-muted-foreground/90 hover:border-border/80 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/15 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50',
+      'min-h-24 w-full resize-y rounded-md border border-input bg-card px-4 py-3 text-sm leading-6 outline-none transition-colors placeholder:text-muted-foreground hover:border-border focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/15 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-50',
       className
     )}
     {...props}
@@ -497,7 +500,7 @@ const CommunityToolsCard = ({
         <FieldBlock htmlFor="fw-demo-scenario" label="Demo scenario">
           <select
             id="fw-demo-scenario"
-            className="h-10 rounded-lg border border-input bg-background/95 px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/15"
+            className="h-9 rounded-full border border-input bg-secondary px-4 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/15"
             value={scenarioId}
             onChange={(event) => {
               const nextScenario = FIREWATCH_DEMO_SCENARIOS.find(
@@ -513,7 +516,7 @@ const CommunityToolsCard = ({
             ))}
           </select>
         </FieldBlock>
-        <p className="rounded-lg border bg-muted/25 p-3 text-sm leading-6 text-muted-foreground">
+        <p className="rounded-md border bg-secondary p-3 text-sm leading-5 text-muted-foreground">
           {selectedScenarioDescription}
         </p>
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">

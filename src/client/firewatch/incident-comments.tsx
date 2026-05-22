@@ -99,16 +99,16 @@ export const FlaggedCommentsCard = ({
                     controls.removeUserContent;
 
                   return (
-                    <div key={comment.id} className="rounded-lg border p-3">
+                    <div key={comment.id} className="rounded-md border p-3">
                       <div className="flex flex-col gap-3">
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
-                            <p className="text-sm font-medium leading-5">
+                            <p className="text-sm font-semibold leading-5">
                               {authorLabel}
                             </p>
                             <Badge variant="outline">attention {comment.score}</Badge>
                           </div>
-                          <p className="mt-2 line-clamp-3 text-sm leading-6 text-muted-foreground">
+                          <p className="mt-2 line-clamp-3 text-sm leading-5 text-muted-foreground">
                             {comment.body}
                           </p>
                           <div className="mt-2 flex flex-wrap gap-1.5">
@@ -178,7 +178,7 @@ export const FlaggedCommentsCard = ({
                             <Button
                               disabled={Boolean(busyAction) || !canBanAuthor}
                               size="sm"
-                              title="Remove this user's review comments, then ban them from the subreddit."
+                              title="Remove this user's recent subreddit content, then ban them from the subreddit."
                               variant="destructive"
                               onClick={() =>
                                 onAction(
@@ -406,7 +406,7 @@ export const FlaggedCommentsCard = ({
           <>
             <Separator />
             <div>
-              <h3 className="text-sm font-medium leading-5">Already actioned</h3>
+              <h3 className="text-sm font-semibold leading-5">Already actioned</h3>
               <p className="mt-1 text-xs leading-5 text-muted-foreground">
                 Reviewed comments stay here for the handoff note, but no longer
                 count as active review work.
@@ -417,14 +417,14 @@ export const FlaggedCommentsCard = ({
                 const permalink = comment.permalink;
 
                 return (
-                  <div key={comment.id} className="rounded-lg border bg-muted/25 p-3">
+                  <div key={comment.id} className="rounded-md border bg-secondary p-3">
                     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                       <div className="min-w-0">
-                        <p className="text-sm font-medium leading-5">
+                        <p className="text-sm font-semibold leading-5">
                           {formatUsername(comment.author)} -{' '}
                           {comment.removed ? 'removed' : 'approved'}
                         </p>
-                        <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted-foreground">
+                        <p className="mt-2 line-clamp-2 text-sm leading-5 text-muted-foreground">
                           {comment.body}
                         </p>
                         <div className="mt-2 flex flex-wrap gap-1.5">
@@ -494,7 +494,7 @@ const ActionGroup = ({
   label: string;
 }) => (
   <div className="flex flex-col gap-2">
-    <p className="text-xs font-medium leading-5 text-muted-foreground">
+    <p className="text-xs font-semibold leading-5 text-muted-foreground">
       {label}
     </p>
     <div className="flex flex-wrap gap-2">{children}</div>
@@ -515,8 +515,8 @@ export const RepeatedPhrasesCard = ({ incident }: { incident: Incident }) => (
       ) : (
         <div className="flex flex-col gap-3">
           {incident.repeatedPhrases.map((phrase) => (
-            <div key={phrase.phrase} className="rounded-lg border p-3">
-              <p className="text-sm font-medium leading-5">{phrase.phrase}</p>
+            <div key={phrase.phrase} className="rounded-md border p-3">
+              <p className="text-sm font-semibold leading-5">{phrase.phrase}</p>
               <p className="mt-1 text-xs leading-5 text-muted-foreground">
                 {phrase.count} matches
                 {phrase.authors.length

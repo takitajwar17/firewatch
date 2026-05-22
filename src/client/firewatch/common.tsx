@@ -16,7 +16,7 @@ export const PanelLabel = ({
 }) => (
   <p
     className={cn(
-      'text-xs font-medium leading-5',
+      'text-xs font-semibold leading-5 tracking-[0.08em]',
       surface === 'sidebar'
         ? 'text-sidebar-foreground/55'
         : 'text-muted-foreground'
@@ -39,13 +39,13 @@ export const SectionHeader = ({
 }) => (
   <div
     className={cn(
-      'flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between',
+      'flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between',
       className
     )}
   >
     <div className="min-w-0">
-      <h2 className="text-base font-medium leading-6 text-foreground">{title}</h2>
-      <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
+      <h2 className="text-sm font-semibold leading-5 text-foreground">{title}</h2>
+      <p className="mt-1 max-w-3xl text-xs leading-5 text-muted-foreground">
         {description}
       </p>
     </div>
@@ -56,7 +56,7 @@ export const SectionHeader = ({
 export const ScoreBadge = ({ incident }: { incident: Incident }) => (
   <Badge
     aria-label={`Current attention ${incident.score} out of 100`}
-    className="shrink-0 font-medium tabular-nums"
+    className="shrink-0 font-semibold tabular-nums"
     title={`Current attention ${incident.score}/100`}
     variant={levelBadgeVariant[incident.level]}
   >
@@ -65,7 +65,7 @@ export const ScoreBadge = ({ incident }: { incident: Incident }) => (
 );
 
 export const EmptyText = ({ children }: { children: ReactNode }) => (
-  <p className="text-sm leading-6 text-muted-foreground">{children}</p>
+  <p className="text-sm leading-5 text-muted-foreground">{children}</p>
 );
 
 export const DisclosurePanel = ({
@@ -80,12 +80,12 @@ export const DisclosurePanel = ({
   title: string;
 }) => (
   <details
-    className="group rounded-lg border bg-muted/20 open:bg-muted/25"
+    className="group rounded-md border bg-secondary open:bg-secondary"
     open={defaultOpen}
   >
-    <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 [&::-webkit-details-marker]:hidden">
+    <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 [&::-webkit-details-marker]:hidden">
       <span className="min-w-0">
-        <span className="block text-sm font-medium leading-5">{title}</span>
+        <span className="block text-sm font-semibold leading-5">{title}</span>
         {description ? (
           <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">
             {description}
@@ -111,7 +111,7 @@ export const FieldBlock = ({
 }) => (
   <div className="flex flex-col gap-2">
     <label
-      className="text-[13px] font-medium leading-none text-foreground/90"
+      className="text-[13px] font-semibold leading-none text-foreground/90"
       htmlFor={htmlFor}
     >
       {label}
@@ -131,7 +131,7 @@ export const PlaybookButton = ({
   label,
   loading,
   onClick,
-  variant = 'default',
+  variant = 'secondary',
 }: {
   disabled?: boolean;
   icon?: ReactNode;
@@ -141,7 +141,7 @@ export const PlaybookButton = ({
   variant?: 'default' | 'outline' | 'secondary' | 'destructive' | 'ghost';
 }) => (
   <Button
-    className="h-10 justify-center text-sm font-medium"
+    className="h-8 justify-center text-sm font-semibold"
     disabled={disabled}
     variant={variant}
     onClick={onClick}
@@ -162,14 +162,22 @@ export const MetricCard = ({
   label: string;
   value: string;
 }) => (
-  <Card size="sm">
-    <CardHeader className="gap-2">
-      <div className="flex items-center justify-between gap-3">
-        <CardDescription>{label}</CardDescription>
-        <span className="text-muted-foreground [&_svg]:size-4">{icon}</span>
+  <Card className="min-h-0" size="sm">
+    <CardHeader className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+      <div className="min-w-0">
+        <CardDescription className="text-xs font-semibold leading-4">
+          {label}
+        </CardDescription>
+        <p className="mt-1 line-clamp-2 text-xs leading-4 text-muted-foreground">
+          {description}
+        </p>
       </div>
-      <CardTitle className="text-2xl font-medium tabular-nums">{value}</CardTitle>
-      <p className="text-xs leading-5 text-muted-foreground">{description}</p>
+      <div className="flex items-center gap-2">
+        <span className="text-muted-foreground [&_svg]:size-4">{icon}</span>
+        <CardTitle className="text-xl font-semibold tabular-nums">
+          {value}
+        </CardTitle>
+      </div>
     </CardHeader>
   </Card>
 );

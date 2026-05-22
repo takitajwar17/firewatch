@@ -539,7 +539,8 @@ export const claimIncident = async (postId: string) => {
 
 export const coolDownIncident = async (postId: string) => {
   const normalizedPostId = normalizePostId(postId);
-  const config = await getConfig();
+  const incident = await getIncidentOrThrow(normalizedPostId);
+  const config = await getConfig(incident.subredditName);
   if (!config.actionControls.stickyReminder) {
     throw new Error('Sticky reminders are disabled in Firewatch settings');
   }
@@ -572,7 +573,8 @@ export const coolDownIncident = async (postId: string) => {
 
 export const lockIncident = async (postId: string) => {
   const normalizedPostId = normalizePostId(postId);
-  const config = await getConfig();
+  const incident = await getIncidentOrThrow(normalizedPostId);
+  const config = await getConfig(incident.subredditName);
   if (!config.actionControls.lockPost) {
     throw new Error('Post locking is disabled in Firewatch settings');
   }
@@ -584,6 +586,131 @@ export const lockIncident = async (postId: string) => {
     type: 'locked',
     actor,
     detail: 'Locked post',
+  });
+};
+
+const externalModActionType = ({
+  action,
+  targetKind,
+}: {
+  action: string;
+  targetKind: 'comment' | 'post';
+}): IncidentAction['type'] | undefined => {
+  if (targetKind === 'comment') {
+    switch (action) {
+      case 'approvecomment':
+        return 'comment_approved';
+      case 'removecomment':
+        return 'comment_removed';
+      case 'spamcomment':
+        return 'comment_spammed';
+      case 'lock':
+        return 'comment_locked';
+      case 'unlock':
+        return 'comment_unlocked';
+      case 'ignorereports':
+        return 'comment_reports_ignored';
+      case 'unignorereports':
+        return 'comment_reports_unignored';
+      case 'showcomment':
+        return 'comment_shown';
+      default:
+        return undefined;
+    }
+  }
+
+  switch (action) {
+    case 'approvelink':
+      return 'post_approved';
+    case 'removelink':
+      return 'post_removed';
+    case 'spamlink':
+      return 'post_spammed';
+    case 'lock':
+      return 'locked';
+    case 'unlock':
+      return 'post_unlocked';
+    case 'marknsfw':
+    case 'unmarknsfw':
+      return 'post_nsfw';
+    case 'spoiler':
+    case 'unspoiler':
+      return 'post_spoiler';
+    case 'ignorereports':
+      return 'post_reports_ignored';
+    case 'unignorereports':
+      return 'post_reports_unignored';
+    case 'adjust_post_crowd_control_level':
+      return 'post_crowd_control';
+    default:
+      return undefined;
+  }
+};
+
+const externalModActionDetail = ({
+  action,
+  moderatorName,
+  targetKind,
+}: {
+  action: string;
+  moderatorName?: string;
+  targetKind: 'comment' | 'post';
+}) => {
+  const actor = moderatorName ? formatUserHandle(moderatorName) : 'a mod';
+  const target = targetKind === 'comment' ? 'comment' : 'post';
+  const labels: Record<string, string> = {
+    adjust_post_crowd_control_level: `Adjusted Crowd Control on ${target}`,
+    approvecomment: 'Approved comment',
+    approvelink: 'Approved post',
+    ignorereports: `Ignored reports on ${target}`,
+    lock: `Locked ${target}`,
+    marknsfw: 'Marked post NSFW',
+    removecomment: 'Removed comment',
+    removelink: 'Removed post',
+    showcomment: 'Marked comment as shown',
+    spamcomment: 'Removed comment as spam',
+    spamlink: 'Removed post as spam',
+    spoiler: 'Marked post spoiler',
+    unignorereports: `Stopped ignoring reports on ${target}`,
+    unlock: `Unlocked ${target}`,
+    unmarknsfw: 'Removed NSFW tag',
+    unspoiler: 'Removed spoiler tag',
+  };
+
+  return `${labels[action] ?? `Recorded ${action}`} outside Firewatch by ${actor}`;
+};
+
+export const recordExternalModAction = async ({
+  action,
+  moderatorName,
+  postId,
+  targetCommentId,
+  targetPostId,
+}: {
+  action: string;
+  moderatorName?: string;
+  postId: string;
+  targetCommentId?: string;
+  targetPostId?: string;
+}) => {
+  const targetKind = targetCommentId ? 'comment' : 'post';
+  const type = externalModActionType({ action, targetKind });
+  if (!type) return undefined;
+
+  const normalizedPostId = normalizePostId(postId);
+  const incident = await getIncident(normalizedPostId);
+  if (!incident) return undefined;
+
+  const targetIds =
+    targetKind === 'comment'
+      ? [normalizeCommentId(targetCommentId ?? '')]
+      : [normalizePostId(targetPostId ?? normalizedPostId)];
+
+  return appendAction(normalizedPostId, {
+    type,
+    actor: moderatorName ?? 'mod',
+    detail: externalModActionDetail({ action, moderatorName, targetKind }),
+    targetIds,
   });
 };
 
@@ -697,6 +824,7 @@ export const removeFlaggedComment = async (
     detail: removedOnReddit
       ? `Removed comment ${normalizedCommentId}${reason ? `: ${reason}` : ''}`
       : `Marked demo comment ${normalizedCommentId} removed`,
+    targetIds: [normalizedCommentId],
   });
   const nextIncident: Incident = {
     ...incident,
@@ -748,14 +876,13 @@ export const banUserAndRemoveComments = async (
     throw new Error(`No unreviewed comments from u/${normalizedUsername}`);
   }
   const actionReason =
-    reason?.trim() || `Banned u/${normalizedUsername} from r/${context.subredditName}`;
-  const removalResults = await Promise.all(
-    targetIds.map((commentId) =>
-      removeCommentIfReal(sourceIncident, commentId, actionReason)
-    )
+    reason?.trim() ||
+    `Banned u/${normalizedUsername} from r/${sourceIncident.subredditName}`;
+  const removedContentIds = await removeRecentUserContent(
+    sourceIncident,
+    normalizedUsername,
+    actionReason
   );
-  const redditRemovalCount = removalResults.filter(Boolean).length;
-  const demoRemovalCount = targetIds.length - redditRemovalCount;
   const demoOnly = targetComments.every((comment) =>
     isDemoComment(sourceIncident, comment.id)
   );
@@ -766,36 +893,31 @@ export const banUserAndRemoveComments = async (
       duration: 0,
       note: actionReason,
       reason: 'Firewatch moderation',
-      subredditName: context.subredditName,
+      subredditName: sourceIncident.subredditName,
       username: normalizedUsername,
     });
   }
 
   const actor = await actorName();
-  const removalDetail =
-    demoRemovalCount === 0
-      ? `Removed ${targetIds.length} comment${targetIds.length === 1 ? '' : 's'}`
-      : redditRemovalCount === 0
-        ? `Marked ${demoRemovalCount} demo comment${
-            demoRemovalCount === 1 ? '' : 's'
-          } removed`
-        : `Removed ${redditRemovalCount} comment${
-            redditRemovalCount === 1 ? '' : 's'
-          } and marked ${demoRemovalCount} demo comment${
-            demoRemovalCount === 1 ? '' : 's'
-          } removed`;
+  const removalDetail = demoOnly
+    ? `Marked ${removedContentIds.length} demo comment${
+        removedContentIds.length === 1 ? '' : 's'
+      } removed`
+    : `Removed ${removedContentIds.length} recent subreddit item${
+        removedContentIds.length === 1 ? '' : 's'
+      }`;
   const incident = await appendAction(normalizedPostId, {
     type: 'user_banned',
     actor,
     detail: demoOnly
       ? `${removalDetail}; recorded demo ban for u/${normalizedUsername}`
       : `${removalDetail}; banned u/${normalizedUsername}`,
-    targetIds,
+    targetIds: removedContentIds,
   });
   const nextIncident: Incident = {
     ...incident,
     flaggedComments: incident.flaggedComments.map((flaggedComment) =>
-      targetIds.includes(flaggedComment.id)
+      removedContentIds.includes(flaggedComment.id)
         ? { ...flaggedComment, removed: true, reviewed: false }
         : flaggedComment
     ),
@@ -1266,7 +1388,7 @@ const removeRecentUserContent = async (
       username,
       sort: 'new',
       timeframe: 'all',
-      limit: 100,
+      limit: 1000,
       pageSize: 100,
     })
     .all();
@@ -1276,7 +1398,18 @@ const removeRecentUserContent = async (
 
   for (const item of subredditItems) {
     if (removedIds.has(item.id)) continue;
+    if (item.isRemoved()) {
+      removedIds.add(item.id);
+      continue;
+    }
     await item.remove(false);
+    const modNote = trimRemovalNote(reason);
+    if (modNote) {
+      await item.addRemovalNote({
+        reasonId: '',
+        modNote,
+      });
+    }
     removedIds.add(item.id);
   }
 

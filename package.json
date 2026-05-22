@@ -21,7 +21,6 @@
   "dependencies": {
     "@devvit/start": "0.12.24",
     "@devvit/web": "0.12.24",
-    "@fontsource-variable/manrope": "^5.2.8",
     "@hono/node-server": "2.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
