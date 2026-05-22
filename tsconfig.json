@@ -1,4 +1,10 @@
 {
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/client/*"]
+    }
+  },
   "files": [],
   "references": [
     { "path": "./tools/tsconfig.client.json" },

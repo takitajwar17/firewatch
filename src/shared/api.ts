@@ -1,13 +1,14 @@
 export type IncidentLevel = 'watch' | 'heat' | 'fire' | 'wildfire';
 
-export type IncidentStatus = 'active' | 'resolved';
+export type IncidentStatus = 'active' | 'monitoring' | 'resolved';
 
 export type SignalType =
   | 'comment_create'
   | 'comment_report'
   | 'post_report'
   | 'manual_escalation'
-  | 'mod_action';
+  | 'mod_action'
+  | 'demo_seed';
 
 export type FirewatchConfig = {
   keywords: string[];
@@ -22,6 +23,7 @@ export type RiskReason = {
   label: string;
   detail: string;
   points: number;
+  evidence?: string[];
 };
 
 export type FlaggedComment = {
@@ -37,10 +39,21 @@ export type FlaggedComment = {
 
 export type IncidentAction = {
   id: string;
-  type: 'claimed' | 'cool_down' | 'comment_removed' | 'locked' | 'resolved';
+  type:
+    | 'claimed'
+    | 'cool_down'
+    | 'cleanup'
+    | 'comment_removed'
+    | 'locked'
+    | 'lockdown'
+    | 'escalated'
+    | 'resolved'
+    | 'demo_seeded';
   actor: string;
   createdAt: number;
   detail: string;
+  targetIds?: string[];
+  summary?: string;
 };
 
 export type IncidentSignal = {
@@ -54,6 +67,52 @@ export type IncidentSignal = {
   parentId?: string;
   reason?: string;
   permalink?: string;
+  isDemo?: boolean;
+  metadata?: Record<string, string | number | boolean | undefined>;
+};
+
+export type IncidentParticipant = {
+  username: string;
+  signals: number;
+  flagged: number;
+  lastSeenAt: number;
+  branchCount: number;
+};
+
+export type RepeatedPhrase = {
+  phrase: string;
+  count: number;
+  authors: string[];
+};
+
+export type IncidentStats = {
+  signalCount: number;
+  commentSignals: number;
+  reportSignals: number;
+  manualEscalations: number;
+  keywordHits: number;
+  suspiciousLinkHits: number;
+  branchPileOns: number;
+  repeatedPhraseHits: number;
+  removals: number;
+  flaggedCount: number;
+  uniqueParticipants: number;
+  commentsLastHour: number;
+};
+
+export type IncidentTrendPoint = {
+  timestamp: number;
+  score: number;
+  commentSignals: number;
+  reportSignals: number;
+  keywordHits: number;
+};
+
+export type ResponseSuggestion = {
+  label: string;
+  detail: string;
+  level: IncidentLevel;
+  steps: string[];
 };
 
 export type Incident = {
@@ -63,9 +122,12 @@ export type Incident = {
   permalink?: string;
   score: number;
   level: IncidentLevel;
+  peakScore: number;
+  peakLevel: IncidentLevel;
   status: IncidentStatus;
   createdAt: number;
   updatedAt: number;
+  resolvedAt?: number;
   claim?: {
     username: string;
     claimedAt: number;
@@ -73,8 +135,18 @@ export type Incident = {
   reasons: RiskReason[];
   flaggedComments: FlaggedComment[];
   recentSignals: IncidentSignal[];
+  involvedUsers: IncidentParticipant[];
+  repeatedPhrases: RepeatedPhrase[];
+  stats: IncidentStats;
+  trend: IncidentTrendPoint[];
+  responseSuggestion: ResponseSuggestion;
   actions: IncidentAction[];
   summary?: string;
+  escalationSummary?: string;
+  demo?: {
+    scenario: string;
+    seededAt: number;
+  };
 };
 
 export type DashboardInitResponse = {

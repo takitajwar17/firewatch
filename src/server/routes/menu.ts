@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { MenuItemRequest, UiResponse } from '@devvit/web/shared';
 import {
+  createDemoIncident,
   createFirewatchPost,
   getConfigFormDefaults,
   upsertIncidentSignal,
@@ -50,6 +51,28 @@ menu.post('/escalate-post', async (c) => {
     return c.json<UiResponse>(
       {
         showToast: 'Failed to escalate this post',
+      },
+      400
+    );
+  }
+});
+
+menu.post('/create-demo-incident', async (c) => {
+  try {
+    const incident = await createDemoIncident();
+    const post = await createFirewatchPost({ incidentPostId: incident.postId });
+
+    return c.json<UiResponse>(
+      {
+        navigateTo: post,
+      },
+      200
+    );
+  } catch (error) {
+    console.error(`Error creating Firewatch demo incident: ${error}`);
+    return c.json<UiResponse>(
+      {
+        showToast: 'Failed to create Firewatch demo incident',
       },
       400
     );

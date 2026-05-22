@@ -34,6 +34,13 @@
         "endpoint": "/internal/menu/configure"
       },
       {
+        "label": "Create Firewatch demo incident",
+        "description": "Seed a realistic incident through the same signal pipeline used in production.",
+        "location": "subreddit",
+        "forUserType": "moderator",
+        "endpoint": "/internal/menu/create-demo-incident"
+      },
+      {
         "label": "Escalate to Firewatch",
         "description": "Create or open an incident panel for this post.",
         "location": "post",

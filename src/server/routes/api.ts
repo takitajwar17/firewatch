@@ -8,11 +8,15 @@ import type {
 } from '../../shared/api';
 import {
   claimIncident,
+  cleanUpIncident,
   coolDownIncident,
+  createDemoIncident,
+  escalateIncident,
   getConfig,
   getIncidentById,
   getIncidents,
   lockIncident,
+  lockdownIncident,
   removeFlaggedComment,
   resolveIncident,
 } from '../core/firewatch';
@@ -76,6 +80,23 @@ api.post('/incidents/:postId/cool-down', async (c) => {
   }
 });
 
+api.post('/incidents/:postId/cleanup', async (c) => {
+  try {
+    const body = await c.req.json<{
+      commentIds?: string[];
+      reason?: string;
+    }>();
+    const incident = await cleanUpIncident(
+      c.req.param('postId'),
+      body.commentIds ?? [],
+      body.reason
+    );
+    return c.json<ActionResponse>({ type: 'action', incident });
+  } catch (error) {
+    return incidentActionError(c, error);
+  }
+});
+
 api.post('/incidents/:postId/lock', async (c) => {
   try {
     const incident = await lockIncident(c.req.param('postId'));
@@ -85,9 +106,36 @@ api.post('/incidents/:postId/lock', async (c) => {
   }
 });
 
+api.post('/incidents/:postId/lockdown', async (c) => {
+  try {
+    const incident = await lockdownIncident(c.req.param('postId'));
+    return c.json<ActionResponse>({ type: 'action', incident });
+  } catch (error) {
+    return incidentActionError(c, error);
+  }
+});
+
+api.post('/incidents/:postId/escalate', async (c) => {
+  try {
+    const incident = await escalateIncident(c.req.param('postId'));
+    return c.json<ActionResponse>({ type: 'action', incident });
+  } catch (error) {
+    return incidentActionError(c, error);
+  }
+});
+
 api.post('/incidents/:postId/resolve', async (c) => {
   try {
     const incident = await resolveIncident(c.req.param('postId'));
+    return c.json<ActionResponse>({ type: 'action', incident });
+  } catch (error) {
+    return incidentActionError(c, error);
+  }
+});
+
+api.post('/demo/incident', async (c) => {
+  try {
+    const incident = await createDemoIncident();
     return c.json<ActionResponse>({ type: 'action', incident });
   } catch (error) {
     return incidentActionError(c, error);

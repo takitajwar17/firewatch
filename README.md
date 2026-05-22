@@ -9,24 +9,31 @@ an after-action summary.
 
 - Scores active threads using deterministic, explainable signals.
 - Tracks comment velocity, report activity, configured keywords, suspicious
-  domains, clustered reply branches, and manual moderator escalation.
+  domains, repeated phrases, clustered reply branches, removal clusters, and
+  manual moderator escalation.
 - Shows a live incident panel with the current risk score, top reasons, flagged
-  comments, recent signals, and action history.
+  comments, repeated phrases, involved users, newest signals, response
+  suggestion, risk trend, and action history.
 - Lets one moderator claim an incident so the rest of the team can see who is
   handling it.
-- Provides response actions for posting a cooldown reminder, locking a thread,
-  removing flagged comments, and resolving the incident.
-- Generates a concise after-action summary for mod handoff and review.
+- Provides response playbooks for cooldown, selected-comment cleanup, lockdown,
+  escalation handoff, and resolution.
+- Generates escalation summaries and after-action reports for mod handoff and
+  review.
+- Includes a demo incident seeder that creates a real source post and populates
+  incident state through the same signal pipeline as production events.
 
 ## Moderator Workflow
 
 1. Open the subreddit menu and choose **Open Firewatch board**.
 2. Use **Configure Firewatch** to tune heated keywords, suspicious domains, and
    score thresholds for the community.
-3. On any post, choose **Escalate to Firewatch** to create an incident manually.
-4. Review the score and reasons, claim the incident, and choose an appropriate
+3. Use **Create Firewatch demo incident** or the dashboard demo button to seed a
+   realistic test incident.
+4. On any post, choose **Escalate to Firewatch** to create an incident manually.
+5. Review the score and reasons, claim the incident, and choose an appropriate
    response.
-5. Resolve the incident to create an after-action summary.
+6. Resolve the incident to create an after-action summary.
 
 ## Signals
 
