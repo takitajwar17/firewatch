@@ -30,7 +30,7 @@ export const LatestSignalsCard = ({ incident }: { incident: Incident }) => {
       <CardHeader>
         <CardTitle>Recent activity</CardTitle>
         <CardDescription>
-          Reports, user comments, post edits, and mod sends.
+          Reports, user comments, post edits, and posts sent to Firewatch.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -78,7 +78,7 @@ export const SummariesCard = ({ incident }: { incident: Incident }) => (
           : incident.summary
             ? 'Final note saved. Copy it if this incident reopens.'
             : incident.escalationSummary
-              ? 'Handoff saved. Mark handled after the review queue is clear.'
+              ? 'Handoff saved. Mark handled after comment review is clear.'
               : 'Handoff and final notes generated from this post.'}
       </CardDescription>
     </CardHeader>
@@ -95,7 +95,7 @@ export const SummariesCard = ({ incident }: { incident: Incident }) => (
       ) : (
         <EmptyText>
           Save a handoff note for the mod team. Mark handled to save a final
-          note after the review queue is clear.
+          note after comment review is clear.
         </EmptyText>
       )}
     </CardContent>

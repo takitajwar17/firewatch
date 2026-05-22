@@ -19,7 +19,7 @@ Firewatch
 Description:
 
 ```text
-Incident command for Reddit mods: detect escalating posts, review explainable signals, coordinate ownership, approve or remove comments, ban users, lock posts, and save handoff notes.
+Incident command for Reddit mods: detect escalating posts, review explainable signals, measure cleanup impact, coordinate ownership, approve/remove comments, ban users, lock posts, and save handoff notes.
 ```
 
 Terms and privacy:
@@ -62,17 +62,25 @@ Capabilities:
 - Shows current attention, peak score, queue reasons, comment review items,
   users in review, repeated wording, recent activity, trend, suggested action,
   and mod log.
+- Shows a moderator impact snapshot: reports grouped, comments reviewed,
+  comments still waiting, users handled, mod actions taken, time open, and peak
+  attention.
 - Lets a mod take a post so teammates can see ownership.
 - Lets mods approve acceptable comments, remove rule-breaking comments with a
   Reddit removal note, ban a user after removing their queued comments, add a
   sticky reminder, lock the post, save a handoff note, and mark the post
   handled.
+- Includes a combined filter set for heated discussions, scam cleanup,
+  support-safety issues, and sensitive-topic review. Mods can tune watched
+  words, watched domains, and thresholds for their community.
 - Keeps actions manual and auditable. Firewatch does not automatically remove,
   lock, ban, or mark handled based only on a score.
 - Deletes stored post/comment content when Reddit delete triggers arrive and
   expires incident records after 30 days.
-- Includes a demo incident generator that creates a real source post and feeds
-  the same signal pipeline used by production events.
+- Includes selectable demo drills for heated threads, scam-link cleanup, and
+  support-safety cleanup. Each drill creates a real source post and feeds the
+  same signal pipeline used by production events. Demo incidents can be reset
+  from the dashboard.
 
 ## Project Impact
 
@@ -92,6 +100,8 @@ Moderator benefit:
 
 - Saves time by grouping post-level signals into one incident instead of making
   mods inspect reports, comments, mod log events, and context separately.
+- Makes that saved work visible through an impact snapshot that counts grouped
+  reports, reviewed comments, handled users, mod actions, and time open.
 - Reduces duplicated work by showing who has taken a post.
 - Improves consistency by turning comments into clear decisions: approve,
   remove, or ban after cleanup.
@@ -113,4 +123,3 @@ Useful feedback to submit for the optional prize:
   requirements.
 - More Devvit Web examples for moderator workflows would help: comment
   approval/removal, ban flows, claim locks, and deletion cleanup.
-

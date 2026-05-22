@@ -1,4 +1,8 @@
-import type { DashboardInitResponse, Incident } from '../../shared/api';
+import type {
+  DashboardInitResponse,
+  FirewatchDemoScenarioId,
+  Incident,
+} from '../../shared/api';
 
 export type LoadState =
   | { status: 'loading' }
@@ -20,6 +24,12 @@ export type ConfigFormValues = {
 };
 
 export type ConfigSaveHandler = (values: ConfigFormValues) => Promise<void>;
+
+export type FirewatchView = 'queue' | 'settings';
+
+export type DemoCreateHandler = (
+  scenarioId?: FirewatchDemoScenarioId
+) => void;
 
 export type Notice = {
   type: 'success' | 'error';

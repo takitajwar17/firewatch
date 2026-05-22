@@ -1,5 +1,6 @@
 import { navigateTo } from '@devvit/web/client';
 import { ExternalLink, RefreshCw } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -41,7 +42,7 @@ export const FlaggedCommentsCard = ({
       <CardHeader>
         <CardTitle>Needs review</CardTitle>
         <CardDescription>
-          Comments that match reports, watched words, or watched domains.
+          Comments that matched reports, watched words, or watched domains.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
@@ -50,7 +51,7 @@ export const FlaggedCommentsCard = ({
         ) : (
           <>
             <FieldBlock
-              description="Used when removing comments or banning a user."
+              description="Applied to Remove and Remove + ban."
               htmlFor="fw-cleanup-reason"
               label="Removal and ban reason"
             >
@@ -68,21 +69,29 @@ export const FlaggedCommentsCard = ({
                   const permalink = comment.permalink;
                   const canBanAuthor = authorLabel !== 'unknown user';
                   const approveAction = `approve:${comment.id}`;
+                  const removeAction = `remove:${comment.id}`;
                   const banAction = `ban:${comment.author}`;
 
                   return (
                     <div key={comment.id} className="rounded-lg border p-3">
                       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium leading-5">
-                            {authorLabel} - attention {comment.score}
-                          </p>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-sm font-medium leading-5">
+                              {authorLabel}
+                            </p>
+                            <Badge variant="outline">attention {comment.score}</Badge>
+                          </div>
                           <p className="mt-2 line-clamp-3 text-sm leading-6 text-muted-foreground">
                             {comment.body}
                           </p>
-                          <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                            {comment.reasons.join(', ')}
-                          </p>
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {comment.reasons.map((reason) => (
+                              <Badge key={reason} variant="secondary">
+                                {reason}
+                              </Badge>
+                            ))}
+                          </div>
                         </div>
 
                         <div className="flex shrink-0 flex-wrap gap-2">
@@ -121,23 +130,24 @@ export const FlaggedCommentsCard = ({
                             variant="outline"
                             onClick={() =>
                               onAction(
-                                comment.id,
+                                removeAction,
                                 `/api/incidents/${incident.postId}/comments/${comment.id}/remove`,
                                 { reason: cleanupReason }
                               )
                             }
                           >
-                            {busyAction === comment.id ? (
+                            {busyAction === removeAction ? (
                               <RefreshCw
                                 className="animate-spin"
                                 data-icon="inline-start"
                               />
                             ) : null}
-                            {busyAction === comment.id ? 'Working' : 'Remove'}
+                            {busyAction === removeAction ? 'Working' : 'Remove'}
                           </Button>
                           <Button
                             disabled={Boolean(busyAction) || !canBanAuthor}
                             size="sm"
+                            title="Remove this user's review comments, then ban them from the subreddit."
                             variant="destructive"
                             onClick={() =>
                               onAction(
@@ -153,7 +163,7 @@ export const FlaggedCommentsCard = ({
                                 data-icon="inline-start"
                               />
                             ) : null}
-                            {busyAction === banAction ? 'Working' : 'Ban user'}
+                            {busyAction === banAction ? 'Working' : 'Remove + ban'}
                           </Button>
                         </div>
                       </div>
@@ -190,9 +200,13 @@ export const FlaggedCommentsCard = ({
                         <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted-foreground">
                           {comment.body}
                         </p>
-                        <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                          {comment.reasons.join(', ')}
-                        </p>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {comment.reasons.map((reason) => (
+                            <Badge key={reason} variant="secondary">
+                              {reason}
+                            </Badge>
+                          ))}
+                        </div>
                       </div>
                       {permalink ? (
                         <Button

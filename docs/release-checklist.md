@@ -8,7 +8,10 @@
 - `npm run dev:edge`
 - Open the playtest URL and verify:
   - queue loads
-  - demo post can be created
+  - each demo drill can be created
+  - demo incidents can be reset from the dashboard
+  - combined filter settings save and update
+  - moderator impact numbers update after actions
   - comment approve works
   - comment remove works
   - user ban removes queued comments first
@@ -38,8 +41,11 @@
 - Demo video: use `docs/demo-script.md`
 - Screenshots:
   - Overview
+  - Moderator impact
   - Comments
+  - Activity
   - Mod notes
+  - Settings page
   - App listing/install page
 
 ## Final Sanity Checks
@@ -49,4 +55,3 @@
 - No hidden demo-only behavior in the core workflow.
 - No app-generated comments included in user repeated wording.
 - No `Handled` status while comments still need review.
-

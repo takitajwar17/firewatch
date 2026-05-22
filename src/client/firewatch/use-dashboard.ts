@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type {
   ConfigResponse,
   DashboardInitResponse,
+  DemoResetResponse,
+  FirewatchDemoScenarioId,
   Incident,
 } from '../../shared/api';
 import { actionLabel, actionSuccessMessage, emptyConfig, readErrorMessage } from './format';
@@ -28,8 +30,10 @@ export const useDashboard = () => {
 
   const applyDashboard = useCallback((data: DashboardInitResponse) => {
     setLoadState({ status: 'ready', data });
-    setSelectedPostId(
-      (current) => current ?? data.selectedPostId ?? data.incidents[0]?.postId
+    setSelectedPostId((current) =>
+      current && data.incidents.some((incident) => incident.postId === current)
+        ? current
+        : data.selectedPostId ?? data.incidents[0]?.postId
     );
   }, []);
 
@@ -155,7 +159,43 @@ export const useDashboard = () => {
     }
   };
 
-  const createDemoIncident = () => runAction('demo', '/api/demo/incident');
+  const createDemoIncident = (scenarioId?: FirewatchDemoScenarioId) =>
+    runAction(
+      'demo',
+      '/api/demo/incident',
+      scenarioId ? { scenarioId } : undefined
+    );
+
+  const resetDemoIncidents = async () => {
+    setBusyAction('reset-demo');
+    setNotice(undefined);
+    try {
+      const res = await fetch('/api/demo/reset', {
+        method: 'POST',
+      });
+      if (!res.ok) throw new Error(await readErrorMessage(res));
+
+      const payload: DemoResetResponse = await res.json();
+      applyDashboard(payload);
+      setNotice({
+        type: 'success',
+        message:
+          payload.resetCount === 1
+            ? 'Demo incident cleared.'
+            : `${payload.resetCount} demo incidents cleared.`,
+      });
+    } catch (error) {
+      setNotice({
+        type: 'error',
+        message:
+          error instanceof Error
+            ? `Could not reset demos: ${error.message}`
+            : 'Could not reset demos.',
+      });
+    } finally {
+      setBusyAction(undefined);
+    }
+  };
 
   const saveDashboardConfig = async (values: ConfigFormValues) => {
     setBusyAction('config');
@@ -201,6 +241,7 @@ export const useDashboard = () => {
     loadState,
     notice,
     refresh,
+    resetDemoIncidents,
     runAction,
     saveDashboardConfig,
     selectedIncident,

@@ -1,63 +1,78 @@
 import type { ReactNode } from 'react';
-import { AlertTriangle, CheckCircle2, Flame, RefreshCw, Sparkles } from 'lucide-react';
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Flame,
+  RefreshCw,
+  SlidersHorizontal,
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import type { Incident } from '../../shared/api';
 import { PanelLabel, ScoreBadge } from './common';
-import { formatStatus, formatTime, formatUsername, pluralize } from './format';
-import type { Notice } from './types';
+import {
+  formatStatus,
+  formatTime,
+  formatUsername,
+  pluralize,
+} from './format';
+import type { FirewatchView, Notice } from './types';
 
 export const FirewatchShell = ({
-  busyAction,
+  activeView,
   children,
   incidents,
   notice,
   selectedPostId,
   subredditName,
   username,
-  onCreateDemo,
   onRefresh,
   onSelectIncident,
+  onViewChange,
 }: {
-  busyAction: string | undefined;
+  activeView: FirewatchView;
   children: ReactNode;
   incidents: Incident[];
   notice: Notice | undefined;
   selectedPostId: string | undefined;
   subredditName: string;
   username: string;
-  onCreateDemo: () => void;
   onRefresh: () => void;
   onSelectIncident: (postId: string) => void;
+  onViewChange: (view: FirewatchView) => void;
 }) => (
   <div className="h-dvh overflow-hidden bg-background font-sans text-foreground">
     {notice ? <NoticeToast notice={notice} /> : null}
     <div className="flex h-full w-full overflow-hidden">
       <CommandPanel
+        activeView={activeView}
         incidents={incidents}
         selectedPostId={selectedPostId}
         subredditName={subredditName}
         username={username}
         onSelectIncident={onSelectIncident}
+        onViewChange={onViewChange}
       />
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <WorkspaceHeader
-          busyAction={busyAction}
+          activeView={activeView}
           incidentCount={incidents.length}
-          onCreateDemo={onCreateDemo}
           onRefresh={onRefresh}
+          onViewChange={onViewChange}
           subredditName={subredditName}
         />
         <main className="flex min-h-0 flex-1 justify-center overflow-y-auto overscroll-contain px-4 py-6 sm:px-8 lg:px-10">
           <div className="flex w-full max-w-7xl flex-col gap-4">
-            <MobileIncidentStrip
-              incidents={incidents}
-              selectedPostId={selectedPostId}
-              onSelectIncident={onSelectIncident}
-            />
+            {activeView === 'queue' ? (
+              <MobileIncidentStrip
+                incidents={incidents}
+                selectedPostId={selectedPostId}
+                onSelectIncident={onSelectIncident}
+              />
+            ) : null}
             {children}
           </div>
         </main>
@@ -67,17 +82,21 @@ export const FirewatchShell = ({
 );
 
 const CommandPanel = ({
+  activeView,
   incidents,
   selectedPostId,
   subredditName,
   username,
   onSelectIncident,
+  onViewChange,
 }: {
+  activeView: FirewatchView;
   incidents: Incident[];
   selectedPostId: string | undefined;
   subredditName: string;
   username: string;
   onSelectIncident: (postId: string) => void;
+  onViewChange: (view: FirewatchView) => void;
 }) => (
   <aside className="relative hidden h-full w-[360px] shrink-0 flex-col overflow-hidden border-r border-sidebar-border bg-sidebar p-8 text-sidebar-foreground lg:flex">
     <div className="flex min-h-0 flex-1 flex-col gap-6">
@@ -88,7 +107,7 @@ const CommandPanel = ({
         <div className="min-w-0">
           <p className="text-lg font-medium leading-tight">Firewatch</p>
           <p className="truncate text-sm leading-6 text-sidebar-foreground/65">
-            r/{subredditName || 'subreddit'} mod queue
+            r/{subredditName || 'subreddit'} review board
           </p>
         </div>
       </div>
@@ -97,8 +116,8 @@ const CommandPanel = ({
         <PanelLabel surface="sidebar">Posts to review</PanelLabel>
         {incidents.length === 0 ? (
           <p className="rounded-lg border border-sidebar-border/70 bg-sidebar-accent/35 p-3 text-sm leading-6 text-sidebar-foreground/70">
-            No posts need mod review. Create a demo post or use the post menu
-            to send a post here.
+            No posts need mod review. Open Settings for demo tools or use the
+            post menu to send a post here.
           </p>
         ) : (
           <ScrollArea className="min-h-0 flex-1 pr-3">
@@ -117,8 +136,54 @@ const CommandPanel = ({
         )}
       </div>
     </div>
+    <SidebarSettingsNav activeView={activeView} onViewChange={onViewChange} />
     <SidebarAccountCard username={username} />
   </aside>
+);
+
+const SidebarSettingsNav = ({
+  activeView,
+  onViewChange,
+}: {
+  activeView: FirewatchView;
+  onViewChange: (view: FirewatchView) => void;
+}) => (
+  <nav aria-label="Firewatch settings" className="mt-5 grid gap-2">
+    <SidebarNavButton
+      active={activeView === 'settings'}
+      icon={<SlidersHorizontal />}
+      label="Settings"
+      onClick={() => onViewChange('settings')}
+    />
+  </nav>
+);
+
+const SidebarNavButton = ({
+  active,
+  icon,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  icon: ReactNode;
+  label: string;
+  onClick: () => void;
+}) => (
+  <button
+    type="button"
+    className={cn(
+      'ui-feedback flex h-10 items-center justify-between gap-3 rounded-lg border px-3 text-left text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-sidebar-ring/35 focus-visible:outline-none',
+      active
+        ? 'border-sidebar-foreground/35 bg-sidebar-accent/70 text-sidebar-foreground'
+        : 'border-sidebar-border/70 bg-sidebar-accent/25 text-sidebar-foreground/75 hover:bg-sidebar-accent/45 hover:text-sidebar-foreground'
+    )}
+    onClick={onClick}
+  >
+    <span className="flex min-w-0 items-center gap-2">
+      <span className="[&_svg]:size-4">{icon}</span>
+      <span className="truncate">{label}</span>
+    </span>
+  </button>
 );
 
 const SidebarAccountCard = ({ username }: { username: string }) => {
@@ -151,60 +216,63 @@ const SidebarAccountCard = ({ username }: { username: string }) => {
 };
 
 const WorkspaceHeader = ({
-  busyAction,
+  activeView,
   incidentCount,
-  onCreateDemo,
   onRefresh,
+  onViewChange,
   subredditName,
 }: {
-  busyAction: string | undefined;
+  activeView: FirewatchView;
   incidentCount: number;
-  onCreateDemo: () => void;
   onRefresh: () => void;
+  onViewChange: (view: FirewatchView) => void;
   subredditName: string;
-}) => (
-  <header className="flex items-center justify-between gap-4 border-b bg-background px-4 py-4 sm:px-8 lg:px-10 lg:py-5">
-    <div className="flex min-w-0 items-center gap-3 lg:hidden">
-      <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-        <Flame />
+}) => {
+  const isSettings = activeView === 'settings';
+
+  return (
+    <header className="flex items-center justify-between gap-4 border-b bg-background px-4 py-4 sm:px-8 lg:px-10 lg:py-5">
+      <div className="flex min-w-0 items-center gap-3 lg:hidden">
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+          <Flame />
+        </div>
+        <div className="min-w-0">
+          <p className="truncate text-base font-medium">Firewatch</p>
+          <p className="truncate text-xs leading-5 text-muted-foreground">
+            r/{subredditName || 'subreddit'}
+          </p>
+        </div>
       </div>
-      <div className="min-w-0">
-        <p className="truncate text-base font-medium">Firewatch</p>
-        <p className="truncate text-xs leading-5 text-muted-foreground">
-          r/{subredditName || 'subreddit'}
+      <div className="hidden min-w-0 lg:block">
+        <p className="text-sm font-medium leading-5">
+          {isSettings ? 'Settings' : 'Post review'}
+        </p>
+        <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
+          {isSettings
+            ? `r/${subredditName || 'subreddit'} - community-wide Firewatch controls`
+            : `r/${subredditName || 'subreddit'} - ${pluralize(incidentCount, 'post')} in review`}
         </p>
       </div>
-    </div>
-    <div className="hidden min-w-0 lg:block">
-      <p className="text-sm font-medium leading-5">Incident board</p>
-      <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
-        r/{subredditName || 'subreddit'} - {pluralize(incidentCount, 'post')} in
-        review
-      </p>
-    </div>
 
-    <div className="flex shrink-0 items-center gap-2">
-      <Button variant="ghost" onClick={onRefresh}>
-        <RefreshCw data-icon="inline-start" />
-        <span className="hidden sm:inline">Refresh</span>
-        <span className="sr-only sm:hidden">Refresh</span>
-      </Button>
-      <Button
-        disabled={busyAction === 'demo'}
-        variant="outline"
-        onClick={onCreateDemo}
-      >
-        <Sparkles data-icon="inline-start" />
-        <span className="hidden sm:inline">
-          {busyAction === 'demo' ? 'Creating' : 'Create demo'}
-        </span>
-        <span className="sr-only sm:hidden">
-          {busyAction === 'demo' ? 'Creating demo post' : 'Create demo post'}
-        </span>
-      </Button>
-    </div>
-  </header>
-);
+      <div className="flex shrink-0 items-center gap-2">
+        <Button
+          className="lg:hidden"
+          variant={isSettings ? 'secondary' : 'ghost'}
+          onClick={() => onViewChange(isSettings ? 'queue' : 'settings')}
+        >
+          <SlidersHorizontal data-icon="inline-start" />
+          <span className="hidden sm:inline">Settings</span>
+          <span className="sr-only sm:hidden">Settings</span>
+        </Button>
+        <Button variant="ghost" onClick={onRefresh}>
+          <RefreshCw data-icon="inline-start" />
+          <span className="hidden sm:inline">Refresh</span>
+          <span className="sr-only sm:hidden">Refresh</span>
+        </Button>
+      </div>
+    </header>
+  );
+};
 
 const NoticeToast = ({ notice }: { notice: Notice }) => (
   <div

@@ -1,11 +1,16 @@
 import { context, redis, reddit } from '@devvit/web/server';
 import type {
   FirewatchConfig,
+  FirewatchDemoScenarioId,
   Incident,
   IncidentAction,
   IncidentSignal,
   SignalSource,
 } from '../../shared/api';
+import {
+  DEFAULT_DEMO_SCENARIO_ID,
+  getDemoScenario,
+} from '../../shared/firewatch-presets';
 import {
   COOLDOWN_COMMENT_TEXT,
   DEFAULT_CONFIG,
@@ -15,6 +20,7 @@ import {
 } from './firewatch-constants';
 import {
   calculateIncident,
+  makeEmptyImpact,
   getResponseSuggestion,
   makeEmptyStats,
 } from './firewatch-scoring';
@@ -70,6 +76,18 @@ const parseStoredClaim = (
   return fallback;
 };
 
+const mergeConfigList = (
+  storedList: string[] | undefined,
+  defaultList: string[]
+) =>
+  Array.from(
+    new Set(
+      [...defaultList, ...(storedList ?? [])]
+        .map((item) => item.trim().toLowerCase())
+        .filter(Boolean)
+    )
+  );
+
 export const getConfig = async (
   subredditName = context.subredditName
 ): Promise<FirewatchConfig> => {
@@ -85,12 +103,11 @@ export const getConfig = async (
     );
 
     return {
-      keywords: parsed.keywords?.length
-        ? parsed.keywords
-        : DEFAULT_CONFIG.keywords,
-      suspiciousDomains: parsed.suspiciousDomains?.length
-        ? parsed.suspiciousDomains
-        : DEFAULT_CONFIG.suspiciousDomains,
+      keywords: mergeConfigList(parsed.keywords, DEFAULT_CONFIG.keywords),
+      suspiciousDomains: mergeConfigList(
+        parsed.suspiciousDomains,
+        DEFAULT_CONFIG.suspiciousDomains
+      ),
       ...thresholds,
     };
   } catch (error) {
@@ -325,6 +342,7 @@ export const upsertIncidentSignal = async (input: SignalInput) => {
       involvedUsers: [],
       repeatedPhrases: [],
       stats: makeEmptyStats(),
+      impact: makeEmptyImpact(),
       trend: [],
       responseSuggestion: getResponseSuggestion(0, 'watch', 'open'),
       actions: [],
@@ -774,8 +792,10 @@ const buildSummary = (incident: Incident) => {
     `Peak incident score: ${incident.peakScore}/100 (${formatLevel(incident.peakLevel)})`,
     `Final status: ${formatStatus(incident.status)}`,
     `Time open: ${resolutionTime}`,
+    `Impact: ${incident.impact.reportsGrouped} reports grouped, ${incident.impact.commentsReviewed} comments reviewed, ${incident.impact.actionsTaken} mod actions recorded`,
     `Why this needed review: ${topReasons || 'No active review reasons'}`,
-    `Comments reviewed: ${incident.flaggedComments.length}`,
+    `Comments reviewed: ${incident.impact.commentsReviewed}`,
+    `Comments still waiting: ${incident.impact.commentsAwaitingReview}`,
     `Handled by: ${handler ? formatUserHandle(handler) : 'unclaimed'}`,
     `Users in post: ${involvedUsers || 'none detected'}`,
     `Repeated wording: ${commonPhrases || 'none detected'}`,
@@ -808,6 +828,7 @@ const buildEscalationSummary = (incident: Incident) => {
     `Current attention: ${incident.score}/100 (${formatLevel(incident.level)}); peak incident score: ${incident.peakScore}/100; suggested action: ${incident.responseSuggestion.label}`,
     `Post: ${incident.permalink ?? incident.postId}`,
     `Handled by: ${handler ? formatUserHandle(handler) : 'unclaimed'}`,
+    `Impact so far: ${incident.impact.reportsGrouped} reports grouped, ${incident.impact.commentsReviewed} comments reviewed, ${incident.impact.commentsAwaitingReview} comments still waiting`,
     'Why this is here:',
     topReasons || '- No active reasons recorded',
     'Comments to review:',
@@ -821,7 +842,8 @@ export const escalateIncident = async (postId: string) => {
   if (!incident) throw new Error('Post is not in Firewatch yet');
 
   const actor = await actorName();
-  const escalationSummary = buildEscalationSummary(incident);
+  const currentIncident = await refreshIncident(incident);
+  const escalationSummary = buildEscalationSummary(currentIncident);
   const withAction = await appendAction(normalizedPostId, {
     type: 'escalated',
     actor,
@@ -859,9 +881,10 @@ export const resolveIncident = async (postId: string) => {
     updatedAt: resolvedAt,
     actions: [resolvedAction, ...incident.actions].slice(0, MAX_ACTIONS),
   };
-  const summary = buildSummary(resolved);
+  const refreshedResolved = await refreshIncident(resolved);
+  const summary = buildSummary(refreshedResolved);
   const refreshedIncident = await refreshIncident({
-    ...resolved,
+    ...refreshedResolved,
     summary,
   });
 
@@ -877,75 +900,201 @@ const demoKeyword = (config: FirewatchConfig) =>
     (keyword) => !['kill', 'slur', 'hate'].includes(keyword.toLowerCase())
   ) ?? 'brigade';
 
-export const createDemoIncident = async () => {
-  const config = await getConfig();
-  const seed = now();
+type DemoCommentSeed = {
+  author: string;
+  body: string;
+  reportReason?: string;
+  branch?: 'cluster' | 'post';
+};
+
+const buildDemoComments = ({
+  config,
+  scenarioId,
+}: {
+  config: FirewatchConfig;
+  scenarioId: FirewatchDemoScenarioId;
+}): DemoCommentSeed[] => {
   const keyword = demoKeyword(config);
   const secondKeyword = pick(config.keywords, 4, 'report');
   const suspiciousDomain = pick(config.suspiciousDomains, 0, 'bit.ly');
-  const scenario = `rapid replies, reports, ${keyword} mentions, watched domains, and repeated wording`;
+
+  if (scenarioId === 'scam_link_cleanup') {
+    return [
+      {
+        author: 'demoScout',
+        body: `This looks like a ${keyword} wave. The same account keeps dropping ${suspiciousDomain}/support in replies.`,
+        reportReason: 'Suspicious link',
+        branch: 'cluster',
+      },
+      {
+        author: 'demoNewcomer',
+        body: `Do not click that ${suspiciousDomain}/support link. It asks for passwords and wallet details.`,
+        reportReason: 'Unsafe support link',
+        branch: 'cluster',
+      },
+      {
+        author: 'demoSpammer',
+        body: `DM me for account recovery. Pay the admin fee with a gift card and I can fix it.`,
+        reportReason: 'Scam offer',
+        branch: 'cluster',
+      },
+      {
+        author: 'demoSpammer',
+        body: `Anyone who wants help should message me on telegram. I know a recovery agent.`,
+        reportReason: 'Scam offer',
+        branch: 'cluster',
+      },
+      {
+        author: 'demoHelper',
+        body: 'Use the official help center and never share passwords or recovery codes.',
+        branch: 'post',
+      },
+      {
+        author: 'demoConcerned',
+        body: `The suspicious link is still spreading and people are repeating the same ${secondKeyword} warning.`,
+        branch: 'post',
+      },
+    ];
+  }
+
+  if (scenarioId === 'support_safety_cleanup') {
+    return [
+      {
+        author: 'demoHelper',
+        body: 'This sounds risky. Please do not post account numbers or private contact details.',
+        branch: 'cluster',
+      },
+      {
+        author: 'demoRegular',
+        body: `The advice above may be unsafe. A ${keyword} comment is asking users to share passwords.`,
+        reportReason: 'Unsafe advice',
+        branch: 'cluster',
+      },
+      {
+        author: 'demoNewcomer',
+        body: 'I can paste my recovery code here if that helps.',
+        reportReason: 'Personal information risk',
+        branch: 'cluster',
+      },
+      {
+        author: 'demoWatcher',
+        body: `Someone linked ${suspiciousDomain}/verify and asked for personal details.`,
+        reportReason: 'Suspicious link',
+        branch: 'cluster',
+      },
+      {
+        author: 'demoScout',
+        body: 'The safe answer is to contact official support and avoid sharing private info.',
+        branch: 'post',
+      },
+      {
+        author: 'demoConcerned',
+        body: `The thread needs a mod look before the ${secondKeyword} replies get copied again.`,
+        branch: 'post',
+      },
+    ];
+  }
+
+  const repeatedPhrase = 'mods are hiding evidence';
+  return [
+    {
+      author: 'demoScout',
+      body: `This suddenly looks like a ${keyword} from outside the community. ${repeatedPhrase}.`,
+      branch: 'cluster',
+    },
+    {
+      author: 'demoRegular',
+      body: `I keep seeing the same claim. ${repeatedPhrase} and nobody is answering.`,
+      reportReason: 'Personal attacks',
+      branch: 'cluster',
+    },
+    {
+      author: 'demoNewcomer',
+      body: `Please check this ${suspiciousDomain}/post before it spreads further.`,
+      reportReason: 'Suspicious link',
+      branch: 'cluster',
+    },
+    {
+      author: 'demoWatcher',
+      body: `The argument is looping now. ${repeatedPhrase}.`,
+      branch: 'cluster',
+    },
+    {
+      author: 'demoHelper',
+      body: `This feels like a ${secondKeyword} issue and the replies are getting personal.`,
+      branch: 'cluster',
+    },
+    {
+      author: 'demoConcerned',
+      body: 'Several new accounts are repeating the same line in this branch.',
+      branch: 'cluster',
+    },
+    {
+      author: 'demoScout',
+      body: `I reported the suspicious link and the ${keyword} comments.`,
+      reportReason: 'Personal attacks',
+      branch: 'post',
+    },
+    {
+      author: 'demoRegular',
+      body: 'Can a mod step in before everyone piles onto the same user?',
+      branch: 'post',
+    },
+  ];
+};
+
+export const createDemoIncident = async (
+  scenarioId = DEFAULT_DEMO_SCENARIO_ID
+) => {
+  const config = await getConfig();
+  const seed = now();
+  const scenario = getDemoScenario(scenarioId);
+  const comments = buildDemoComments({ config, scenarioId: scenario.id });
   const post = await reddit.submitPost({
     subredditName: context.subredditName,
-    title: `[Firewatch demo] Mod queue drill ${new Date(seed).toLocaleTimeString()}`,
+    title: `[Firewatch demo] ${scenario.label} ${new Date(seed).toLocaleTimeString()}`,
     text: [
-      'This is a Firewatch demo post generated by the app.',
+      `This is a Firewatch demo post for: ${scenario.label}.`,
       'The mod queue is populated through the same path used by comments, reports, and posts sent by mods.',
       'Mods can test taking the post, adding a sticky reminder, removing comments, locking the post, saving a handoff note, and marking it handled without waiting for real reports.',
     ].join('\n\n'),
   });
-  const authors = [
-    'demoScout',
-    'demoRegular',
-    'demoNewcomer',
-    'demoWatcher',
-    'demoHelper',
-    'demoConcerned',
-  ];
-  const repeatedPhrase = 'mods are hiding evidence';
   const branchParentId = `t1_fw_demo_branch_${seed.toString(36)}`;
-  const bodies = [
-    `This suddenly looks like a ${keyword} from outside the community. ${repeatedPhrase}.`,
-    `I keep seeing the same claim. ${repeatedPhrase} and nobody is answering.`,
-    `Please check this ${suspiciousDomain}/post before it spreads further.`,
-    `The argument is looping now. ${repeatedPhrase}.`,
-    `This feels like a ${secondKeyword} issue and the replies are getting personal.`,
-    `Several new accounts are repeating the same line in this branch.`,
-    `I reported the suspicious link and the ${keyword} comments.`,
-    `Can a mod step in before everyone piles onto the same user?`,
-  ];
-  for (const [index, body] of bodies.entries()) {
-    const createdAt = seed - (bodies.length - index) * 4 * 60 * 1000;
+  for (const [index, comment] of comments.entries()) {
+    const createdAt = seed - (comments.length - index) * 4 * 60 * 1000;
     const commentId = `t1_fw_demo_${seed.toString(36)}_${index}`;
     await upsertIncidentSignal({
       type: 'comment_create',
       source: 'user',
       postId: post.id,
       commentId,
-      author: authors[index % authors.length],
-      body,
-      parentId: index < 6 ? branchParentId : post.id,
+      author: comment.author,
+      body: comment.body,
+      parentId: comment.branch === 'cluster' ? branchParentId : post.id,
       createdAt,
       isDemo: true,
       metadata: {
-        scenario,
+        scenario: scenario.label,
+        scenarioId: scenario.id,
         generatedIndex: index,
       },
     });
 
-    if ([1, 2, 6].includes(index)) {
+    if (comment.reportReason) {
       await upsertIncidentSignal({
         type: 'comment_report',
         source: 'report',
         postId: post.id,
         commentId,
-        author: authors[index % authors.length],
-        body,
-        parentId: index < 6 ? branchParentId : post.id,
-        reason: index === 2 ? 'Suspicious link' : 'Personal attacks',
+        author: comment.author,
+        body: comment.body,
+        parentId: comment.branch === 'cluster' ? branchParentId : post.id,
+        reason: comment.reportReason,
         createdAt: createdAt + 60 * 1000,
         isDemo: true,
         metadata: {
-          scenario,
+          scenario: scenario.label,
+          scenarioId: scenario.id,
           generatedIndex: index,
         },
       });
@@ -956,12 +1105,13 @@ export const createDemoIncident = async () => {
     type: 'post_report',
     source: 'report',
     postId: post.id,
-    body: `${post.title}\nDemo report: repeated wording and watched domains`,
+    body: `${post.title}\nDemo report: ${scenario.description}`,
     reason: 'Post needs mod review',
     createdAt: seed - 2 * 60 * 1000,
     isDemo: true,
     metadata: {
-      scenario,
+      scenario: scenario.label,
+      scenarioId: scenario.id,
     },
   });
   const incident = await upsertIncidentSignal({
@@ -972,7 +1122,8 @@ export const createDemoIncident = async () => {
     createdAt: seed,
     isDemo: true,
     metadata: {
-      scenario,
+      scenario: scenario.label,
+      scenarioId: scenario.id,
     },
   });
 
@@ -980,18 +1131,38 @@ export const createDemoIncident = async () => {
   const withAction = await appendAction(incident.postId, {
     type: 'demo_seeded',
     actor,
-    detail: `Created demo post with ${bodies.length} comment events and 4 report/manual events`,
+    detail: `Created ${scenario.label.toLowerCase()} demo with ${comments.length} comment events and report/manual signals`,
   });
   const demoIncident: Incident = {
     ...withAction,
     demo: {
-      scenario,
+      scenario: scenario.label,
+      scenarioId: scenario.id,
       seededAt: seed,
     },
   };
 
   await saveIncident(demoIncident);
   return demoIncident;
+};
+
+export const resetDemoIncidents = async () => {
+  const index = await getIndex();
+  let resetCount = 0;
+  const keptPostIds: string[] = [];
+
+  for (const postId of index) {
+    const incident = await getIncident(postId);
+    if (incident?.demo) {
+      resetCount += 1;
+      await redis.del(incidentKey(postId), claimKey(postId));
+    } else {
+      keptPostIds.push(postId);
+    }
+  }
+
+  await saveIndex(keptPostIds);
+  return resetCount;
 };
 
 export const createFirewatchPost = async (options?: {

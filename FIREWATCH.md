@@ -10,14 +10,20 @@ Firewatch does these things end to end:
 - Creates and reuses one subreddit-level Firewatch queue post.
 - Lets mods manually send any post to Firewatch from the post menu.
 - Creates demo posts that run through the same signal pipeline as real events.
+- Offers selectable demo drills for heated threads, scam-link cleanup, and
+  support-safety cleanup, plus a reset control for clearing demo queue state.
 - Tracks Devvit trigger events for post creates/edits, comments, reports,
   deletes, mod actions, and AutoModerator filter events.
 - Scores posts with deterministic signals and displays the reasons.
+- Shows a moderator impact snapshot with reports grouped, comments reviewed,
+  users handled, actions taken, and time open.
 - Lets one mod take ownership of a post.
 - Lets mods add a sticky reminder, approve acceptable comments, remove
   rule-breaking comments with Reddit removal notes, ban a user after removing
   their queued comments, lock a post, save a handoff note, and mark the post
   handled.
+- Provides one combined filter set for heated discussions, scam cleanup,
+  support-safety issues, and sensitive-topic review.
 - Generates copyable handoff and final notes.
 - Deletes stored post or comment content when Reddit delete triggers arrive.
 - Expires stored incident records after 30 days.
@@ -44,9 +50,11 @@ posts, or mark anything handled. A moderator must click the action.
 2. Configure watched words, watched domains, and scores in **Firewatch filters**.
 3. Wait for report/comment/mod-action triggers or use **Send to Firewatch** on a
    post.
-4. Review the post, reasons, comments, users, repeated wording, and activity.
-5. Click **Take post** if handling it.
-6. Use **Sticky reminder**, **Approve**, **Remove**, **Ban user**,
+4. Use **Create demo** to run a judge or mod training drill if needed.
+5. Review the post, reasons, impact snapshot, comments, users, repeated wording,
+   and activity.
+6. Click **Take post** if handling it.
+7. Use **Sticky reminder**, **Approve**, **Remove**, **Ban user**,
    **Lock post**, **Save handoff note**, or **Mark handled** as needed.
 
 ## Platform Notes

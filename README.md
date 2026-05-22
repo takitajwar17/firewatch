@@ -13,12 +13,16 @@ take common moderation actions, and save handoff/final notes.
 - Shows queued posts with review score, top reasons, comments to review,
   repeated wording, involved users, recent activity, suggested next step, trend,
   and action history.
+- Shows a moderator impact snapshot with grouped reports, reviewed comments,
+  handled users, mod actions, peak attention, and time open.
+- Provides one combined filter set for heated discussions, scam cleanup,
+  support-safety issues, and sensitive-topic review.
 - Lets one moderator take a post so other mods can see who is handling it.
 - Lets moderators add a sticky reminder, approve acceptable comments, remove
   rule-breaking comments with a Reddit removal note, ban a user after removing
   their queued comments, lock the post, save a handoff note, and mark the post
   handled.
-- Includes a demo post creator that makes a real source post and populates the
+- Includes selectable demo drills that make a real source post and populate the
   queue through the same signal pipeline used by production events.
 - Removes stored post/comment content when Reddit delete triggers are received.
 
@@ -30,9 +34,10 @@ take common moderation actions, and save handoff/final notes.
 3. Use **Create Firewatch demo post** or the dashboard button to create a test
    post.
 4. On any post, choose **Send to Firewatch** to put that post in the queue.
-5. Review the score and reasons, take the post, approve acceptable comments,
-   remove rule-breaking comments, or ban a user if needed.
-6. Use **Save handoff note** or **Mark handled** when the mod team needs a note.
+5. Review the score, reasons, impact snapshot, activity, and comments.
+6. Take the post, approve acceptable comments, remove rule-breaking comments, or
+   ban a user if needed.
+7. Use **Save handoff note** or **Mark handled** when the mod team needs a note.
 
 ## Signals
 

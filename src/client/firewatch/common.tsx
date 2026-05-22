@@ -16,7 +16,7 @@ export const PanelLabel = ({
 }) => (
   <p
     className={cn(
-      'text-[11px] font-medium uppercase leading-none',
+      'text-xs font-medium leading-5',
       surface === 'sidebar'
         ? 'text-sidebar-foreground/55'
         : 'text-muted-foreground'
@@ -27,19 +27,29 @@ export const PanelLabel = ({
 );
 
 export const SectionHeader = ({
+  action,
   className,
   description,
   title,
 }: {
+  action?: ReactNode;
   className?: string;
   description: string;
   title: string;
 }) => (
-  <div className={cn('flex min-w-0 flex-col gap-1', className)}>
-    <h2 className="text-base font-medium leading-6 text-foreground">{title}</h2>
-    <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
-      {description}
-    </p>
+  <div
+    className={cn(
+      'flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between',
+      className
+    )}
+  >
+    <div className="min-w-0">
+      <h2 className="text-base font-medium leading-6 text-foreground">{title}</h2>
+      <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
+        {description}
+      </p>
+    </div>
+    {action ? <div className="shrink-0">{action}</div> : null}
   </div>
 );
 
@@ -78,7 +88,7 @@ export const FieldBlock = ({
     </label>
     {children}
     {description ? (
-      <p className="text-xs font-medium leading-5 text-muted-foreground">
+      <p className="text-xs leading-5 text-muted-foreground">
         {description}
       </p>
     ) : null}

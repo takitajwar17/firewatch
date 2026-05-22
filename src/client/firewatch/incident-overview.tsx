@@ -37,7 +37,7 @@ import type { Incident } from '../../shared/api';
 
 export const IncidentIntro = ({ incident }: { incident: Incident }) => (
   <section className="overflow-hidden rounded-lg border bg-card text-card-foreground">
-    <div className="grid gap-5 p-5 sm:p-6 xl:grid-cols-[minmax(0,1fr)_240px] xl:items-end">
+    <div className="grid gap-5 p-5 sm:p-6 xl:grid-cols-[minmax(0,1fr)_240px] xl:items-start">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant={statusBadgeVariant[incident.status] ?? 'outline'}>
@@ -74,6 +74,12 @@ export const IncidentIntro = ({ incident }: { incident: Incident }) => (
             style={{ width: `${clampScore(incident.score)}%` }}
           />
         </div>
+        <div className="mt-4 border-t pt-3">
+          <p className="text-xs leading-5 text-muted-foreground">Suggested action</p>
+          <p className="mt-0.5 text-sm font-medium leading-5">
+            {incident.responseSuggestion.label}
+          </p>
+        </div>
       </div>
     </div>
   </section>
@@ -102,7 +108,8 @@ export const IncidentHero = ({
         <div className="min-w-0">
           <CardTitle>Mod actions</CardTitle>
           <CardDescription className="mt-1 max-w-2xl">
-            {incident.responseSuggestion.detail}
+            {incident.responseSuggestion.detail} Actions stay manual so mods
+            keep control.
           </CardDescription>
         </div>
       </CardHeader>
@@ -207,6 +214,75 @@ export const ResponseCard = ({ incident }: { incident: Incident }) => (
   </Card>
 );
 
+const formatDuration = (minutes: number) => {
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
+};
+
+export const ImpactSnapshotCard = ({ incident }: { incident: Incident }) => {
+  const impact = incident.impact;
+  const rows = [
+    {
+      label: 'Comments reviewed',
+      value: String(impact.commentsReviewed),
+      detail: `${impact.commentsAwaitingReview} waiting`,
+    },
+    {
+      label: 'Users handled',
+      value: String(impact.usersHandled),
+      detail: `${impact.usersInReview} in review`,
+    },
+    {
+      label: 'Mod actions',
+      value: String(impact.actionsTaken),
+      detail: `${impact.approvals} approved, ${impact.removals} removed, ${impact.bans} banned`,
+    },
+  ];
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Moderator impact</CardTitle>
+        <CardDescription>
+          Actions taken and remaining review work for this post.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        <div className="rounded-lg border bg-muted/20">
+          {rows.map((row) => (
+            <div
+              key={row.label}
+              className="flex items-center justify-between gap-3 border-b px-3 py-2.5 last:border-b-0"
+            >
+              <div className="min-w-0">
+                <p className="text-sm font-medium leading-5">{row.label}</p>
+                <p className="truncate text-xs leading-5 text-muted-foreground">
+                  {row.detail}
+                </p>
+              </div>
+              <span className="shrink-0 text-xl font-medium leading-none tabular-nums">
+                {row.value}
+              </span>
+            </div>
+          ))}
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          <Badge variant="outline">Open {formatDuration(impact.timeOpenMinutes)}</Badge>
+          <Badge variant="outline">Peak {impact.peakAttention}/100</Badge>
+          {impact.handoffSaved ? (
+            <Badge variant="secondary">Handoff saved</Badge>
+          ) : null}
+          {impact.finalNoteSaved ? (
+            <Badge variant="secondary">Final note saved</Badge>
+          ) : null}
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
 export const RiskReasonsCard = ({ incident }: { incident: Incident }) => (
   <Card>
     <CardHeader>
@@ -283,14 +359,14 @@ export const TrendCard = ({ incident }: { incident: Incident }) => (
 export const ParticipantsCard = ({ incident }: { incident: Incident }) => (
   <Card>
     <CardHeader>
-      <CardTitle>Users in review</CardTitle>
+      <CardTitle>Users to review</CardTitle>
       <CardDescription>
         Users attached to comments that still need a mod decision.
       </CardDescription>
     </CardHeader>
     <CardContent>
       {incident.involvedUsers.length === 0 ? (
-        <EmptyText>No users have comments waiting for review.</EmptyText>
+        <EmptyText>No users have unreviewed comments.</EmptyText>
       ) : (
         <div className="flex flex-col">
           {incident.involvedUsers.map((user, index) => (

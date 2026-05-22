@@ -5,7 +5,9 @@ import type {
   ActionResponse,
   ConfigResponse,
   DashboardInitResponse,
+  DemoResetResponse,
   ErrorResponse,
+  FirewatchDemoScenarioId,
   Incident,
 } from '../../shared/api';
 import {
@@ -21,43 +23,48 @@ import {
   getRememberedIncidentPostId,
   lockIncident,
   removeFlaggedComment,
+  resetDemoIncidents,
   resolveIncident,
   saveConfig,
 } from '../core/firewatch';
 
 export const api = new Hono();
 
+const loadDashboardData = async (): Promise<DashboardInitResponse> => {
+  const contextSelectedPostId =
+    typeof context.postData?.incidentPostId === 'string'
+      ? context.postData.incidentPostId
+      : undefined;
+  const [incidents, config, username] = await Promise.all([
+    getIncidents(),
+    getConfig(),
+    reddit.getCurrentUsername(),
+  ]);
+  const selectedPostId =
+    contextSelectedPostId ??
+    (await getRememberedIncidentPostId(username ?? undefined));
+  const selectedIncident = selectedPostId
+    ? await getIncidentById(selectedPostId)
+    : undefined;
+  const mergedIncidents =
+    selectedIncident &&
+    !incidents.some((incident) => incident.postId === selectedIncident.postId)
+      ? [selectedIncident, ...incidents]
+      : incidents;
+
+  return {
+    type: 'dashboard',
+    username: username ?? 'anonymous',
+    subredditName: context.subredditName,
+    selectedPostId,
+    incidents: mergedIncidents,
+    config,
+  };
+};
+
 api.get('/init', async (c) => {
   try {
-    const contextSelectedPostId =
-      typeof context.postData?.incidentPostId === 'string'
-        ? context.postData.incidentPostId
-        : undefined;
-    const [incidents, config, username] = await Promise.all([
-      getIncidents(),
-      getConfig(),
-      reddit.getCurrentUsername(),
-    ]);
-    const selectedPostId =
-      contextSelectedPostId ??
-      (await getRememberedIncidentPostId(username ?? undefined));
-    const selectedIncident = selectedPostId
-      ? await getIncidentById(selectedPostId)
-      : undefined;
-    const mergedIncidents =
-      selectedIncident &&
-      !incidents.some((incident) => incident.postId === selectedIncident.postId)
-        ? [selectedIncident, ...incidents]
-        : incidents;
-
-    return c.json<DashboardInitResponse>({
-      type: 'dashboard',
-      username: username ?? 'anonymous',
-      subredditName: context.subredditName,
-      selectedPostId,
-      incidents: mergedIncidents,
-      config,
-    });
+    return c.json<DashboardInitResponse>(await loadDashboardData());
   } catch (error) {
     console.error('API Init Error:', error);
     let errorMessage = 'Unknown error during initialization';
@@ -92,7 +99,22 @@ api.post('/incidents/:postId/resolve', async (c) => {
 });
 
 api.post('/demo/incident', async (c) => {
-  return incidentAction(c, createDemoIncident);
+  return incidentAction(c, async () => {
+    const body: { scenarioId?: FirewatchDemoScenarioId } = await c.req
+      .json<{ scenarioId?: FirewatchDemoScenarioId }>()
+      .catch(() => ({}));
+    return createDemoIncident(body.scenarioId);
+  });
+});
+
+api.post('/demo/reset', async (c) => {
+  try {
+    const resetCount = await resetDemoIncidents();
+    const dashboard = await loadDashboardData();
+    return c.json<DemoResetResponse>({ ...dashboard, resetCount });
+  } catch (error) {
+    return incidentActionError(c, error);
+  }
 });
 
 api.post('/config', async (c) => {

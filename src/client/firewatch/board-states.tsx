@@ -1,7 +1,9 @@
-import { AlertTriangle, RefreshCw, Sparkles } from 'lucide-react';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { FIREWATCH_DEMO_SCENARIOS } from '../../shared/firewatch-presets';
+import type { DemoCreateHandler } from './types';
 
 export const LoadingBoard = () => (
   <div className="flex flex-col gap-6">
@@ -47,7 +49,7 @@ export const EmptyBoard = ({
   onCreateDemo,
 }: {
   busy: boolean;
-  onCreateDemo: () => void;
+  onCreateDemo: DemoCreateHandler;
 }) => (
   <div className="mx-auto flex w-full max-w-md flex-col gap-5 py-8">
     <div className="flex flex-col gap-2.5">
@@ -60,16 +62,27 @@ export const EmptyBoard = ({
         a mod look.
       </p>
     </div>
-    <Button
-      className="h-10 w-full text-sm font-medium"
-      disabled={busy}
-      onClick={onCreateDemo}
-    >
-      <Sparkles data-icon="inline-start" />
-      {busy ? 'Creating demo post' : 'Create demo post'}
-    </Button>
+    <div className="flex flex-col gap-2">
+      {FIREWATCH_DEMO_SCENARIOS.map((scenario) => (
+        <Button
+          key={scenario.id}
+          className="h-auto min-h-10 justify-start px-3 py-2 text-left text-sm font-medium"
+          disabled={busy}
+          variant="outline"
+          onClick={() => onCreateDemo(scenario.id)}
+        >
+          <span className="flex min-w-0 flex-col gap-0.5">
+            <span>{busy ? 'Creating demo post' : scenario.label}</span>
+            <span className="text-xs font-normal leading-5 text-muted-foreground">
+              {scenario.description}
+            </span>
+          </span>
+        </Button>
+      ))}
+    </div>
     <p className="text-xs leading-5 text-muted-foreground">
-      Use Filters when mods want to change what gets queued.
+      Open Settings when mods want to change watched words, domains, or
+      thresholds.
     </p>
   </div>
 );

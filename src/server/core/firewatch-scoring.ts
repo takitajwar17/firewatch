@@ -2,6 +2,7 @@ import type {
   FirewatchConfig,
   FlaggedComment,
   Incident,
+  IncidentImpactSnapshot,
   IncidentLevel,
   IncidentParticipant,
   IncidentStats,
@@ -129,6 +130,22 @@ export const makeEmptyStats = (): IncidentStats => ({
   flaggedCount: 0,
   uniqueParticipants: 0,
   commentsLastHour: 0,
+});
+
+export const makeEmptyImpact = (): IncidentImpactSnapshot => ({
+  reportsGrouped: 0,
+  commentsReviewed: 0,
+  commentsAwaitingReview: 0,
+  usersInReview: 0,
+  usersHandled: 0,
+  actionsTaken: 0,
+  removals: 0,
+  approvals: 0,
+  bans: 0,
+  handoffSaved: false,
+  finalNoteSaved: false,
+  timeOpenMinutes: 0,
+  peakAttention: 0,
 });
 
 export const getResponseSuggestion = (
@@ -376,6 +393,75 @@ const buildTrend = (
         100
       ),
     }));
+};
+
+const countActionTargets = (
+  actions: Incident['actions'],
+  type: Incident['actions'][number]['type']
+) =>
+  actions.reduce(
+    (total, action) =>
+      action.type === type ? total + (action.targetIds?.length ?? 1) : total,
+    0
+  );
+
+const buildImpactSnapshot = ({
+  activeFlaggedComments,
+  flaggedComments,
+  incident,
+  reportsGrouped,
+}: {
+  activeFlaggedComments: FlaggedComment[];
+  flaggedComments: FlaggedComment[];
+  incident: Incident;
+  reportsGrouped: number;
+}): IncidentImpactSnapshot => {
+  const reviewedComments = flaggedComments.filter(
+    (comment) => comment.removed || comment.reviewed
+  );
+  const usersInReview = new Set(
+    activeFlaggedComments
+      .map((comment) => normalizeUsername(comment.author))
+      .filter((author): author is string => Boolean(author))
+  );
+  const usersHandled = new Set(
+    reviewedComments
+      .map((comment) => normalizeUsername(comment.author))
+      .filter((author): author is string => Boolean(author))
+  );
+  const moderationActions = incident.actions.filter(
+    (action) => action.type !== 'demo_seeded'
+  );
+  const removals =
+    countActionTargets(incident.actions, 'comment_removed') +
+    countActionTargets(incident.actions, 'cleanup') +
+    countActionTargets(incident.actions, 'user_banned');
+  const resolvedAt = incident.resolvedAt ?? now();
+
+  return {
+    reportsGrouped,
+    commentsReviewed: reviewedComments.length,
+    commentsAwaitingReview: activeFlaggedComments.length,
+    usersInReview: usersInReview.size,
+    usersHandled: usersHandled.size,
+    actionsTaken: moderationActions.length,
+    removals,
+    approvals: countActionTargets(incident.actions, 'comment_approved'),
+    bans: incident.actions.filter((action) => action.type === 'user_banned')
+      .length,
+    handoffSaved:
+      Boolean(incident.escalationSummary) ||
+      incident.actions.some((action) => action.type === 'escalated'),
+    finalNoteSaved:
+      Boolean(incident.summary) ||
+      Boolean(incident.resolvedAt) ||
+      incident.actions.some((action) => action.type === 'resolved'),
+    timeOpenMinutes: Math.max(
+      0,
+      Math.round((resolvedAt - incident.createdAt) / 60000)
+    ),
+    peakAttention: incident.peakScore ?? 0,
+  };
 };
 
 export const calculateIncident = (
@@ -716,6 +802,12 @@ export const calculateIncident = (
     uniqueParticipants: usersInReview.size,
     commentsLastHour: recentComments.length,
   };
+  const impact = buildImpactSnapshot({
+    activeFlaggedComments,
+    flaggedComments,
+    incident,
+    reportsGrouped: totalReportCount,
+  });
 
   return {
     ...incident,
@@ -732,6 +824,10 @@ export const calculateIncident = (
     involvedUsers,
     repeatedPhrases,
     stats,
+    impact: {
+      ...impact,
+      peakAttention: peakScore,
+    },
     trend: buildTrend(scoreSignals, config),
     recentSignals: normalizedSignals.slice(0, MAX_RECENT_SIGNALS),
     responseSuggestion: getResponseSuggestion(

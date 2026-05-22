@@ -1,5 +1,10 @@
 export type IncidentLevel = 'watch' | 'heat' | 'fire' | 'wildfire';
 
+export type FirewatchDemoScenarioId =
+  | 'heated_thread'
+  | 'scam_link_cleanup'
+  | 'support_safety_cleanup';
+
 export type IncidentStatus =
   | 'open'
   | 'watching'
@@ -32,6 +37,12 @@ export type FirewatchConfig = {
   heatThreshold: number;
   fireThreshold: number;
   wildfireThreshold: number;
+};
+
+export type FirewatchDemoScenario = {
+  id: FirewatchDemoScenarioId;
+  label: string;
+  description: string;
 };
 
 export type RiskReason = {
@@ -119,6 +130,22 @@ export type IncidentStats = {
   commentsLastHour: number;
 };
 
+export type IncidentImpactSnapshot = {
+  reportsGrouped: number;
+  commentsReviewed: number;
+  commentsAwaitingReview: number;
+  usersInReview: number;
+  usersHandled: number;
+  actionsTaken: number;
+  removals: number;
+  approvals: number;
+  bans: number;
+  handoffSaved: boolean;
+  finalNoteSaved: boolean;
+  timeOpenMinutes: number;
+  peakAttention: number;
+};
+
 export type IncidentTrendPoint = {
   timestamp: number;
   score: number;
@@ -157,6 +184,7 @@ export type Incident = {
   involvedUsers: IncidentParticipant[];
   repeatedPhrases: RepeatedPhrase[];
   stats: IncidentStats;
+  impact: IncidentImpactSnapshot;
   trend: IncidentTrendPoint[];
   responseSuggestion: ResponseSuggestion;
   actions: IncidentAction[];
@@ -164,6 +192,7 @@ export type Incident = {
   escalationSummary?: string;
   demo?: {
     scenario: string;
+    scenarioId?: FirewatchDemoScenarioId;
     seededAt: number;
   };
 };
@@ -185,6 +214,10 @@ export type ActionResponse = {
 export type ConfigResponse = {
   type: 'config';
   config: FirewatchConfig;
+};
+
+export type DemoResetResponse = DashboardInitResponse & {
+  resetCount: number;
 };
 
 export type ErrorResponse = {

@@ -12,11 +12,13 @@ import {
   LatestSignalsCard,
   SummariesCard,
 } from './incident-activity';
+import { formatUsername } from './format';
 import {
   FlaggedCommentsCard,
   RepeatedPhrasesCard,
 } from './incident-comments';
 import {
+  ImpactSnapshotCard,
   IncidentHero,
   IncidentIntro,
   ParticipantsCard,
@@ -24,31 +26,30 @@ import {
   RiskReasonsCard,
   TrendCard,
 } from './incident-overview';
-import { FilterHelpCard, SettingsCard } from './incident-settings';
-import type {
-  ActionRunner,
-  ConfigSaveHandler,
-} from './types';
-import type { FirewatchConfig, Incident } from '../../shared/api';
+import type { ActionRunner } from './types';
+import type { Incident } from '../../shared/api';
 
 export const IncidentDetail = ({
   incident,
   busyAction,
-  config,
   onAction,
-  onSaveConfig,
 }: {
   incident: Incident;
   busyAction: string | undefined;
-  config: FirewatchConfig;
   onAction: ActionRunner;
-  onSaveConfig: ConfigSaveHandler;
 }) => {
-  const [activeTab, setActiveTab] = useState('overview');
-  const [cleanupReason, setCleanupReason] = useState('Rule-breaking comment');
   const unresolvedComments = incident.flaggedComments.filter(
     (comment) => !comment.removed && !comment.reviewed
   );
+  const unresolvedUsers = new Set(
+    unresolvedComments
+      .map((comment) => formatUsername(comment.author))
+      .filter((author) => author !== 'unknown user')
+  );
+  const [activeTab, setActiveTab] = useState(
+    unresolvedComments.length > 0 ? 'comments' : 'overview'
+  );
+  const [cleanupReason, setCleanupReason] = useState('Rule-breaking comment');
 
   const runModAction: ActionRunner = async (action, endpoint, body) => {
     const updatedIncident = await onAction(action, endpoint, body);
@@ -60,6 +61,7 @@ export const IncidentDetail = ({
 
     if (
       action.startsWith('t1_') ||
+      action.startsWith('remove:') ||
       action.startsWith('approve:') ||
       action.startsWith('ban:')
     ) {
@@ -74,30 +76,30 @@ export const IncidentDetail = ({
       <IncidentIntro incident={incident} />
 
       <SectionHeader
-        title="Current review"
-        description="Open review work separated from historical activity."
+        title="What needs attention"
+        description="Start with comments waiting for a decision, then close out the post."
       />
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard
-          description="Report signals attached to the post or comments."
+          description="Post and comment reports attached here."
           icon={<ShieldAlert />}
-          label="Reports filed"
+          label="Reports"
           value={String(incident.stats.reportSignals)}
         />
         <MetricCard
-          description="Comments that still need approval, removal, or a ban decision."
+          description="Waiting for approve, remove, or remove plus ban."
           icon={<ClipboardList />}
-          label="Comments to review"
+          label="Comments"
           value={String(unresolvedComments.length)}
         />
         <MetricCard
-          description="Authors attached to comments waiting for review."
+          description="Authors with comments waiting for review."
           icon={<Users />}
-          label="Users in review"
-          value={String(incident.stats.uniqueParticipants)}
+          label="Users"
+          value={String(unresolvedUsers.size)}
         />
         <MetricCard
-          description="Dense reply chains that can escalate quickly."
+          description="Dense reply chains that can heat up quickly."
           icon={<Gauge />}
           label="Reply clusters"
           value={String(incident.stats.branchPileOns)}
@@ -111,31 +113,45 @@ export const IncidentDetail = ({
       />
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList aria-label="Incident sections" className="w-full justify-start overflow-x-auto">
+        <TabsList
+          aria-label="Incident sections"
+          className="w-full justify-start overflow-x-auto"
+        >
           <TabsTrigger value="overview">Post</TabsTrigger>
-          <TabsTrigger value="comments">Comments</TabsTrigger>
+          <TabsTrigger value="comments">
+            Comments
+            {unresolvedComments.length > 0
+              ? ` (${unresolvedComments.length})`
+              : ''}
+          </TabsTrigger>
           <TabsTrigger value="signals">Activity</TabsTrigger>
           <TabsTrigger value="reports">Mod notes</TabsTrigger>
-          <TabsTrigger value="settings">Filters</TabsTrigger>
         </TabsList>
 
-        <TabsContent className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]" value="overview">
+        <TabsContent
+          className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]"
+          value="overview"
+        >
           <SectionHeader
             className="xl:col-span-full"
             title="Post review"
-            description="Queue reasons, trend, suggested action, and involved users."
+            description="Why Firewatch sent this post here, how attention changed, and who is still involved."
           />
           <div className="flex flex-col gap-4">
             <RiskReasonsCard incident={incident} />
             <TrendCard incident={incident} />
           </div>
           <div className="flex flex-col gap-4">
+            <ImpactSnapshotCard incident={incident} />
             <ResponseCard incident={incident} />
             <ParticipantsCard incident={incident} />
           </div>
         </TabsContent>
 
-        <TabsContent className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]" value="comments">
+        <TabsContent
+          className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]"
+          value="comments"
+        >
           <SectionHeader
             className="xl:col-span-full"
             title="Comment review"
@@ -169,21 +185,6 @@ export const IncidentDetail = ({
           />
           <SummariesCard incident={incident} />
           <ActionLogCard incident={incident} compact />
-        </TabsContent>
-
-        <TabsContent className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]" value="settings">
-          <SectionHeader
-            className="xl:col-span-full"
-            title="Filters"
-            description="Watched words, domains, and attention thresholds."
-          />
-          <SettingsCard
-            key={`${config.keywords.join('|')}:${config.suspiciousDomains.join('|')}:${config.heatThreshold}:${config.fireThreshold}:${config.wildfireThreshold}`}
-            busy={busyAction === 'config'}
-            config={config}
-            onSave={onSaveConfig}
-          />
-          <FilterHelpCard config={config} incident={incident} />
         </TabsContent>
       </Tabs>
     </div>
