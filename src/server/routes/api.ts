@@ -6,11 +6,11 @@ import type {
   ConfigResponse,
   DashboardInitResponse,
   ErrorResponse,
+  Incident,
 } from '../../shared/api';
 import {
   banUserAndRemoveComments,
   claimIncident,
-  cleanUpIncident,
   coolDownIncident,
   createDemoIncident,
   escalateIncident,
@@ -71,74 +71,27 @@ api.get('/init', async (c) => {
 });
 
 api.post('/incidents/:postId/claim', async (c) => {
-  try {
-    const incident = await claimIncident(c.req.param('postId'));
-    return c.json<ActionResponse>({ type: 'action', incident });
-  } catch (error) {
-    return incidentActionError(c, error);
-  }
+  return incidentAction(c, () => claimIncident(c.req.param('postId')));
 });
 
 api.post('/incidents/:postId/cool-down', async (c) => {
-  try {
-    const incident = await coolDownIncident(c.req.param('postId'));
-    return c.json<ActionResponse>({ type: 'action', incident });
-  } catch (error) {
-    return incidentActionError(c, error);
-  }
-});
-
-api.post('/incidents/:postId/cleanup', async (c) => {
-  try {
-    const body = await c.req.json<{
-      commentIds?: string[];
-      reason?: string;
-    }>();
-    const incident = await cleanUpIncident(
-      c.req.param('postId'),
-      body.commentIds ?? [],
-      body.reason
-    );
-    return c.json<ActionResponse>({ type: 'action', incident });
-  } catch (error) {
-    return incidentActionError(c, error);
-  }
+  return incidentAction(c, () => coolDownIncident(c.req.param('postId')));
 });
 
 api.post('/incidents/:postId/lock', async (c) => {
-  try {
-    const incident = await lockIncident(c.req.param('postId'));
-    return c.json<ActionResponse>({ type: 'action', incident });
-  } catch (error) {
-    return incidentActionError(c, error);
-  }
+  return incidentAction(c, () => lockIncident(c.req.param('postId')));
 });
 
 api.post('/incidents/:postId/escalate', async (c) => {
-  try {
-    const incident = await escalateIncident(c.req.param('postId'));
-    return c.json<ActionResponse>({ type: 'action', incident });
-  } catch (error) {
-    return incidentActionError(c, error);
-  }
+  return incidentAction(c, () => escalateIncident(c.req.param('postId')));
 });
 
 api.post('/incidents/:postId/resolve', async (c) => {
-  try {
-    const incident = await resolveIncident(c.req.param('postId'));
-    return c.json<ActionResponse>({ type: 'action', incident });
-  } catch (error) {
-    return incidentActionError(c, error);
-  }
+  return incidentAction(c, () => resolveIncident(c.req.param('postId')));
 });
 
 api.post('/demo/incident', async (c) => {
-  try {
-    const incident = await createDemoIncident();
-    return c.json<ActionResponse>({ type: 'action', incident });
-  } catch (error) {
-    return incidentActionError(c, error);
-  }
+  return incidentAction(c, createDemoIncident);
 });
 
 api.post('/config', async (c) => {
@@ -158,36 +111,42 @@ api.post('/config', async (c) => {
 });
 
 api.post('/incidents/:postId/comments/:commentId/remove', async (c) => {
-  try {
+  return incidentAction(c, async () => {
     const body: { reason?: string } = await c.req
       .json<{ reason?: string }>()
       .catch(() => ({}));
-    const incident = await removeFlaggedComment(
+    return removeFlaggedComment(
       c.req.param('postId'),
       c.req.param('commentId'),
       body.reason
     );
-    return c.json<ActionResponse>({ type: 'action', incident });
-  } catch (error) {
-    return incidentActionError(c, error);
-  }
+  });
 });
 
 api.post('/incidents/:postId/users/:username/ban', async (c) => {
-  try {
+  return incidentAction(c, async () => {
     const body: { reason?: string } = await c.req
       .json<{ reason?: string }>()
       .catch(() => ({}));
-    const incident = await banUserAndRemoveComments(
+    return banUserAndRemoveComments(
       c.req.param('postId'),
       c.req.param('username'),
       body.reason
     );
+  });
+});
+
+const incidentAction = async (
+  c: HonoContext,
+  run: () => Promise<Incident>
+) => {
+  try {
+    const incident = await run();
     return c.json<ActionResponse>({ type: 'action', incident });
   } catch (error) {
     return incidentActionError(c, error);
   }
-});
+};
 
 const incidentActionError = (
   c: HonoContext,
