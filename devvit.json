@@ -1,0 +1,58 @@
+{
+  "$schema": "https://developers.reddit.com/schema/config-file.v1.json",
+  "name": "firewatch",
+  "post": {
+    "dir": "dist/client",
+    "entrypoints": {
+      "default": {
+        "inline": true,
+        "entry": "splash.html"
+      },
+      "dashboard": {
+        "entry": "game.html"
+      }
+    }
+  },
+  "server": {
+    "dir": "dist/server",
+    "entry": "index.cjs"
+  },
+  "menu": {
+    "items": [
+      {
+        "label": "Open Firewatch board",
+        "description": "Open the incident command board for this subreddit.",
+        "location": "subreddit",
+        "forUserType": "moderator",
+        "endpoint": "/internal/menu/open-board"
+      },
+      {
+        "label": "Configure Firewatch",
+        "description": "Set keywords, domains, and incident thresholds.",
+        "location": "subreddit",
+        "forUserType": "moderator",
+        "endpoint": "/internal/menu/configure"
+      },
+      {
+        "label": "Escalate to Firewatch",
+        "description": "Create or open an incident panel for this post.",
+        "location": "post",
+        "forUserType": "moderator",
+        "endpoint": "/internal/menu/escalate-post"
+      }
+    ]
+  },
+  "forms": {
+    "firewatchConfig": "/internal/form/config-submit"
+  },
+  "triggers": {
+    "onAppInstall": "/internal/triggers/on-app-install",
+    "onCommentCreate": "/internal/triggers/on-comment-create",
+    "onCommentReport": "/internal/triggers/on-comment-report",
+    "onPostReport": "/internal/triggers/on-post-report"
+  },
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "vite build"
+  }
+}
