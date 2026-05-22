@@ -163,6 +163,11 @@ export type ActionResponse = {
   incident: Incident;
 };
 
+export type ConfigResponse = {
+  type: 'config';
+  config: FirewatchConfig;
+};
+
 export type ErrorResponse = {
   status: 'error';
   message: string;

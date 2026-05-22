@@ -3,6 +3,7 @@ import type { Context as HonoContext } from 'hono';
 import { context, reddit } from '@devvit/web/server';
 import type {
   ActionResponse,
+  ConfigResponse,
   DashboardInitResponse,
   ErrorResponse,
 } from '../../shared/api';
@@ -19,6 +20,7 @@ import {
   lockdownIncident,
   removeFlaggedComment,
   resolveIncident,
+  saveConfig,
 } from '../core/firewatch';
 
 export const api = new Hono();
@@ -137,6 +139,22 @@ api.post('/demo/incident', async (c) => {
   try {
     const incident = await createDemoIncident();
     return c.json<ActionResponse>({ type: 'action', incident });
+  } catch (error) {
+    return incidentActionError(c, error);
+  }
+});
+
+api.post('/config', async (c) => {
+  try {
+    const values = await c.req.json<{
+      keywords?: string;
+      suspiciousDomains?: string;
+      heatThreshold?: number;
+      fireThreshold?: number;
+      wildfireThreshold?: number;
+    }>();
+    const config = await saveConfig(values);
+    return c.json<ConfigResponse>({ type: 'config', config });
   } catch (error) {
     return incidentActionError(c, error);
   }
