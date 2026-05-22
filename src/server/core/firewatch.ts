@@ -816,7 +816,9 @@ const calculateIncident = (
         .filter((comment) => comment.removed)
         .map((comment) => comment.id),
       ...incident.actions.flatMap((action) =>
-        action.type === 'cleanup' ? (action.targetIds ?? []) : []
+        action.type === 'cleanup' || action.type === 'user_banned'
+          ? (action.targetIds ?? [])
+          : []
       ),
       ...normalizedSignals
         .filter(
@@ -905,7 +907,9 @@ const calculateIncident = (
   const removalsLastHour = incident.actions.reduce((total, action) => {
     if (action.createdAt < oneHourAgo) return total;
     if (action.type === 'comment_removed') return total + 1;
-    if (action.type === 'cleanup') return total + (action.targetIds?.length ?? 1);
+    if (action.type === 'cleanup' || action.type === 'user_banned') {
+      return total + (action.targetIds?.length ?? 1);
+    }
     return total;
   }, 0);
   const reasons: RiskReason[] = [];
@@ -1098,7 +1102,7 @@ const calculateIncident = (
       externalRemovalActions.length +
       incident.actions.reduce((total, action) => {
         if (action.type === 'comment_removed') return total + 1;
-        if (action.type === 'cleanup') {
+        if (action.type === 'cleanup' || action.type === 'user_banned') {
           return total + (action.targetIds?.length ?? 1);
         }
         return total;
@@ -1525,6 +1529,92 @@ export const cleanUpIncident = async (
     type: 'cleanup',
     actor,
     detail: cleanupDetail,
+    targetIds,
+  });
+  const nextIncident: Incident = {
+    ...incident,
+    flaggedComments: incident.flaggedComments.map((flaggedComment) =>
+      targetIds.includes(flaggedComment.id)
+        ? { ...flaggedComment, removed: true }
+        : flaggedComment
+    ),
+  };
+  const refreshedIncident = await refreshIncident(nextIncident);
+
+  await saveIncident(refreshedIncident);
+  return refreshedIncident;
+};
+
+export const banUserAndRemoveComments = async (
+  postId: string,
+  username: string,
+  reason?: string
+) => {
+  const normalizedPostId = normalizePostId(postId);
+  const normalizedUsername = normalizeUsername(username);
+  if (!normalizedUsername) throw new Error('Cannot ban an unknown user');
+
+  const sourceIncident = await getIncident(normalizedPostId);
+  if (!sourceIncident) throw new Error('Post is not in Firewatch yet');
+
+  const targetComments = sourceIncident.flaggedComments.filter(
+    (comment) =>
+      !comment.removed &&
+      normalizeUsername(comment.author)?.toLowerCase() ===
+        normalizedUsername.toLowerCase()
+  );
+  if (targetComments.length === 0) {
+    throw new Error(`No unremoved comments from u/${normalizedUsername}`);
+  }
+
+  const targetIds = targetComments.map((comment) => comment.id);
+  const contextCommentId = targetIds[0];
+  if (!contextCommentId) {
+    throw new Error(`No unremoved comments from u/${normalizedUsername}`);
+  }
+  const actionReason =
+    reason?.trim() || `Banned u/${normalizedUsername} from r/${context.subredditName}`;
+  const removalResults = await Promise.all(
+    targetIds.map((commentId) =>
+      removeCommentIfReal(sourceIncident, commentId, actionReason)
+    )
+  );
+  const redditRemovalCount = removalResults.filter(Boolean).length;
+  const demoRemovalCount = targetIds.length - redditRemovalCount;
+  const demoOnly = targetComments.every((comment) =>
+    isDemoComment(sourceIncident, comment.id)
+  );
+
+  if (!demoOnly) {
+    await reddit.banUser({
+      context: contextCommentId,
+      duration: 0,
+      note: actionReason,
+      reason: 'Firewatch moderation',
+      subredditName: context.subredditName,
+      username: normalizedUsername,
+    });
+  }
+
+  const actor = await actorName();
+  const removalDetail =
+    demoRemovalCount === 0
+      ? `Removed ${targetIds.length} comment${targetIds.length === 1 ? '' : 's'}`
+      : redditRemovalCount === 0
+        ? `Marked ${demoRemovalCount} demo comment${
+            demoRemovalCount === 1 ? '' : 's'
+          } removed`
+        : `Removed ${redditRemovalCount} comment${
+            redditRemovalCount === 1 ? '' : 's'
+          } and marked ${demoRemovalCount} demo comment${
+            demoRemovalCount === 1 ? '' : 's'
+          } removed`;
+  const incident = await appendAction(normalizedPostId, {
+    type: 'user_banned',
+    actor,
+    detail: demoOnly
+      ? `${removalDetail}; recorded demo ban for u/${normalizedUsername}`
+      : `${removalDetail}; banned u/${normalizedUsername}`,
     targetIds,
   });
   const nextIncident: Incident = {

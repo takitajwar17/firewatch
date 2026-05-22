@@ -8,6 +8,7 @@ import type {
   ErrorResponse,
 } from '../../shared/api';
 import {
+  banUserAndRemoveComments,
   claimIncident,
   cleanUpIncident,
   coolDownIncident,
@@ -164,6 +165,22 @@ api.post('/incidents/:postId/comments/:commentId/remove', async (c) => {
     const incident = await removeFlaggedComment(
       c.req.param('postId'),
       c.req.param('commentId'),
+      body.reason
+    );
+    return c.json<ActionResponse>({ type: 'action', incident });
+  } catch (error) {
+    return incidentActionError(c, error);
+  }
+});
+
+api.post('/incidents/:postId/users/:username/ban', async (c) => {
+  try {
+    const body: { reason?: string } = await c.req
+      .json<{ reason?: string }>()
+      .catch(() => ({}));
+    const incident = await banUserAndRemoveComments(
+      c.req.param('postId'),
+      c.req.param('username'),
       body.reason
     );
     return c.json<ActionResponse>({ type: 'action', incident });

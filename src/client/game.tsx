@@ -187,6 +187,9 @@ const readErrorMessage = async (res: Response) => {
 };
 
 const actionLabel = (action: string) => {
+  if (action.startsWith('ban:')) return 'Ban user';
+  if (action.startsWith('t1_')) return 'Remove comment';
+
   const labels: Record<string, string> = {
     claim: 'Take post',
     'cool-down': 'Sticky reminder',
@@ -198,7 +201,6 @@ const actionLabel = (action: string) => {
     config: 'Save settings',
   };
 
-  if (action.startsWith('t1_')) return 'Remove comment';
   return (
     labels[action] ??
     action
@@ -209,6 +211,11 @@ const actionLabel = (action: string) => {
 };
 
 const actionSuccessMessage = (action: string) => {
+  if (action.startsWith('ban:')) {
+    return 'User banned after their review comments were removed.';
+  }
+  if (action.startsWith('t1_')) return 'Comment handled.';
+
   const messages: Record<string, string> = {
     claim: 'Post taken.',
     'cool-down': 'Sticky reminder posted.',
@@ -220,7 +227,6 @@ const actionSuccessMessage = (action: string) => {
     config: 'Settings saved.',
   };
 
-  if (action.startsWith('t1_')) return 'Comment handled.';
   return messages[action] ?? `${actionLabel(action)} done.`;
 };
 
@@ -536,6 +542,7 @@ const FirewatchShell = ({
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <WorkspaceHeader
           busyAction={busyAction}
+          incidentCount={incidents.length}
           onCreateDemo={onCreateDemo}
           onRefresh={onRefresh}
           subredditName={subredditName}
@@ -641,16 +648,18 @@ const SidebarAccountCard = ({ username }: { username: string }) => {
 
 const WorkspaceHeader = ({
   busyAction,
+  incidentCount,
   onCreateDemo,
   onRefresh,
   subredditName,
 }: {
   busyAction: string | undefined;
+  incidentCount: number;
   onCreateDemo: () => void;
   onRefresh: () => void;
   subredditName: string;
 }) => (
-  <header className="flex items-center justify-between gap-4 border-b bg-background px-4 py-4 sm:px-8 lg:justify-end lg:px-10 lg:py-5">
+  <header className="flex items-center justify-between gap-4 border-b bg-background px-4 py-4 sm:px-8 lg:px-10 lg:py-5">
     <div className="flex min-w-0 items-center gap-3 lg:hidden">
       <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
         <Flame />
@@ -661,6 +670,13 @@ const WorkspaceHeader = ({
           r/{subredditName || 'subreddit'}
         </p>
       </div>
+    </div>
+    <div className="hidden min-w-0 lg:block">
+      <p className="text-sm font-medium leading-5">Incident board</p>
+      <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
+        r/{subredditName || 'subreddit'} - {pluralize(incidentCount, 'post')} in
+        review
+      </p>
     </div>
 
     <div className="flex shrink-0 items-center gap-2">
@@ -830,6 +846,23 @@ const PanelLabel = ({
   </p>
 );
 
+const SectionHeader = ({
+  className,
+  description,
+  title,
+}: {
+  className?: string;
+  description: string;
+  title: string;
+}) => (
+  <div className={cn('flex min-w-0 flex-col gap-1', className)}>
+    <h2 className="text-base font-medium leading-6 text-foreground">{title}</h2>
+    <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
+      {description}
+    </p>
+  </div>
+);
+
 const LoadingBoard = () => (
   <div className="flex flex-col gap-6">
     <div className="flex flex-col gap-2.5">
@@ -881,6 +914,9 @@ const IncidentDetail = ({
 }) => {
   const [activeTab, setActiveTab] = useState('overview');
   const [cleanupReason, setCleanupReason] = useState('Rule-breaking comment');
+  const unresolvedComments = incident.flaggedComments.filter(
+    (comment) => !comment.removed
+  );
 
   const runModAction: ActionRunner = async (action, endpoint, body) => {
     const updatedIncident = await onAction(action, endpoint, body);
@@ -890,7 +926,7 @@ const IncidentDetail = ({
       setActiveTab('reports');
     }
 
-    if (action === 'cleanup' || action.startsWith('t1_')) {
+    if (action === 'cleanup' || action.startsWith('t1_') || action.startsWith('ban:')) {
       setActiveTab('comments');
     }
 
@@ -901,23 +937,31 @@ const IncidentDetail = ({
     <div className="flex flex-col gap-5">
       <IncidentIntro incident={incident} />
 
+      <SectionHeader
+        title="Current review"
+        description="Open review work separated from historical activity."
+      />
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard
+          description="Report signals attached to the post or comments."
           icon={<ShieldAlert />}
           label="Reports filed"
           value={String(incident.stats.reportSignals)}
         />
         <MetricCard
+          description="Unremoved comments that still need a mod decision."
           icon={<ClipboardList />}
           label="Comments to review"
-          value={String(incident.stats.flaggedCount)}
+          value={String(unresolvedComments.length)}
         />
         <MetricCard
+          description="Authors attached to comments waiting for review."
           icon={<Users />}
           label="Users in review"
           value={String(incident.stats.uniqueParticipants)}
         />
         <MetricCard
+          description="Dense reply chains that can escalate quickly."
           icon={<Gauge />}
           label="Reply clusters"
           value={String(incident.stats.branchPileOns)}
@@ -931,7 +975,7 @@ const IncidentDetail = ({
       />
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="w-full justify-start overflow-x-auto">
+        <TabsList aria-label="Incident sections" className="w-full justify-start overflow-x-auto">
           <TabsTrigger value="overview">Post</TabsTrigger>
           <TabsTrigger value="comments">Comments</TabsTrigger>
           <TabsTrigger value="signals">Activity</TabsTrigger>
@@ -940,6 +984,11 @@ const IncidentDetail = ({
         </TabsList>
 
         <TabsContent className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]" value="overview">
+          <SectionHeader
+            className="xl:col-span-full"
+            title="Post review"
+            description="Queue reasons, trend, suggested action, and involved users."
+          />
           <div className="flex flex-col gap-4">
             <RiskReasonsCard incident={incident} />
             <TrendCard incident={incident} />
@@ -951,6 +1000,11 @@ const IncidentDetail = ({
         </TabsContent>
 
         <TabsContent className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]" value="comments">
+          <SectionHeader
+            className="xl:col-span-full"
+            title="Comment review"
+            description="Unremoved comments, removal reason, and actioned history."
+          />
           <FlaggedCommentsCard
             busyAction={busyAction}
             cleanupReason={cleanupReason}
@@ -962,16 +1016,31 @@ const IncidentDetail = ({
         </TabsContent>
 
         <TabsContent className="grid gap-4 xl:grid-cols-2" value="signals">
+          <SectionHeader
+            className="xl:col-span-full"
+            title="Activity"
+            description="Reddit signals and mod actions in chronological order."
+          />
           <LatestSignalsCard incident={incident} />
           <ActionLogCard incident={incident} />
         </TabsContent>
 
         <TabsContent className="grid gap-4 xl:grid-cols-2" value="reports">
+          <SectionHeader
+            className="xl:col-span-full"
+            title="Mod notes"
+            description="Handoff and final notes for the mod team."
+          />
           <SummariesCard incident={incident} />
           <ActionLogCard incident={incident} compact />
         </TabsContent>
 
         <TabsContent className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]" value="settings">
+          <SectionHeader
+            className="xl:col-span-full"
+            title="Filters"
+            description="Watched words, domains, and attention thresholds."
+          />
           <SettingsCard
             key={`${config.keywords.join('|')}:${config.suspiciousDomains.join('|')}:${config.heatThreshold}:${config.fireThreshold}:${config.wildfireThreshold}`}
             busy={busyAction === 'config'}
@@ -1057,73 +1126,82 @@ const IncidentHero = ({
       </CardHeader>
 
       <CardContent className="flex flex-col gap-4">
-        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-          <PlaybookButton
-            disabled={Boolean(incident.claim) || Boolean(busyAction) || terminal}
-            icon={<UserCheck data-icon="inline-start" />}
-            label={incident.claim ? 'Taken' : 'Take post'}
-            loading={busyAction === 'claim'}
-            onClick={() =>
-              onAction('claim', `/api/incidents/${incident.postId}/claim`)
-            }
-          />
-          <PlaybookButton
-            disabled={
-              Boolean(busyAction) || terminal || postLocked || reminderAlreadyPosted
-            }
-            icon={<RadioTower data-icon="inline-start" />}
-            label={reminderAlreadyPosted ? 'Reminder added' : 'Sticky reminder'}
-            loading={busyAction === 'cool-down'}
-            variant="outline"
-            onClick={() =>
-              onAction('cool-down', `/api/incidents/${incident.postId}/cool-down`)
-            }
-          />
-          <PlaybookButton
-            disabled={Boolean(busyAction) || terminal || postLocked}
-            icon={<Lock data-icon="inline-start" />}
-            label={postLocked ? 'Locked' : 'Lock post'}
-            loading={busyAction === 'lock'}
-            variant="destructive"
-            onClick={() =>
-              onAction('lock', `/api/incidents/${incident.postId}/lock`)
-            }
-          />
+        <div className="flex flex-col gap-2">
+          <PanelLabel>Primary actions</PanelLabel>
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            <PlaybookButton
+              disabled={Boolean(incident.claim) || Boolean(busyAction) || terminal}
+              icon={<UserCheck data-icon="inline-start" />}
+              label={incident.claim ? 'Taken' : 'Take post'}
+              loading={busyAction === 'claim'}
+              onClick={() =>
+                onAction('claim', `/api/incidents/${incident.postId}/claim`)
+              }
+            />
+            <PlaybookButton
+              disabled={
+                Boolean(busyAction) ||
+                terminal ||
+                postLocked ||
+                reminderAlreadyPosted
+              }
+              icon={<RadioTower data-icon="inline-start" />}
+              label={reminderAlreadyPosted ? 'Reminder added' : 'Sticky reminder'}
+              loading={busyAction === 'cool-down'}
+              variant="outline"
+              onClick={() =>
+                onAction('cool-down', `/api/incidents/${incident.postId}/cool-down`)
+              }
+            />
+            <PlaybookButton
+              disabled={Boolean(busyAction) || terminal || postLocked}
+              icon={<Lock data-icon="inline-start" />}
+              label={postLocked ? 'Locked' : 'Lock post'}
+              loading={busyAction === 'lock'}
+              variant="destructive"
+              onClick={() =>
+                onAction('lock', `/api/incidents/${incident.postId}/lock`)
+              }
+            />
+          </div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <PlaybookButton
-            disabled={Boolean(busyAction)}
-            icon={<ShieldAlert data-icon="inline-start" />}
-            label="Save handoff note"
-            loading={busyAction === 'escalate'}
-            variant="secondary"
-            onClick={() =>
-              onAction('escalate', `/api/incidents/${incident.postId}/escalate`)
-            }
-          />
-          {incident.permalink ? (
-            <Button variant="ghost" onClick={() => navigateTo(incident.permalink!)}>
-              <ExternalLink data-icon="inline-start" />
-              Open post
-            </Button>
-          ) : null}
-          <PlaybookButton
-            disabled={Boolean(busyAction) || terminal || unresolvedCount > 0}
-            icon={<CheckCircle2 data-icon="inline-start" />}
-            label={
-              terminal
-                ? 'Handled'
-                : unresolvedCount > 0
-                  ? 'Review comments first'
-                  : 'Mark handled'
-            }
-            loading={busyAction === 'resolve'}
-            variant="ghost"
-            onClick={() =>
-              onAction('resolve', `/api/incidents/${incident.postId}/resolve`)
-            }
-          />
+        <div className="flex flex-col gap-2 border-t pt-4">
+          <PanelLabel>Close out</PanelLabel>
+          <div className="flex flex-wrap gap-2">
+            <PlaybookButton
+              disabled={Boolean(busyAction)}
+              icon={<ShieldAlert data-icon="inline-start" />}
+              label="Save handoff note"
+              loading={busyAction === 'escalate'}
+              variant="secondary"
+              onClick={() =>
+                onAction('escalate', `/api/incidents/${incident.postId}/escalate`)
+              }
+            />
+            {incident.permalink ? (
+              <Button variant="ghost" onClick={() => navigateTo(incident.permalink!)}>
+                <ExternalLink data-icon="inline-start" />
+                Open post
+              </Button>
+            ) : null}
+            <PlaybookButton
+              disabled={Boolean(busyAction) || terminal || unresolvedCount > 0}
+              icon={<CheckCircle2 data-icon="inline-start" />}
+              label={
+                terminal
+                  ? 'Handled'
+                  : unresolvedCount > 0
+                    ? 'Review comments first'
+                    : 'Mark handled'
+              }
+              loading={busyAction === 'resolve'}
+              variant="ghost"
+              onClick={() =>
+                onAction('resolve', `/api/incidents/${incident.postId}/resolve`)
+              }
+            />
+          </div>
         </div>
       </CardContent>
     </Card>
@@ -1157,21 +1235,24 @@ const PlaybookButton = ({
 );
 
 const MetricCard = ({
+  description,
   icon,
   label,
   value,
 }: {
+  description: string;
   icon: ReactNode;
   label: string;
   value: string;
 }) => (
   <Card size="sm">
-    <CardHeader>
+    <CardHeader className="gap-2">
       <div className="flex items-center justify-between gap-3">
         <CardDescription>{label}</CardDescription>
         <span className="text-muted-foreground [&_svg]:size-4">{icon}</span>
       </div>
       <CardTitle className="text-2xl font-medium tabular-nums">{value}</CardTitle>
+      <p className="text-xs leading-5 text-muted-foreground">{description}</p>
     </CardHeader>
   </Card>
 );
@@ -1350,57 +1431,82 @@ const FlaggedCommentsCard = ({
 
             <ScrollArea className="max-h-[420px] pr-3">
               <div className="flex flex-col gap-3">
-                {needsReview.map((comment) => (
-                  <div key={comment.id} className="rounded-lg border p-3">
-                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium leading-5">
-                          {formatUsername(comment.author)} - attention{' '}
-                          {comment.score}
-                        </p>
-                        <p className="mt-2 line-clamp-3 text-sm leading-6 text-muted-foreground">
-                          {comment.body}
-                        </p>
-                        <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                          {comment.reasons.join(', ')}
-                        </p>
-                      </div>
+                {needsReview.map((comment) => {
+                  const authorLabel = formatUsername(comment.author);
+                  const canBanAuthor = authorLabel !== 'unknown user';
+                  const banAction = `ban:${comment.author}`;
 
-                      <div className="flex shrink-0 gap-2">
-                        {comment.permalink ? (
+                  return (
+                    <div key={comment.id} className="rounded-lg border p-3">
+                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium leading-5">
+                            {authorLabel} - attention {comment.score}
+                          </p>
+                          <p className="mt-2 line-clamp-3 text-sm leading-6 text-muted-foreground">
+                            {comment.body}
+                          </p>
+                          <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                            {comment.reasons.join(', ')}
+                          </p>
+                        </div>
+
+                        <div className="flex shrink-0 flex-wrap gap-2">
+                          {comment.permalink ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => navigateTo(comment.permalink!)}
+                            >
+                              <ExternalLink data-icon="inline-start" />
+                              Open
+                            </Button>
+                          ) : null}
                           <Button
+                            disabled={Boolean(busyAction)}
                             size="sm"
                             variant="outline"
-                            onClick={() => navigateTo(comment.permalink!)}
+                            onClick={() =>
+                              onAction(
+                                comment.id,
+                                `/api/incidents/${incident.postId}/comments/${comment.id}/remove`,
+                                { reason: cleanupReason }
+                              )
+                            }
                           >
-                            <ExternalLink data-icon="inline-start" />
-                            Open
+                            {busyAction === comment.id ? (
+                              <RefreshCw
+                                className="animate-spin"
+                                data-icon="inline-start"
+                              />
+                            ) : null}
+                            {busyAction === comment.id ? 'Working' : 'Remove'}
                           </Button>
-                        ) : null}
-                        <Button
-                          disabled={Boolean(busyAction)}
-                          size="sm"
-                          variant="destructive"
-                          onClick={() =>
-                            onAction(
-                              comment.id,
-                              `/api/incidents/${incident.postId}/comments/${comment.id}/remove`,
-                              { reason: cleanupReason }
-                            )
-                          }
-                        >
-                          {busyAction === comment.id ? (
-                            <RefreshCw
-                              className="animate-spin"
-                              data-icon="inline-start"
-                            />
-                          ) : null}
-                          {busyAction === comment.id ? 'Working' : 'Remove'}
-                        </Button>
+                          <Button
+                            disabled={Boolean(busyAction) || !canBanAuthor}
+                            size="sm"
+                            variant="destructive"
+                            onClick={() =>
+                              onAction(
+                                banAction,
+                                `/api/incidents/${incident.postId}/users/${encodeURIComponent(comment.author)}/ban`,
+                                { reason: cleanupReason }
+                              )
+                            }
+                          >
+                            {busyAction === banAction ? (
+                              <RefreshCw
+                                className="animate-spin"
+                                data-icon="inline-start"
+                              />
+                            ) : null}
+                            {busyAction === banAction ? 'Working' : 'Ban user'}
+                          </Button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </ScrollArea>
           </>

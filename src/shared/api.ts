@@ -60,6 +60,7 @@ export type IncidentAction = {
     | 'cool_down'
     | 'cleanup'
     | 'comment_removed'
+    | 'user_banned'
     | 'locked'
     | 'escalated'
     | 'resolved'
