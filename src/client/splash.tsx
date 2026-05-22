@@ -14,20 +14,19 @@ export const Splash = () => (
         <div>
           <h1 className="text-2xl font-black leading-tight">Firewatch</h1>
           <p className="text-sm font-medium text-[#65706f]">
-            Incident command for r/{context.subredditName}
+            Mod queue for r/{context.subredditName}
           </p>
         </div>
       </div>
       <p className="max-w-[560px] text-base leading-7 text-[#465150]">
-        Detect thread escalation, let one moderator claim ownership, apply a
-        response playbook, and produce an after-action summary without leaving
-        Reddit.
+        Review posts that are picking up reports, watched words, suspicious
+        links, repeated comments, or manual sends from the post menu.
       </p>
       <button
         className="h-11 w-fit rounded-md bg-[#1d2525] px-5 text-sm font-bold text-white transition hover:bg-[#334140]"
         onClick={(event) => requestExpandedMode(event.nativeEvent, 'dashboard')}
       >
-        Open incident board
+        Open mod queue
       </button>
     </main>
   </div>

@@ -1,56 +1,52 @@
 # Firewatch
 
-Firewatch is an incident command board for Reddit moderators. It helps mod
-teams notice fast-moving thread escalation, understand why a thread is risky,
-claim ownership of the response, apply common response playbooks, and generate
-an after-action summary.
+Firewatch is a Devvit mod queue for Reddit moderators. It helps mod teams spot
+posts that need review, understand why they were queued, coordinate ownership,
+take common moderation actions, and save handoff/final notes.
 
 ## What It Does
 
-- Scores active threads using deterministic, explainable signals.
-- Tracks comment velocity, report activity, configured keywords, suspicious
-  domains, repeated phrases, clustered reply branches, removal clusters, and
-  manual moderator escalation.
-- Shows a live incident panel with the current risk score, top reasons, flagged
-  comments, repeated phrases, involved users, newest signals, response
-  suggestion, risk trend, and action history.
-- Lets one moderator claim an incident so the rest of the team can see who is
-  handling it.
-- Provides response playbooks for cooldown, selected-comment cleanup, lockdown,
-  escalation handoff, and resolution.
-- Generates escalation summaries and after-action reports for mod handoff and
-  review.
-- Includes a demo incident seeder that creates a real source post and populates
-  incident state through the same signal pipeline as production events.
+- Scores posts with deterministic, explainable signals.
+- Tracks new comments, comment reports, post reports, watched words, watched
+  domains, repeated wording, reply pile-ons, moderator sends, moderator removal
+  actions, and AutoModerator filter events.
+- Shows queued posts with review score, top reasons, comments to review,
+  repeated wording, involved users, recent activity, suggested next step, trend,
+  and action history.
+- Lets one moderator take a post so other mods can see who is handling it.
+- Lets moderators add a sticky reminder, remove selected comments with a Reddit
+  removal note, lock the post, save a handoff note, and mark the post handled.
+- Includes a demo post creator that makes a real source post and populates the
+  queue through the same signal pipeline used by production events.
+- Removes stored post/comment content when Reddit delete triggers are received.
 
 ## Moderator Workflow
 
-1. Open the subreddit menu and choose **Open Firewatch board**.
-2. Use **Configure Firewatch** to tune heated keywords, suspicious domains, and
-   score thresholds for the community.
-3. Use **Create Firewatch demo incident** or the dashboard demo button to seed a
-   realistic test incident.
-4. On any post, choose **Escalate to Firewatch** to create an incident manually.
-5. Review the score and reasons, claim the incident, and choose an appropriate
-   response.
-6. Resolve the incident to create an after-action summary.
+1. Open the subreddit menu and choose **Open Firewatch queue**.
+2. Use **Firewatch filters** to tune watched words, watched domains, and review
+   scores for the community.
+3. Use **Create Firewatch demo post** or the dashboard button to create a test
+   post.
+4. On any post, choose **Send to Firewatch** to put that post in the queue.
+5. Review the score and reasons, take the post, and choose the needed action.
+6. Use **Save handoff note** or **Mark handled** when the mod team needs a note.
 
 ## Signals
 
-Firewatch is intentionally deterministic. It does not make hidden AI moderation
-decisions or automatically punish users based on a black-box score. Moderators
-stay in control and every risk score is explained by visible reasons.
+Firewatch is deterministic. It does not make hidden AI moderation decisions or
+automatically remove, lock, or punish users based on a score. Moderators stay in
+control and every score is explained by visible reasons.
 
 ## Privacy And Data
 
-Firewatch stores incident state for installed communities, including post IDs,
-comment IDs, public usernames, public comment excerpts, configured keywords,
-moderator actions taken through the app, and generated incident summaries. This
-data is used only to show moderation workflow state inside the app.
+Firewatch stores queue state for installed communities, including post IDs,
+comment IDs, public usernames, public comment excerpts, configured filters,
+moderator actions taken through the app, and generated notes. This data is used
+only to show moderation workflow state inside the app.
 
 ## Hackathon Positioning
 
 Firewatch is built for the Reddit Mod Tools and Migrated Apps Hackathon in the
-New Mod Tool category. The goal is to reduce moderator load during fast-moving
-threads by compressing detection, context gathering, coordination, response,
-and reporting into one Devvit-native workflow.
+New Mod Tool category. The goal is to reduce mod load during fast-moving posts
+by compressing detection, context gathering, ownership, action, and handoff into
+one Devvit-native workflow.

@@ -4,6 +4,7 @@ import {
   createDemoIncident,
   createFirewatchPost,
   getConfigFormDefaults,
+  getOrCreateFirewatchBoardPost,
   upsertIncidentSignal,
 } from '../core/firewatch';
 
@@ -11,7 +12,7 @@ export const menu = new Hono();
 
 menu.post('/open-board', async (c) => {
   try {
-    const post = await createFirewatchPost();
+    const post = await getOrCreateFirewatchBoardPost();
 
     return c.json<UiResponse>(
       {
@@ -20,10 +21,10 @@ menu.post('/open-board', async (c) => {
       200
     );
   } catch (error) {
-    console.error(`Error opening Firewatch board: ${error}`);
+    console.error(`Error opening Firewatch mod queue: ${error}`);
     return c.json<UiResponse>(
       {
-        showToast: 'Failed to open Firewatch board',
+        showToast: 'Could not open Firewatch mod queue',
       },
       400
     );
@@ -36,7 +37,7 @@ menu.post('/escalate-post', async (c) => {
     const incident = await upsertIncidentSignal({
       type: 'manual_escalation',
       postId: input.targetId,
-      reason: 'Manual moderator escalation',
+      reason: 'Sent from the post menu by a mod',
     });
     const post = await createFirewatchPost({ incidentPostId: incident.postId });
 
@@ -47,10 +48,10 @@ menu.post('/escalate-post', async (c) => {
       200
     );
   } catch (error) {
-    console.error(`Error escalating post to Firewatch: ${error}`);
+    console.error(`Error sending post to Firewatch: ${error}`);
     return c.json<UiResponse>(
       {
-        showToast: 'Failed to escalate this post',
+        showToast: 'Could not send this post to Firewatch',
       },
       400
     );
@@ -69,10 +70,10 @@ menu.post('/create-demo-incident', async (c) => {
       200
     );
   } catch (error) {
-    console.error(`Error creating Firewatch demo incident: ${error}`);
+    console.error(`Error creating Firewatch demo post: ${error}`);
     return c.json<UiResponse>(
       {
-        showToast: 'Failed to create Firewatch demo incident',
+        showToast: 'Could not create a demo post',
       },
       400
     );
@@ -87,39 +88,39 @@ menu.post('/configure', async (c) => {
       showForm: {
         name: 'firewatchConfig',
         form: {
-          title: 'Configure Firewatch',
+          title: 'Firewatch filters',
           description:
-            'Tune deterministic signals. Keep comma-separated terms specific to this community.',
+            'Choose the words, domains, and scores that send posts into review.',
           acceptLabel: 'Save',
           fields: [
             {
               type: 'paragraph',
               name: 'keywords',
-              label: 'Heated keywords',
+              label: 'Watched words',
               defaultValue: defaults.keywords,
             },
             {
               type: 'paragraph',
               name: 'suspiciousDomains',
-              label: 'Suspicious domains',
+              label: 'Watched domains',
               defaultValue: defaults.suspiciousDomains,
             },
             {
               type: 'number',
               name: 'heatThreshold',
-              label: 'Heat threshold',
+              label: 'Review score',
               defaultValue: defaults.heatThreshold,
             },
             {
               type: 'number',
               name: 'fireThreshold',
-              label: 'Fire threshold',
+              label: 'Act score',
               defaultValue: defaults.fireThreshold,
             },
             {
               type: 'number',
               name: 'wildfireThreshold',
-              label: 'Wildfire threshold',
+              label: 'Lock score',
               defaultValue: defaults.wildfireThreshold,
             },
           ],
@@ -127,10 +128,10 @@ menu.post('/configure', async (c) => {
       },
     });
   } catch (error) {
-    console.error(`Error opening Firewatch config: ${error}`);
+    console.error(`Error opening Firewatch filters: ${error}`);
     return c.json<UiResponse>(
       {
-        showToast: 'Failed to open Firewatch settings',
+        showToast: 'Could not open Firewatch filters',
       },
       400
     );

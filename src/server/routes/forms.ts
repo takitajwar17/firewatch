@@ -20,17 +20,17 @@ forms.post('/config-submit', async (c) => {
     return c.json<UiResponse>(
       {
         showToast: {
-          text: 'Firewatch settings saved',
+          text: 'Firewatch filters saved',
           appearance: 'success',
         },
       },
       200
     );
   } catch (error) {
-    console.error(`Error saving Firewatch config: ${error}`);
+    console.error(`Error saving Firewatch filters: ${error}`);
     return c.json<UiResponse>(
       {
-        showToast: 'Failed to save Firewatch settings',
+        showToast: 'Could not save Firewatch filters',
       },
       400
     );

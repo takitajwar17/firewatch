@@ -6,7 +6,7 @@ Firewatch is provided as a moderation workflow tool for Reddit communities.
 
 Firewatch provides deterministic risk signals and moderator workflow actions.
 Moderators remain responsible for reviewing context and deciding whether to
-remove comments, lock threads, post reminders, or take other moderation action.
+remove comments, lock posts, post reminders, or take other moderation action.
 
 ## No Automated Enforcement Guarantee
 

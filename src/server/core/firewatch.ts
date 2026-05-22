@@ -89,6 +89,8 @@ type SignalInput = Omit<IncidentSignal, 'id' | 'createdAt'> & {
 
 const incidentKey = (postId: string) => `fw:incident:${postId}`;
 const configKey = (subredditName: string) => `fw:config:${subredditName}`;
+const boardPostKey = (subredditName: string) => `fw:board-post:${subredditName}`;
+const claimKey = (postId: string) => `fw:claim:${postId}`;
 const now = () => Date.now();
 
 const makeId = (prefix: string) =>
@@ -96,6 +98,27 @@ const makeId = (prefix: string) =>
 
 const clamp = (value: number, min: number, max: number) =>
   Math.max(min, Math.min(max, value));
+
+const normalizePostId = (postId: string): T3 =>
+  (postId.startsWith('t3_') ? postId : `t3_${postId}`) as T3;
+
+const normalizeCommentId = (commentId: string): T1 =>
+  (commentId.startsWith('t1_') ? commentId : `t1_${commentId}`) as T1;
+
+const formatLevel = (level: IncidentLevel) =>
+  ({
+    watch: 'watch',
+    heat: 'review',
+    fire: 'act',
+    wildfire: 'lock likely',
+  })[level];
+
+const formatStatus = (status: Incident['status']) =>
+  ({
+    active: 'open',
+    monitoring: 'watching',
+    resolved: 'handled',
+  })[status];
 
 const parseCsv = (value: string | undefined, fallback: string[]) => {
   if (!value) return fallback;
@@ -108,6 +131,31 @@ const parseCsv = (value: string | undefined, fallback: string[]) => {
   return parsed.length > 0 ? Array.from(new Set(parsed)) : fallback;
 };
 
+const normalizeThresholds = (
+  heatThreshold: number,
+  fireThreshold: number,
+  wildfireThreshold: number
+) => {
+  const heatInput = Number.isFinite(heatThreshold)
+    ? heatThreshold
+    : DEFAULT_CONFIG.heatThreshold;
+  const fireInput = Number.isFinite(fireThreshold)
+    ? fireThreshold
+    : DEFAULT_CONFIG.fireThreshold;
+  const wildfireInput = Number.isFinite(wildfireThreshold)
+    ? wildfireThreshold
+    : DEFAULT_CONFIG.wildfireThreshold;
+  const heat = clamp(heatInput, 1, 98);
+  const fire = clamp(fireInput, heat + 1, 99);
+  const wildfire = clamp(wildfireInput, fire + 1, 100);
+
+  return {
+    heatThreshold: heat,
+    fireThreshold: fire,
+    wildfireThreshold: wildfire,
+  };
+};
+
 export const getConfig = async (
   subredditName = context.subredditName
 ): Promise<FirewatchConfig> => {
@@ -116,6 +164,12 @@ export const getConfig = async (
 
   try {
     const parsed = JSON.parse(stored) as Partial<FirewatchConfig>;
+    const thresholds = normalizeThresholds(
+      Number(parsed.heatThreshold ?? DEFAULT_CONFIG.heatThreshold),
+      Number(parsed.fireThreshold ?? DEFAULT_CONFIG.fireThreshold),
+      Number(parsed.wildfireThreshold ?? DEFAULT_CONFIG.wildfireThreshold)
+    );
+
     return {
       keywords: parsed.keywords?.length
         ? parsed.keywords
@@ -123,21 +177,7 @@ export const getConfig = async (
       suspiciousDomains: parsed.suspiciousDomains?.length
         ? parsed.suspiciousDomains
         : DEFAULT_CONFIG.suspiciousDomains,
-      heatThreshold: clamp(
-        Number(parsed.heatThreshold ?? DEFAULT_CONFIG.heatThreshold),
-        1,
-        100
-      ),
-      fireThreshold: clamp(
-        Number(parsed.fireThreshold ?? DEFAULT_CONFIG.fireThreshold),
-        1,
-        100
-      ),
-      wildfireThreshold: clamp(
-        Number(parsed.wildfireThreshold ?? DEFAULT_CONFIG.wildfireThreshold),
-        1,
-        100
-      ),
+      ...thresholds,
     };
   } catch (error) {
     console.error('Failed to parse Firewatch config', error);
@@ -153,27 +193,18 @@ export const saveConfig = async (values: {
   wildfireThreshold?: number;
 }) => {
   const current = await getConfig();
+  const thresholds = normalizeThresholds(
+    Number(values.heatThreshold ?? current.heatThreshold),
+    Number(values.fireThreshold ?? current.fireThreshold),
+    Number(values.wildfireThreshold ?? current.wildfireThreshold)
+  );
   const nextConfig: FirewatchConfig = {
     keywords: parseCsv(values.keywords, current.keywords),
     suspiciousDomains: parseCsv(
       values.suspiciousDomains,
       current.suspiciousDomains
     ),
-    heatThreshold: clamp(
-      Number(values.heatThreshold ?? current.heatThreshold),
-      1,
-      100
-    ),
-    fireThreshold: clamp(
-      Number(values.fireThreshold ?? current.fireThreshold),
-      1,
-      100
-    ),
-    wildfireThreshold: clamp(
-      Number(values.wildfireThreshold ?? current.wildfireThreshold),
-      1,
-      100
-    ),
+    ...thresholds,
   };
 
   await redis.set(configKey(context.subredditName), JSON.stringify(nextConfig));
@@ -204,13 +235,20 @@ const getIndex = async () => {
   }
 };
 
+const saveIndex = async (postIds: string[]) => {
+  await redis.set(
+    INDEX_KEY,
+    JSON.stringify(Array.from(new Set(postIds.filter(Boolean))).slice(0, 100))
+  );
+};
+
 const addToIndex = async (postId: string) => {
   const index = await getIndex();
   const nextIndex = [postId, ...index.filter((id) => id !== postId)].slice(
     0,
     100
   );
-  await redis.set(INDEX_KEY, JSON.stringify(nextIndex));
+  await saveIndex(nextIndex);
 };
 
 const getIncident = async (postId: string) => {
@@ -230,8 +268,67 @@ const saveIncident = async (incident: Incident) => {
   await addToIndex(incident.postId);
 };
 
+export const deleteStoredPostContent = async (postId: string) => {
+  const normalizedPostId = normalizePostId(postId);
+  const index = await getIndex();
+  await redis.del(incidentKey(normalizedPostId), claimKey(normalizedPostId));
+  await saveIndex(index.filter((id) => id !== normalizedPostId));
+
+  if (context.subredditName) {
+    const boardPostId = await redis.get(boardPostKey(context.subredditName));
+    if (boardPostId === normalizedPostId) {
+      await redis.del(boardPostKey(context.subredditName));
+    }
+  }
+};
+
+export const deleteStoredCommentContent = async (
+  postId: string,
+  commentId: string
+) => {
+  const normalizedPostId = normalizePostId(postId);
+  const normalizedCommentId = normalizeCommentId(commentId);
+  const incident = await getIncident(normalizedPostId);
+  if (!incident) return;
+
+  const sanitizedSignals = incident.recentSignals.map((signal) =>
+    signal.commentId === normalizedCommentId
+      ? {
+          ...signal,
+          author: undefined,
+          body: undefined,
+          permalink: undefined,
+          reason: undefined,
+          metadata: undefined,
+        }
+      : signal
+  );
+  const sanitizedIncident: Incident = {
+    ...incident,
+    escalationSummary: undefined,
+    flaggedComments: incident.flaggedComments.filter(
+      (comment) => comment.id !== normalizedCommentId
+    ),
+    involvedUsers: [],
+    reasons: [],
+    recentSignals: sanitizedSignals,
+    repeatedPhrases: [],
+    summary: undefined,
+    trend: [],
+    updatedAt: now(),
+  };
+
+  try {
+    const refreshed = await refreshIncident(sanitizedIncident);
+    await saveIncident(refreshed);
+  } catch (error) {
+    console.error(`Failed to refresh sanitized incident ${normalizedPostId}`, error);
+    await saveIncident(sanitizedIncident);
+  }
+};
+
 const getPostSnapshot = async (postId: string) => {
-  const post = await reddit.getPostById(postId as T3);
+  const post = await reddit.getPostById(normalizePostId(postId));
 
   return {
     title: post.title || 'Untitled post',
@@ -341,51 +438,51 @@ const getResponseSuggestion = (
 ): ResponseSuggestion => {
   if (level === 'wildfire') {
     return {
-      label: 'Lockdown',
-      detail: 'Thread risk is severe enough to stop new replies and preserve a clean record.',
+      label: 'Lock post',
+      detail: 'Reports and activity are high enough that mods may want to stop new comments.',
       level,
       steps: [
-        'Lock the thread with a clear mod explanation.',
-        'Remove the highest-risk comments in one cleanup pass.',
-        'Resolve with an after-action summary for the mod team.',
+        'Lock the post with a clear mod note.',
+        'Remove the comments that break the rules.',
+        'Mark handled to save a final note for the mod team.',
       ],
     };
   }
 
   if (level === 'fire') {
     return {
-      label: 'Clean up',
-      detail: 'Risk is high. Remove the worst comments before the argument spreads.',
+      label: 'Remove comments',
+      detail: 'The review score is high. Remove rule-breaking comments before the argument spreads.',
       level,
       steps: [
-        'Claim ownership so mods do not duplicate work.',
-        'Remove selected flagged comments.',
-        'Post a cooldown notice if the thread remains active.',
+        'Take this post so other mods know someone is handling it.',
+        'Remove the selected comments.',
+        'Add a sticky reminder if the post stays open.',
       ],
     };
   }
 
   if (level === 'heat') {
     return {
-      label: 'Cool down',
-      detail: 'The thread is heating up but can likely stay open with visible mod presence.',
+      label: 'Sticky reminder',
+      detail: 'The post can probably stay open if mods leave a visible reminder.',
       level,
       steps: [
-        'Post a distinguished cooldown reminder.',
-        'Watch the latest signals and repeated phrases.',
-        'Escalate if reports or branch pile-ons continue.',
+        'Add a distinguished sticky comment.',
+        'Watch new reports, repeated wording, and reply piles.',
+        'Save a handoff note if the post keeps getting reports.',
       ],
     };
   }
 
   return {
-    label: 'Monitor',
-    detail: `Risk score is ${score}/100. Keep watching for reports, velocity, and repeated phrases.`,
+    label: 'Watch',
+    detail: `Review score is ${score}/100. Keep an eye on reports, comment volume, and repeated wording.`,
     level,
     steps: [
-      'Leave the thread open.',
-      'Review flagged comments as they appear.',
-      'Claim the incident if another signal arrives.',
+      'Leave the post open.',
+      'Review comments as they appear.',
+      'Take this post if more reports come in.',
     ],
   };
 };
@@ -406,19 +503,28 @@ const scoreComment = (
 
   if (keywordHits > 0) {
     score += keywordHits * 12;
-    reasons.push(`${keywordHits} keyword match${keywordHits > 1 ? 'es' : ''}`);
+    reasons.push(
+      `${keywordHits} watched word match${keywordHits > 1 ? 'es' : ''}`
+    );
   }
 
   if (suspiciousHits > 0) {
     score += suspiciousHits * 10;
     reasons.push(
-      `${suspiciousHits} suspicious domain match${suspiciousHits > 1 ? 'es' : ''}`
+      `${suspiciousHits} watched domain match${suspiciousHits > 1 ? 'es' : ''}`
     );
   }
 
   if (signal.type === 'comment_report') {
     score += 20;
     reasons.push(signal.reason ? `reported: ${signal.reason}` : 'reported');
+  }
+
+  if (signal.type === 'automod_filter') {
+    score += 18;
+    reasons.push(
+      signal.reason ? `AutoModerator: ${signal.reason}` : 'AutoModerator filter'
+    );
   }
 
   if (score === 0) return undefined;
@@ -546,8 +652,28 @@ const calculateIncident = (
   const reports = recentSignals.filter(
     (signal) => signal.type === 'comment_report' || signal.type === 'post_report'
   );
+  const commentReports = recentSignals.filter(
+    (signal) => signal.type === 'comment_report'
+  );
+  const postReportSignals = recentSignals.filter(
+    (signal) => signal.type === 'post_report'
+  );
+  const postReportCount = Math.max(
+    postSnapshot.numberOfReports,
+    postReportSignals.length
+  );
+  const totalReportCount = commentReports.length + postReportCount;
   const manualEscalations = recentSignals.filter(
     (signal) => signal.type === 'manual_escalation'
+  );
+  const externalRemovalActions = recentSignals.filter(
+    (signal) =>
+      (signal.type === 'mod_action' &&
+        (signal.metadata?.action === 'removecomment' ||
+          signal.metadata?.action === 'spamcomment' ||
+          signal.metadata?.action === 'removelink' ||
+          signal.metadata?.action === 'spamlink')) ||
+      signal.type === 'automod_filter'
   );
   const repeatedPhrases = extractRepeatedPhrases(recentSignals);
   const repeatedPhraseHits = repeatedPhrases.reduce(
@@ -585,23 +711,20 @@ const calculateIncident = (
   }, 0);
   const reasons: RiskReason[] = [];
   const velocityPoints = clamp(recentComments.length * 3, 0, 30);
-  const reportPoints = clamp(
-    reports.length * 15 + postSnapshot.numberOfReports * 8,
-    0,
-    35
-  );
+  const reportPoints = clamp(totalReportCount * 15, 0, 35);
   const keywordPoints = clamp(keywordHits * 8, 0, 25);
   const suspiciousPoints = clamp(suspiciousHits * 10, 0, 20);
   const pileOnPoints = clamp(branchPileOnCount * 15, 0, 20);
   const phrasePoints = clamp(repeatedPhraseHits * 5, 0, 20);
-  const removalPoints = clamp(removalsLastHour * 8, 0, 20);
+  const removalSignalCount = removalsLastHour + externalRemovalActions.length;
+  const removalPoints = clamp(removalSignalCount * 8, 0, 20);
   const manualPoints = manualEscalations.length > 0 ? 25 : 0;
 
   if (velocityPoints > 0) {
     reasons.push({
       key: 'velocity',
-      label: 'Comment velocity',
-      detail: `${recentComments.length} new comment signals in the last hour`,
+      label: 'New comments',
+      detail: `${recentComments.length} new comments in the last hour`,
       points: velocityPoints,
       evidence: recentComments
         .slice(0, 3)
@@ -614,19 +737,19 @@ const calculateIncident = (
     reasons.push({
       key: 'reports',
       label: 'Reports',
-      detail: `${reports.length} recent report signals plus ${postSnapshot.numberOfReports} post reports`,
+      detail: `${commentReports.length} comment reports plus ${postReportCount} post reports`,
       points: reportPoints,
       evidence: reports
         .slice(0, 3)
-        .map((signal) => signal.reason ?? 'Report signal'),
+        .map((signal) => signal.reason ?? 'Report'),
     });
   }
 
   if (keywordPoints > 0) {
     reasons.push({
       key: 'keywords',
-      label: 'Heated terms',
-      detail: `${keywordHits} configured keyword match${keywordHits > 1 ? 'es' : ''}`,
+      label: 'Watched words',
+      detail: `${keywordHits} watched word match${keywordHits > 1 ? 'es' : ''}`,
       points: keywordPoints,
       evidence: config.keywords
         .filter((keyword) =>
@@ -641,8 +764,8 @@ const calculateIncident = (
   if (suspiciousPoints > 0) {
     reasons.push({
       key: 'links',
-      label: 'Suspicious links',
-      detail: `${suspiciousHits} suspicious domain match${suspiciousHits > 1 ? 'es' : ''}`,
+      label: 'Watched domains',
+      detail: `${suspiciousHits} watched domain match${suspiciousHits > 1 ? 'es' : ''}`,
       points: suspiciousPoints,
       evidence: config.suspiciousDomains
         .filter((domain) =>
@@ -657,7 +780,7 @@ const calculateIncident = (
   if (pileOnPoints > 0) {
     reasons.push({
       key: 'pile-on',
-      label: 'Branch pile-on',
+      label: 'Reply pile-on',
       detail: `${branchPileOnCount} clustered reply branch${
         branchPileOnCount > 1 ? 'es' : ''
       }`,
@@ -672,8 +795,8 @@ const calculateIncident = (
   if (phrasePoints > 0) {
     reasons.push({
       key: 'phrases',
-      label: 'Repeated phrases',
-      detail: `${repeatedPhrases.length} repeated phrase cluster${
+      label: 'Repeated wording',
+      detail: `${repeatedPhrases.length} repeated phrase${
         repeatedPhrases.length === 1 ? '' : 's'
       }`,
       points: phrasePoints,
@@ -684,8 +807,8 @@ const calculateIncident = (
   if (removalPoints > 0) {
     reasons.push({
       key: 'removals',
-      label: 'Removal cluster',
-      detail: `${removalsLastHour} removals recorded in the last hour`,
+      label: 'Recent removals',
+      detail: `${removalSignalCount} removals recorded in the last hour`,
       points: removalPoints,
     });
   }
@@ -693,11 +816,11 @@ const calculateIncident = (
   if (manualPoints > 0) {
     reasons.push({
       key: 'manual',
-      label: 'Manual escalation',
-      detail: 'A moderator manually escalated this thread',
+      label: 'Sent by mod',
+      detail: 'A mod sent this post to Firewatch',
       points: manualPoints,
       evidence: manualEscalations.map(
-        (signal) => signal.reason ?? 'Manual escalation'
+        (signal) => signal.reason ?? 'Sent by mod'
       ),
     });
   }
@@ -731,13 +854,13 @@ const calculateIncident = (
     }
   }
 
-  const flaggedComments = Array.from(flaggedById.values())
+  const allFlaggedComments = Array.from(flaggedById.values())
     .map((comment) => ({
       ...comment,
       removed: previousRemoved.has(comment.id) || comment.removed,
     }))
-    .sort((a, b) => b.score - a.score)
-    .slice(0, MAX_FLAGGED_COMMENTS);
+    .sort((a, b) => b.score - a.score);
+  const flaggedComments = allFlaggedComments.slice(0, MAX_FLAGGED_COMMENTS);
   const level = getLevel(score, config);
   const peakScore = Math.max(incident.peakScore ?? 0, score);
   const peakLevel = getLevel(peakScore, config);
@@ -746,18 +869,22 @@ const calculateIncident = (
     ...makeEmptyStats(),
     signalCount: recentSignals.length,
     commentSignals: recentComments.length,
-    reportSignals: reports.length + postSnapshot.numberOfReports,
+    reportSignals: totalReportCount,
     manualEscalations: manualEscalations.length,
     keywordHits,
     suspiciousLinkHits: suspiciousHits,
     branchPileOns: branchPileOnCount,
     repeatedPhraseHits,
-    removals: incident.actions.reduce((total, action) => {
-      if (action.type === 'comment_removed') return total + 1;
-      if (action.type === 'cleanup') return total + (action.targetIds?.length ?? 1);
-      return total;
-    }, 0),
-    flaggedCount: flaggedComments.length,
+    removals:
+      externalRemovalActions.length +
+      incident.actions.reduce((total, action) => {
+        if (action.type === 'comment_removed') return total + 1;
+        if (action.type === 'cleanup') {
+          return total + (action.targetIds?.length ?? 1);
+        }
+        return total;
+      }, 0),
+    flaggedCount: allFlaggedComments.length,
     uniqueParticipants: new Set(
       recentSignals
         .map((signal) => signal.author)
@@ -890,7 +1017,7 @@ const appendAction = async (
   action: Omit<IncidentAction, 'id' | 'createdAt'>
 ) => {
   const incident = await getIncident(postId);
-  if (!incident) throw new Error('Incident not found');
+  if (!incident) throw new Error('Post is not in Firewatch yet');
 
   const nextIncident: Incident = {
     ...incident,
@@ -915,15 +1042,34 @@ const actorName = async () =>
 
 export const claimIncident = async (postId: string) => {
   const incident = await getIncident(postId);
-  if (!incident) throw new Error('Incident not found');
+  if (!incident) throw new Error('Post is not in Firewatch yet');
 
   const actor = await actorName();
+  const claimedAt = now();
+  const existingClaim = incident.claim ?? {
+    username: actor,
+    claimedAt,
+  };
+
+  if (incident.claim) {
+    await redis.set(claimKey(postId), JSON.stringify(incident.claim), {
+      nx: true,
+    });
+  }
+
+  const claimValue = JSON.stringify(existingClaim);
+  const createdClaim = incident.claim
+    ? undefined
+    : await redis.set(claimKey(postId), claimValue, { nx: true });
+  const storedClaim = createdClaim
+    ? existingClaim
+    : JSON.parse((await redis.get(claimKey(postId))) ?? claimValue) as {
+        username: string;
+        claimedAt: number;
+      };
   const claimed: Incident = {
     ...incident,
-    claim: incident.claim ?? {
-      username: actor,
-      claimedAt: now(),
-    },
+    claim: storedClaim,
     updatedAt: now(),
   };
 
@@ -931,9 +1077,9 @@ export const claimIncident = async (postId: string) => {
   return appendAction(postId, {
     type: 'claimed',
     actor,
-    detail: incident.claim
-      ? `Incident already claimed by u/${incident.claim.username}`
-      : `Claimed by u/${actor}`,
+    detail: storedClaim.username !== actor
+      ? `Already taken by u/${storedClaim.username}`
+      : `Taken by u/${actor}`,
   });
 };
 
@@ -942,14 +1088,14 @@ export const coolDownIncident = async (postId: string) => {
   const actor = await actorName();
   const comment = await post.addComment({
     text:
-      'Firewatch notice: This thread is heating up. Please slow down, stay on topic, and follow community rules. Further rule-breaking may be removed.',
+      'Mod note: Please keep this discussion civil, stay on topic, and follow the community rules. Rule-breaking comments may be removed.',
   });
   await comment.distinguish(true);
 
   const incident = await appendAction(postId, {
     type: 'cool_down',
     actor,
-    detail: `Posted distinguished cooldown reminder ${comment.id}`,
+    detail: `Added sticky mod reminder ${comment.id}`,
   });
   const monitoring: Incident = {
     ...incident,
@@ -969,7 +1115,7 @@ export const lockIncident = async (postId: string) => {
   return appendAction(postId, {
     type: 'locked',
     actor,
-    detail: 'Locked the source thread',
+    detail: 'Locked post',
   });
 };
 
@@ -979,26 +1125,44 @@ const isDemoComment = (incident: Incident, commentId: string) =>
     (signal) => signal.commentId === commentId && signal.isDemo
   );
 
-const removeCommentIfReal = async (incident: Incident, commentId: string) => {
+const trimRemovalNote = (reason: string | undefined) => {
+  const trimmed = reason?.trim();
+  if (!trimmed) return undefined;
+  return trimmed.slice(0, 100);
+};
+
+const removeCommentIfReal = async (
+  incident: Incident,
+  commentId: string,
+  reason?: string
+) => {
   if (isDemoComment(incident, commentId)) return;
 
   const comment = await reddit.getCommentById(commentId as T1);
   await comment.remove(false);
+  const modNote = trimRemovalNote(reason);
+  if (modNote) {
+    await comment.addRemovalNote({
+      reasonId: '',
+      modNote,
+    });
+  }
 };
 
 export const removeFlaggedComment = async (
   postId: string,
-  commentId: string
+  commentId: string,
+  reason?: string
 ) => {
   const sourceIncident = await getIncident(postId);
-  if (!sourceIncident) throw new Error('Incident not found');
+  if (!sourceIncident) throw new Error('Post is not in Firewatch yet');
 
   const actor = await actorName();
-  await removeCommentIfReal(sourceIncident, commentId);
+  await removeCommentIfReal(sourceIncident, commentId, reason);
   const incident = await appendAction(postId, {
     type: 'comment_removed',
     actor,
-    detail: `Removed flagged comment ${commentId}`,
+    detail: `Removed comment ${commentId}${reason ? `: ${reason}` : ''}`,
   });
   const nextIncident: Incident = {
     ...incident,
@@ -1019,7 +1183,7 @@ export const cleanUpIncident = async (
   reason?: string
 ) => {
   const sourceIncident = await getIncident(postId);
-  if (!sourceIncident) throw new Error('Incident not found');
+  if (!sourceIncident) throw new Error('Post is not in Firewatch yet');
 
   const selectedIds = Array.from(new Set(commentIds)).filter((commentId) =>
     sourceIncident.flaggedComments.some(
@@ -1035,18 +1199,20 @@ export const cleanUpIncident = async (
           .map((comment) => comment.id);
 
   if (targetIds.length === 0) {
-    throw new Error('No removable flagged comments selected');
+    throw new Error('No removable comments selected');
   }
 
   await Promise.all(
-    targetIds.map((commentId) => removeCommentIfReal(sourceIncident, commentId))
+    targetIds.map((commentId) =>
+      removeCommentIfReal(sourceIncident, commentId, reason)
+    )
   );
 
   const actor = await actorName();
   const incident = await appendAction(postId, {
     type: 'cleanup',
     actor,
-    detail: `Removed ${targetIds.length} flagged comment${
+    detail: `Removed ${targetIds.length} comment${
       targetIds.length === 1 ? '' : 's'
     }${reason ? `: ${reason}` : ''}`,
     targetIds,
@@ -1087,18 +1253,18 @@ const buildSummary = (incident: Incident) => {
       : 'unresolved';
 
   return [
-    `Firewatch after-action summary for ${incident.title}`,
+    `Final mod note for ${incident.title}`,
     `Started at: ${new Date(incident.createdAt).toISOString()}`,
-    `Peak risk score: ${incident.peakScore}/100 (${incident.peakLevel})`,
-    `Final status: ${incident.status}`,
-    `Resolution time: ${resolutionTime}`,
-    `Top signals: ${topReasons || 'No active risk signals'}`,
-    `Flagged comments reviewed: ${incident.flaggedComments.length}`,
-    `Claimed by: ${incident.claim ? `u/${incident.claim.username}` : 'unclaimed'}`,
-    `Involved users: ${involvedUsers || 'none detected'}`,
-    `Common triggers: ${commonPhrases || 'none detected'}`,
+    `Highest review score: ${incident.peakScore}/100 (${formatLevel(incident.peakLevel)})`,
+    `Final status: ${formatStatus(incident.status)}`,
+    `Time open: ${resolutionTime}`,
+    `Why this needed review: ${topReasons || 'No active review reasons'}`,
+    `Comments reviewed: ${incident.flaggedComments.length}`,
+    `Handled by: ${incident.claim ? `u/${incident.claim.username}` : 'unclaimed'}`,
+    `Users in post: ${involvedUsers || 'none detected'}`,
+    `Repeated wording: ${commonPhrases || 'none detected'}`,
     'Recent actions:',
-    actionLines || '- No moderator actions recorded yet',
+    actionLines || '- No mod actions yet',
   ].join('\n');
 };
 
@@ -1117,27 +1283,27 @@ const buildEscalationSummary = (incident: Incident) => {
     .join('\n');
 
   return [
-    `Firewatch escalation: ${incident.title}`,
-    `Risk: ${incident.score}/100 (${incident.level}); recommended response: ${incident.responseSuggestion.label}`,
-    `Thread: ${incident.permalink ?? incident.postId}`,
-    `Claim: ${incident.claim ? `u/${incident.claim.username}` : 'unclaimed'}`,
-    'Signals:',
+    `Mod handoff note: ${incident.title}`,
+    `Review score: ${incident.score}/100 (${formatLevel(incident.level)}); suggested action: ${incident.responseSuggestion.label}`,
+    `Post: ${incident.permalink ?? incident.postId}`,
+    `Handled by: ${incident.claim ? `u/${incident.claim.username}` : 'unclaimed'}`,
+    'Why this is here:',
     topReasons || '- No active reasons recorded',
-    'Top flagged comments:',
-    topComments || '- No unresolved flagged comments',
+    'Comments to review:',
+    topComments || '- No unresolved comments',
   ].join('\n');
 };
 
 export const escalateIncident = async (postId: string) => {
   const incident = await getIncident(postId);
-  if (!incident) throw new Error('Incident not found');
+  if (!incident) throw new Error('Post is not in Firewatch yet');
 
   const actor = await actorName();
   const escalationSummary = buildEscalationSummary(incident);
   const withAction = await appendAction(postId, {
     type: 'escalated',
     actor,
-    detail: 'Generated escalation summary for mod handoff',
+    detail: 'Saved handoff note for the mod team',
     summary: escalationSummary,
   });
   const nextIncident: Incident = {
@@ -1150,37 +1316,9 @@ export const escalateIncident = async (postId: string) => {
   return nextIncident;
 };
 
-export const lockdownIncident = async (postId: string) => {
-  const post = await reddit.getPostById(postId as T3);
-  const actor = await actorName();
-  await post.lock();
-  const comment = await post.addComment({
-    text:
-      'Firewatch lockdown: This thread is now locked while the mod team finishes cleanup. Please review community rules before continuing elsewhere.',
-  });
-  await comment.distinguish(true);
-
-  const withAction = await appendAction(postId, {
-    type: 'lockdown',
-    actor,
-    detail: `Locked thread and posted distinguished lockdown notice ${comment.id}`,
-  });
-  const resolvedAt = now();
-  const resolved: Incident = {
-    ...withAction,
-    status: 'resolved',
-    resolvedAt,
-    summary: buildSummary({ ...withAction, status: 'resolved', resolvedAt }),
-    updatedAt: resolvedAt,
-  };
-
-  await saveIncident(resolved);
-  return resolved;
-};
-
 export const resolveIncident = async (postId: string) => {
   const incident = await getIncident(postId);
-  if (!incident) throw new Error('Incident not found');
+  if (!incident) throw new Error('Post is not in Firewatch yet');
 
   const actor = await actorName();
   const resolvedAt = now();
@@ -1197,7 +1335,7 @@ export const resolveIncident = async (postId: string) => {
         type: 'resolved' as const,
         actor,
         createdAt: now(),
-        detail: 'Marked incident resolved',
+        detail: 'Marked post handled',
       },
       ...incident.actions,
     ].slice(0, MAX_ACTIONS),
@@ -1221,14 +1359,14 @@ export const createDemoIncident = async () => {
   const keyword = demoKeyword(config);
   const secondKeyword = pick(config.keywords, 4, 'report');
   const suspiciousDomain = pick(config.suspiciousDomains, 0, 'bit.ly');
-  const scenario = `rapid replies, reports, ${keyword} mentions, suspicious links, and repeated phrases`;
+  const scenario = `rapid replies, reports, ${keyword} mentions, watched domains, and repeated wording`;
   const post = await reddit.submitPost({
     subredditName: context.subredditName,
-    title: `[Firewatch demo] Incident drill ${new Date(seed).toLocaleTimeString()}`,
+    title: `[Firewatch demo] Mod queue drill ${new Date(seed).toLocaleTimeString()}`,
     text: [
-      'This is a Firewatch demo source thread generated by the app.',
-      'The incident is populated through the same signal pipeline used by comment, report, and manual escalation events.',
-      'Moderators can test claim, cooldown, cleanup, lockdown, escalation, and resolution without waiting for real reports.',
+      'This is a Firewatch demo post generated by the app.',
+      'The review queue is populated through the same path used by comments, reports, and posts sent by mods.',
+      'Mods can test taking the post, adding a sticky reminder, removing comments, locking the post, saving a handoff note, and marking it handled without waiting for real reports.',
     ].join('\n\n'),
   });
   const authors = [
@@ -1244,7 +1382,7 @@ export const createDemoIncident = async () => {
   const bodies = [
     `This suddenly looks like a ${keyword} from outside the community. ${repeatedPhrase}.`,
     `I keep seeing the same claim. ${repeatedPhrase} and nobody is answering.`,
-    `Please check this ${suspiciousDomain}/thread before it spreads further.`,
+    `Please check this ${suspiciousDomain}/post before it spreads further.`,
     `The argument is looping now. ${repeatedPhrase}.`,
     `This feels like a ${secondKeyword} issue and the replies are getting personal.`,
     `Several new accounts are repeating the same line in this branch.`,
@@ -1291,8 +1429,8 @@ export const createDemoIncident = async () => {
   await upsertIncidentSignal({
     type: 'post_report',
     postId: post.id,
-    body: `${post.title}\nDemo report: repeated phrase cluster and suspicious links`,
-    reason: 'Thread is escalating',
+    body: `${post.title}\nDemo report: repeated wording and watched domains`,
+    reason: 'Post needs mod review',
     createdAt: seed - 2 * 60 * 1000,
     isDemo: true,
     metadata: {
@@ -1302,7 +1440,7 @@ export const createDemoIncident = async () => {
   const incident = await upsertIncidentSignal({
     type: 'manual_escalation',
     postId: post.id,
-    reason: 'Demo incident seeded for moderator review',
+    reason: 'Demo post sent for moderator review',
     createdAt: seed,
     isDemo: true,
     metadata: {
@@ -1314,7 +1452,7 @@ export const createDemoIncident = async () => {
   const withAction = await appendAction(incident.postId, {
     type: 'demo_seeded',
     actor,
-    detail: `Seeded demo incident with ${bodies.length} comment signals and 4 report/escalation signals`,
+    detail: `Created demo post with ${bodies.length} comment events and 4 report/manual events`,
   });
   const demoIncident: Incident = {
     ...withAction,
@@ -1335,11 +1473,11 @@ export const createFirewatchPost = async (options?: {
     ? await getPostSnapshot(options.incidentPostId)
     : undefined;
 
-  return await reddit.submitCustomPost({
+  const post = await reddit.submitCustomPost({
     subredditName: context.subredditName,
     title: sourcePost
-      ? `Firewatch: ${sourcePost.title.slice(0, 220)}`
-      : 'Firewatch incident board',
+      ? `Firewatch review: ${sourcePost.title.slice(0, 220)}`
+      : 'Firewatch mod queue',
     entry: 'dashboard',
     postData: options?.incidentPostId
       ? {
@@ -1350,8 +1488,28 @@ export const createFirewatchPost = async (options?: {
         },
     textFallback: {
       text: sourcePost
-        ? `Firewatch incident panel for ${sourcePost.title}`
-        : 'Firewatch incident board for moderators.',
+        ? `Firewatch mod view for ${sourcePost.title}`
+        : 'Firewatch mod queue for this community.',
     },
   });
+
+  if (!options?.incidentPostId) {
+    await redis.set(boardPostKey(context.subredditName), post.id);
+  }
+
+  return post;
+};
+
+export const getOrCreateFirewatchBoardPost = async () => {
+  const storedPostId = await redis.get(boardPostKey(context.subredditName));
+
+  if (storedPostId) {
+    try {
+      return await reddit.getPostById(storedPostId as T3);
+    } catch (error) {
+      console.error(`Stored Firewatch queue post could not be opened: ${error}`);
+    }
+  }
+
+  return await createFirewatchPost();
 };

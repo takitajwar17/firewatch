@@ -17,32 +17,39 @@
     "dir": "dist/server",
     "entry": "index.cjs"
   },
+  "permissions": {
+    "reddit": {
+      "enable": true,
+      "scope": "moderator"
+    },
+    "redis": true
+  },
   "menu": {
     "items": [
       {
-        "label": "Open Firewatch board",
-        "description": "Open the incident command board for this subreddit.",
+        "label": "Open Firewatch queue",
+        "description": "Open the existing Firewatch mod queue for this subreddit.",
         "location": "subreddit",
         "forUserType": "moderator",
         "endpoint": "/internal/menu/open-board"
       },
       {
-        "label": "Configure Firewatch",
-        "description": "Set keywords, domains, and incident thresholds.",
+        "label": "Firewatch filters",
+        "description": "Set watched words, domains, and review scores.",
         "location": "subreddit",
         "forUserType": "moderator",
         "endpoint": "/internal/menu/configure"
       },
       {
-        "label": "Create Firewatch demo incident",
-        "description": "Seed a realistic incident through the same signal pipeline used in production.",
+        "label": "Create Firewatch demo post",
+        "description": "Create a demo post with reports and comments so mods can test the workflow.",
         "location": "subreddit",
         "forUserType": "moderator",
         "endpoint": "/internal/menu/create-demo-incident"
       },
       {
-        "label": "Escalate to Firewatch",
-        "description": "Create or open an incident panel for this post.",
+        "label": "Send to Firewatch",
+        "description": "Send this post to the Firewatch mod queue.",
         "location": "post",
         "forUserType": "moderator",
         "endpoint": "/internal/menu/escalate-post"
@@ -54,8 +61,13 @@
   },
   "triggers": {
     "onAppInstall": "/internal/triggers/on-app-install",
+    "onAutomoderatorFilterComment": "/internal/triggers/on-automod-filter-comment",
+    "onAutomoderatorFilterPost": "/internal/triggers/on-automod-filter-post",
     "onCommentCreate": "/internal/triggers/on-comment-create",
+    "onCommentDelete": "/internal/triggers/on-comment-delete",
     "onCommentReport": "/internal/triggers/on-comment-report",
+    "onModAction": "/internal/triggers/on-mod-action",
+    "onPostDelete": "/internal/triggers/on-post-delete",
     "onPostReport": "/internal/triggers/on-post-report"
   },
   "scripts": {

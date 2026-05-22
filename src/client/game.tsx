@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   ClipboardList,
+  Copy,
   ExternalLink,
   Flame,
   Gauge,
@@ -55,7 +56,7 @@ type ActionRunner = (
   action: string,
   endpoint: string,
   body?: Record<string, unknown>
-) => Promise<void>;
+) => Promise<Incident | undefined>;
 
 type Notice = {
   type: 'success' | 'error';
@@ -64,9 +65,9 @@ type Notice = {
 
 const levelLabel: Record<IncidentLevel, string> = {
   watch: 'Watch',
-  heat: 'Heat',
-  fire: 'Fire',
-  wildfire: 'Wildfire',
+  heat: 'Review',
+  fire: 'Act',
+  wildfire: 'Lock likely',
 };
 
 const levelBadgeVariant: Record<
@@ -101,21 +102,93 @@ const formatDateTime = (timestamp: number) =>
     minute: '2-digit',
   }).format(new Date(timestamp));
 
-const formatSignalType = (value: string) => value.replaceAll('_', ' ');
+const formatStatus = (status: string) => {
+  const labels: Record<string, string> = {
+    active: 'Open',
+    monitoring: 'Watching',
+    resolved: 'Handled',
+  };
+
+  return labels[status] ?? status;
+};
+
+const formatSignalType = (value: string) => {
+  const labels: Record<string, string> = {
+    comment_create: 'New comment',
+    comment_report: 'Comment report',
+    post_report: 'Post report',
+    manual_escalation: 'Sent by mod',
+    mod_action: 'Mod action',
+    automod_filter: 'AutoModerator',
+    demo_seed: 'Demo data',
+  };
+
+  return labels[value] ?? value.replaceAll('_', ' ');
+};
 
 const clampScore = (score: number) => Math.max(0, Math.min(100, score));
 
-const actionLabel = (action: string) =>
-  action
-    .split(/[-_]/)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
+const actionLabel = (action: string) => {
+  const labels: Record<string, string> = {
+    claim: 'Take post',
+    'cool-down': 'Sticky reminder',
+    cleanup: 'Remove comments',
+    lock: 'Lock post',
+    escalate: 'Save handoff note',
+    resolve: 'Mark handled',
+    demo: 'Create demo post',
+    config: 'Save settings',
+  };
+
+  if (action.startsWith('t1_')) return 'Remove comment';
+  return (
+    labels[action] ??
+    action
+      .split(/[-_]/)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ')
+  );
+};
+
+const actionSuccessMessage = (action: string) => {
+  const messages: Record<string, string> = {
+    claim: 'Post taken.',
+    'cool-down': 'Sticky reminder posted.',
+    cleanup: 'Comments removed.',
+    lock: 'Post locked.',
+    escalate: 'Handoff note saved in Mod notes.',
+    resolve: 'Post marked handled. Final note saved.',
+    demo: 'Demo post created.',
+    config: 'Settings saved.',
+  };
+
+  if (action.startsWith('t1_')) return 'Comment removed.';
+  return messages[action] ?? `${actionLabel(action)} done.`;
+};
 
 const splitList = (value: string) =>
   value
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean);
+
+const copyTextToClipboard = async (value: string) => {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return true;
+  }
+
+  const textarea = document.createElement('textarea');
+  textarea.value = value;
+  textarea.setAttribute('readonly', 'true');
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  document.body.append(textarea);
+  textarea.select();
+  const copied = document.execCommand('copy');
+  textarea.remove();
+  return copied;
+};
 
 export const App = () => {
   const [loadState, setLoadState] = useState<LoadState>({ status: 'loading' });
@@ -233,7 +306,8 @@ export const App = () => {
 
       const payload = (await res.json()) as { incident: Incident };
       updateIncident(payload.incident);
-      setNotice({ type: 'success', message: `${actionLabel(action)} completed.` });
+      setNotice({ type: 'success', message: actionSuccessMessage(action) });
+      return payload.incident;
     } catch (error) {
       console.error(`Firewatch action failed: ${action}`, error);
       setNotice({
@@ -243,6 +317,7 @@ export const App = () => {
             ? `${actionLabel(action)} failed: ${error.message}`
             : `${actionLabel(action)} failed.`,
       });
+      return undefined;
     } finally {
       setBusyAction(undefined);
     }
@@ -279,14 +354,14 @@ export const App = () => {
             }
           : current
       );
-      setNotice({ type: 'success', message: 'Firewatch settings saved.' });
+      setNotice({ type: 'success', message: 'Settings saved.' });
     } catch (error) {
       setNotice({
         type: 'error',
         message:
           error instanceof Error
-            ? `Settings failed: ${error.message}`
-            : 'Settings failed.',
+            ? `Could not save settings: ${error.message}`
+            : 'Could not save settings.',
       });
     } finally {
       setBusyAction(undefined);
@@ -309,7 +384,7 @@ export const App = () => {
         <div className="flex min-h-[60vh] items-center justify-center">
           <Alert variant="destructive" className="max-w-md">
             <AlertTriangle />
-            <AlertTitle>Firewatch failed to load</AlertTitle>
+            <AlertTitle>Could not load your mod view</AlertTitle>
             <AlertDescription>{loadState.message}</AlertDescription>
             <Button className="mt-4 w-fit" variant="outline" onClick={refresh}>
               <RefreshCw data-icon="inline-start" />
@@ -347,7 +422,6 @@ export const App = () => {
       ) : (
         <EmptyBoard
           busy={busyAction === 'demo'}
-          config={data.config}
           onCreateDemo={createDemoIncident}
         />
       )}
@@ -433,17 +507,17 @@ const CommandPanel = ({
         <div className="min-w-0">
           <p className="text-lg font-medium leading-tight">Firewatch</p>
           <p className="truncate text-sm leading-6 text-sidebar-foreground/65">
-            r/{subredditName || 'subreddit'} review desk
+            r/{subredditName || 'subreddit'} mod queue
           </p>
         </div>
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-3">
-        <PanelLabel>Incident queue</PanelLabel>
+        <PanelLabel>Posts to review</PanelLabel>
         {incidents.length === 0 ? (
           <p className="rounded-lg border border-sidebar-border/70 bg-sidebar-accent/35 p-3 text-sm leading-6 text-sidebar-foreground/70">
-            No incidents yet. Seed a demo incident or use the post menu action on
-            a thread.
+            No posts need mod review. Create a demo post or use the post menu
+            to send a post here.
           </p>
         ) : (
           <ScrollArea className="min-h-0 flex-1 pr-3">
@@ -471,19 +545,21 @@ const SidebarAccountCard = ({ username }: { username: string }) => {
   const initial = displayName.trim().charAt(0).toUpperCase() || 'M';
 
   return (
-    <div className="mt-5 rounded-lg border border-sidebar-border/65 bg-sidebar-primary/10 px-2.5 py-2">
+    <section
+      aria-label="Current moderator"
+      className="mt-5 border-t border-sidebar-border/65 pt-4"
+    >
       <div className="flex items-center gap-2.5">
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-sidebar-border/70 bg-sidebar-primary/20 text-sm font-medium text-sidebar-foreground">
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary/15 text-sm font-medium text-sidebar-foreground">
           {initial}
         </div>
         <div className="grid min-w-0 flex-1 text-left leading-tight">
-          <span className="text-2xs uppercase tracking-[0.12em] text-sidebar-foreground/55">
-            Account
+          <span className="truncate text-sm font-medium leading-5">
+            u/{displayName}
           </span>
-          <span className="truncate text-sm font-medium">u/{displayName}</span>
         </div>
       </div>
-    </div>
+    </section>
   );
 };
 
@@ -524,10 +600,10 @@ const WorkspaceHeader = ({
       >
         <Sparkles data-icon="inline-start" />
         <span className="hidden sm:inline">
-          {busyAction === 'demo' ? 'Seeding' : 'Demo'}
+          {busyAction === 'demo' ? 'Creating' : 'Create demo'}
         </span>
         <span className="sr-only sm:hidden">
-          {busyAction === 'demo' ? 'Seeding demo incident' : 'Create demo incident'}
+          {busyAction === 'demo' ? 'Creating demo post' : 'Create demo post'}
         </span>
       </Button>
     </div>
@@ -554,9 +630,9 @@ const MobileIncidentStrip = ({
   <div className="lg:hidden">
     <div className="mb-3 flex items-end justify-between gap-3">
       <div>
-        <PanelLabel>Incident queue</PanelLabel>
+        <PanelLabel>Posts to review</PanelLabel>
         <p className="mt-1 text-sm leading-6 text-muted-foreground">
-          {incidents.length} thread{incidents.length === 1 ? '' : 's'} tracked
+          {incidents.length} post{incidents.length === 1 ? '' : 's'} tracked
         </p>
       </div>
       <Badge variant="outline">{incidents.length}</Badge>
@@ -620,7 +696,7 @@ const IncidentQueueItem = ({
         surface === 'dark' ? 'text-sidebar-foreground/60' : 'text-muted-foreground'
       )}
     >
-      <span className="capitalize">{incident.status}</span>
+      <span>{formatStatus(incident.status)}</span>
       <span>{formatTime(incident.updatedAt)}</span>
     </div>
   </button>
@@ -679,19 +755,35 @@ const IncidentDetail = ({
     wildfireThreshold: number;
   }) => Promise<void>;
 }) => {
+  const [activeTab, setActiveTab] = useState('overview');
   const [selectedCommentIds, setSelectedCommentIds] = useState<string[]>(() =>
     incident.flaggedComments
       .filter((comment) => !comment.removed)
       .slice(0, 3)
       .map((comment) => comment.id)
   );
-  const [cleanupReason, setCleanupReason] = useState('Rule-breaking cleanup');
+  const [cleanupReason, setCleanupReason] = useState('Removed for rule-breaking');
   const unresolvedComments = incident.flaggedComments.filter(
     (comment) => !comment.removed
   );
   const activeSelectedCommentIds = selectedCommentIds.filter((commentId) =>
     unresolvedComments.some((comment) => comment.id === commentId)
   );
+
+  const runModAction: ActionRunner = async (action, endpoint, body) => {
+    const updatedIncident = await onAction(action, endpoint, body);
+    if (!updatedIncident) return undefined;
+
+    if (action === 'escalate' || action === 'resolve') {
+      setActiveTab('reports');
+    }
+
+    if (action === 'cleanup' || action.startsWith('t1_')) {
+      setActiveTab('comments');
+    }
+
+    return updatedIncident;
+  };
 
   const setCommentSelected = (commentId: string, selected: boolean) => {
     setSelectedCommentIds((current) => {
@@ -712,17 +804,17 @@ const IncidentDetail = ({
         />
         <MetricCard
           icon={<ClipboardList />}
-          label="Flagged"
+          label="Comments"
           value={String(incident.stats.flaggedCount)}
         />
         <MetricCard
           icon={<Users />}
-          label="Participants"
+          label="Users"
           value={String(incident.stats.uniqueParticipants)}
         />
         <MetricCard
           icon={<Gauge />}
-          label="Pile-ons"
+          label="Reply piles"
           value={String(incident.stats.branchPileOns)}
         />
       </div>
@@ -734,18 +826,18 @@ const IncidentDetail = ({
         selectedCommentIds={activeSelectedCommentIds}
         selectedCount={activeSelectedCommentIds.length}
         unresolvedCount={unresolvedComments.length}
-        onAction={onAction}
+        onAction={runModAction}
       />
 
-      <Tabs defaultValue="overview">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="w-full justify-start overflow-x-auto">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="comments">Cleanup</TabsTrigger>
-          <TabsTrigger value="signals">Signals</TabsTrigger>
-          <TabsTrigger value="reports">Reports</TabsTrigger>
+          <TabsTrigger value="overview">Post</TabsTrigger>
+          <TabsTrigger value="comments">Comments</TabsTrigger>
+          <TabsTrigger value="signals">Activity</TabsTrigger>
+          <TabsTrigger value="reports">Mod notes</TabsTrigger>
           <TabsTrigger value="settings">
             <Settings data-icon="inline-start" />
-            Settings
+            Filters
           </TabsTrigger>
         </TabsList>
 
@@ -766,7 +858,7 @@ const IncidentDetail = ({
             busyAction={busyAction}
             cleanupReason={cleanupReason}
             incident={incident}
-            onAction={onAction}
+            onAction={runModAction}
             onCleanupReasonChange={setCleanupReason}
             onSelectComment={setCommentSelected}
           />
@@ -790,7 +882,7 @@ const IncidentDetail = ({
             config={config}
             onSave={onSaveConfig}
           />
-          <ReadinessCard config={config} incident={incident} />
+          <FilterHelpCard config={config} incident={incident} />
         </TabsContent>
       </Tabs>
     </div>
@@ -805,8 +897,8 @@ const IncidentIntro = ({ incident }: { incident: Incident }) => (
           <Badge variant={levelBadgeVariant[incident.level]}>
             {levelLabel[incident.level]}
           </Badge>
-          <Badge variant="outline" className="capitalize">
-            {incident.status}
+          <Badge variant="outline">
+            {formatStatus(incident.status)}
           </Badge>
           {incident.demo ? <Badge variant="secondary">Demo</Badge> : null}
           {incident.claim ? (
@@ -818,14 +910,14 @@ const IncidentIntro = ({ incident }: { incident: Incident }) => (
         </h1>
         <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">
           Updated {formatDateTime(incident.updatedAt)}. {incident.stats.signalCount}{' '}
-          recent signals, peak score {incident.peakScore}/100.
+          recent events, highest score {incident.peakScore}/100.
         </p>
       </div>
 
       <div className="rounded-lg border bg-muted/40 p-4">
         <div className="flex items-end justify-between gap-4">
           <span className="text-[13px] font-medium leading-5 text-muted-foreground">
-            Risk score
+            Mod attention
           </span>
           <span className="text-4xl font-medium leading-none tabular-nums">
             {incident.score}
@@ -865,7 +957,7 @@ const IncidentHero = ({
   <Card>
     <CardHeader className="gap-2">
       <div className="min-w-0">
-        <CardTitle>Response playbook</CardTitle>
+        <CardTitle>Take action</CardTitle>
         <CardDescription className="mt-1 max-w-2xl">
           {incident.responseSuggestion.detail}
         </CardDescription>
@@ -877,14 +969,14 @@ const IncidentHero = ({
         <PlaybookButton
           disabled={Boolean(incident.claim) || Boolean(busyAction)}
           icon={<UserCheck data-icon="inline-start" />}
-          label={incident.claim ? 'Claimed' : 'Claim'}
+          label={incident.claim ? 'Taken' : 'Take post'}
           loading={busyAction === 'claim'}
           onClick={() => onAction('claim', `/api/incidents/${incident.postId}/claim`)}
         />
         <PlaybookButton
           disabled={Boolean(busyAction) || incident.status === 'resolved'}
           icon={<RadioTower data-icon="inline-start" />}
-          label="Cool down"
+          label="Sticky reminder"
           loading={busyAction === 'cool-down'}
           variant="outline"
           onClick={() =>
@@ -894,7 +986,7 @@ const IncidentHero = ({
         <PlaybookButton
           disabled={Boolean(busyAction) || unresolvedCount === 0}
           icon={<ClipboardList data-icon="inline-start" />}
-          label={`Clean up ${selectedCount || Math.min(3, unresolvedCount)}`}
+          label={`Remove ${selectedCount || Math.min(3, unresolvedCount)}`}
           loading={busyAction === 'cleanup'}
           variant="outline"
           onClick={() =>
@@ -907,11 +999,11 @@ const IncidentHero = ({
         <PlaybookButton
           disabled={Boolean(busyAction) || incident.status === 'resolved'}
           icon={<Lock data-icon="inline-start" />}
-          label="Lockdown"
-          loading={busyAction === 'lockdown'}
+          label="Lock post"
+          loading={busyAction === 'lock'}
           variant="destructive"
           onClick={() =>
-            onAction('lockdown', `/api/incidents/${incident.postId}/lockdown`)
+            onAction('lock', `/api/incidents/${incident.postId}/lock`)
           }
         />
       </div>
@@ -920,25 +1012,23 @@ const IncidentHero = ({
         <PlaybookButton
           disabled={Boolean(busyAction)}
           icon={<ShieldAlert data-icon="inline-start" />}
-          label="Escalate"
+          label="Save handoff note"
           loading={busyAction === 'escalate'}
           variant="secondary"
           onClick={() =>
             onAction('escalate', `/api/incidents/${incident.postId}/escalate`)
           }
         />
-        <Button
-          disabled={!incident.permalink}
-          variant="ghost"
-          onClick={() => incident.permalink && navigateTo(incident.permalink)}
-        >
-          <ExternalLink data-icon="inline-start" />
-          Open source
-        </Button>
+        {incident.permalink ? (
+          <Button variant="ghost" onClick={() => navigateTo(incident.permalink!)}>
+            <ExternalLink data-icon="inline-start" />
+            Open post
+          </Button>
+        ) : null}
         <PlaybookButton
           disabled={Boolean(busyAction) || incident.status === 'resolved'}
           icon={<CheckCircle2 data-icon="inline-start" />}
-          label="Resolve"
+          label="Mark handled"
           loading={busyAction === 'resolve'}
           variant="ghost"
           onClick={() =>
@@ -999,7 +1089,7 @@ const MetricCard = ({
 const ResponseCard = ({ incident }: { incident: Incident }) => (
   <Card>
     <CardHeader>
-      <CardTitle>Suggested response</CardTitle>
+      <CardTitle>Suggested next step</CardTitle>
       <CardDescription>{incident.responseSuggestion.label}</CardDescription>
     </CardHeader>
     <CardContent className="flex flex-col gap-3">
@@ -1016,14 +1106,14 @@ const ResponseCard = ({ incident }: { incident: Incident }) => (
 const RiskReasonsCard = ({ incident }: { incident: Incident }) => (
   <Card>
     <CardHeader>
-      <CardTitle>Why it was flagged</CardTitle>
+      <CardTitle>Why this post is here</CardTitle>
       <CardDescription>
-        Every score is built from visible moderator-facing signals.
+        Based on comments, reports, watched words, links, and mod actions.
       </CardDescription>
     </CardHeader>
     <CardContent>
       {incident.reasons.length === 0 ? (
-        <EmptyText>No active risk reasons yet.</EmptyText>
+        <EmptyText>No mod-review reasons yet.</EmptyText>
       ) : (
         <div className="flex flex-col gap-3">
           {incident.reasons.map((reason) => (
@@ -1053,19 +1143,19 @@ const RiskReasonsCard = ({ incident }: { incident: Incident }) => (
 const TrendCard = ({ incident }: { incident: Incident }) => (
   <Card>
     <CardHeader>
-      <CardTitle>Risk trend</CardTitle>
-      <CardDescription>Recent score pressure by signal bucket.</CardDescription>
+      <CardTitle>Activity trend</CardTitle>
+      <CardDescription>Recent comments, reports, and watched-word hits.</CardDescription>
     </CardHeader>
     <CardContent>
       {incident.trend.length === 0 ? (
-        <EmptyText>No trend points yet.</EmptyText>
+        <EmptyText>No recent activity yet.</EmptyText>
       ) : (
         <div className="flex h-40 items-stretch gap-2 rounded-lg border bg-muted/20 p-3">
           {incident.trend.map((point) => (
             <div
               key={point.timestamp}
               className="flex min-w-0 flex-1 flex-col gap-2"
-              title={`${formatTime(point.timestamp)} score ${point.score}`}
+              title={`${formatTime(point.timestamp)} attention score ${point.score}`}
             >
               <div className="flex min-h-0 flex-1 items-end">
                 <div
@@ -1087,12 +1177,12 @@ const TrendCard = ({ incident }: { incident: Incident }) => (
 const ParticipantsCard = ({ incident }: { incident: Incident }) => (
   <Card>
     <CardHeader>
-      <CardTitle>Involved users</CardTitle>
-      <CardDescription>Participants most present in current signals.</CardDescription>
+      <CardTitle>Users in this post</CardTitle>
+      <CardDescription>Users showing up most in comments and reports.</CardDescription>
     </CardHeader>
     <CardContent>
       {incident.involvedUsers.length === 0 ? (
-        <EmptyText>No users detected in the current signal window.</EmptyText>
+        <EmptyText>No users in the current review window.</EmptyText>
       ) : (
         <div className="flex flex-col">
           {incident.involvedUsers.map((user, index) => (
@@ -1104,7 +1194,7 @@ const ParticipantsCard = ({ incident }: { incident: Incident }) => (
                     u/{user.username}
                   </p>
                   <p className="text-xs leading-5 text-muted-foreground">
-                    {user.signals} signals - {user.flagged} flagged -{' '}
+                    {user.signals} events - {user.flagged} comments to review -{' '}
                     {user.branchCount} branches
                   </p>
                 </div>
@@ -1139,14 +1229,14 @@ const FlaggedCommentsCard = ({
 }) => (
   <Card>
     <CardHeader>
-      <CardTitle>Flagged comments</CardTitle>
-      <CardDescription>Select comments for the cleanup playbook.</CardDescription>
+      <CardTitle>Comments to review</CardTitle>
+      <CardDescription>Select comments before removing them.</CardDescription>
     </CardHeader>
     <CardContent className="flex flex-col gap-4">
       <FieldBlock
-        description="This reason is saved into Firewatch's action log."
+        description="Saved in the mod log for this post."
         htmlFor="fw-cleanup-reason"
-        label="Cleanup reason"
+        label="Removal reason"
       >
         <Input
           id="fw-cleanup-reason"
@@ -1156,7 +1246,7 @@ const FlaggedCommentsCard = ({
       </FieldBlock>
 
       {incident.flaggedComments.length === 0 ? (
-        <EmptyText>No risky comments have crossed the threshold yet.</EmptyText>
+        <EmptyText>No comments need review yet.</EmptyText>
       ) : (
         <ScrollArea className="h-[520px] pr-3">
           <div className="flex flex-col gap-3">
@@ -1173,7 +1263,7 @@ const FlaggedCommentsCard = ({
                     />
                     <span className="min-w-0">
                       <span className="block text-sm font-medium leading-5">
-                        u/{comment.author} - score {comment.score}
+                        u/{comment.author} - review score {comment.score}
                       </span>
                       <span className="mt-2 line-clamp-3 block text-sm leading-6 text-muted-foreground">
                         {comment.body}
@@ -1186,17 +1276,16 @@ const FlaggedCommentsCard = ({
                   </label>
 
                   <div className="flex shrink-0 gap-2">
-                    <Button
-                      disabled={!comment.permalink}
-                      size="sm"
-                      variant="outline"
-                      onClick={() =>
-                        comment.permalink && navigateTo(comment.permalink)
-                      }
-                    >
-                      <ExternalLink data-icon="inline-start" />
-                      Open
-                    </Button>
+                    {comment.permalink ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => navigateTo(comment.permalink!)}
+                      >
+                        <ExternalLink data-icon="inline-start" />
+                        Open
+                      </Button>
+                    ) : null}
                     <Button
                       disabled={Boolean(comment.removed) || Boolean(busyAction)}
                       size="sm"
@@ -1204,7 +1293,8 @@ const FlaggedCommentsCard = ({
                       onClick={() =>
                         onAction(
                           comment.id,
-                          `/api/incidents/${incident.postId}/comments/${comment.id}/remove`
+                          `/api/incidents/${incident.postId}/comments/${comment.id}/remove`,
+                          { reason: cleanupReason }
                         )
                       }
                     >
@@ -1231,12 +1321,12 @@ const FlaggedCommentsCard = ({
 const RepeatedPhrasesCard = ({ incident }: { incident: Incident }) => (
   <Card>
     <CardHeader>
-      <CardTitle>Repeated phrases</CardTitle>
-      <CardDescription>Phrase clusters that can indicate brigading.</CardDescription>
+      <CardTitle>Repeated wording</CardTitle>
+      <CardDescription>Repeated phrases across comments can point to brigading.</CardDescription>
     </CardHeader>
     <CardContent>
       {incident.repeatedPhrases.length === 0 ? (
-        <EmptyText>No repeated phrase clusters detected.</EmptyText>
+        <EmptyText>No repeated wording found.</EmptyText>
       ) : (
         <div className="flex flex-col gap-3">
           {incident.repeatedPhrases.map((phrase) => (
@@ -1259,12 +1349,12 @@ const RepeatedPhrasesCard = ({ incident }: { incident: Incident }) => (
 const LatestSignalsCard = ({ incident }: { incident: Incident }) => (
   <Card>
     <CardHeader>
-      <CardTitle>Latest signals</CardTitle>
-      <CardDescription>Newest trigger, report, and manual events.</CardDescription>
+      <CardTitle>Recent activity</CardTitle>
+      <CardDescription>Comments, reports, post reports, and manual sends.</CardDescription>
     </CardHeader>
     <CardContent>
       {incident.recentSignals.length === 0 ? (
-        <EmptyText>No recent signals yet.</EmptyText>
+        <EmptyText>No recent activity yet.</EmptyText>
       ) : (
         <ScrollArea className="h-[460px] pr-3">
           <div className="flex flex-col">
@@ -1278,7 +1368,7 @@ const LatestSignalsCard = ({ incident }: { incident: Incident }) => (
                       {signal.author ? ` - u/${signal.author}` : ''}
                     </p>
                     <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
-                      {signal.reason ?? signal.body ?? 'No detail provided'}
+                      {signal.reason ?? signal.body ?? 'No details from Reddit'}
                     </p>
                   </div>
                   <span className="shrink-0 text-xs leading-5 text-muted-foreground">
@@ -1297,39 +1387,61 @@ const LatestSignalsCard = ({ incident }: { incident: Incident }) => (
 const SummariesCard = ({ incident }: { incident: Incident }) => (
   <Card>
     <CardHeader>
-      <CardTitle>Action summaries</CardTitle>
+      <CardTitle>Mod notes</CardTitle>
       <CardDescription>
-        Escalation handoff and after-action report generated from incident state.
+        Handoff and final notes generated from this post.
       </CardDescription>
     </CardHeader>
     <CardContent>
       {incident.escalationSummary || incident.summary ? (
         <div className="flex flex-col gap-3">
           {incident.escalationSummary ? (
-            <SummaryBlock label="Escalation" value={incident.escalationSummary} />
+            <SummaryBlock label="Handoff" value={incident.escalationSummary} />
           ) : null}
           {incident.summary ? (
-            <SummaryBlock label="After-action" value={incident.summary} />
+            <SummaryBlock label="Final note" value={incident.summary} />
           ) : null}
         </div>
       ) : (
         <EmptyText>
-          Escalate to generate a mod handoff. Resolve or lockdown to generate the
-          after-action report.
+          Save a handoff note for the mod team. Mark handled to save a final
+          note.
         </EmptyText>
       )}
     </CardContent>
   </Card>
 );
 
-const SummaryBlock = ({ label, value }: { label: string; value: string }) => (
-  <div>
-    <Badge variant="outline">{label}</Badge>
-    <pre className="mt-2 max-h-72 overflow-auto rounded-lg bg-primary p-3 text-xs leading-6 text-primary-foreground">
-      {value}
-    </pre>
-  </div>
-);
+const SummaryBlock = ({ label, value }: { label: string; value: string }) => {
+  const [copied, setCopied] = useState(false);
+
+  const onCopy = async () => {
+    try {
+      const didCopy = await copyTextToClipboard(value);
+      if (!didCopy) return;
+
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      setCopied(false);
+    }
+  };
+
+  return (
+    <div className="rounded-lg border bg-muted/20 p-3">
+      <div className="flex items-center justify-between gap-3">
+        <Badge variant="outline">{label}</Badge>
+        <Button size="sm" variant="outline" onClick={onCopy}>
+          <Copy data-icon="inline-start" />
+          {copied ? 'Copied' : 'Copy'}
+        </Button>
+      </div>
+      <pre className="mt-3 max-h-72 overflow-auto rounded-lg bg-primary p-3 text-xs leading-6 text-primary-foreground">
+        {value}
+      </pre>
+    </div>
+  );
+};
 
 const ActionLogCard = ({
   compact,
@@ -1340,12 +1452,12 @@ const ActionLogCard = ({
 }) => (
   <Card>
     <CardHeader>
-      <CardTitle>Action log</CardTitle>
-      <CardDescription>Moderator actions recorded by Firewatch.</CardDescription>
+      <CardTitle>Mod log</CardTitle>
+      <CardDescription>Actions taken from this view.</CardDescription>
     </CardHeader>
     <CardContent>
       {incident.actions.length === 0 ? (
-        <EmptyText>No moderator actions recorded yet.</EmptyText>
+        <EmptyText>No mod actions yet.</EmptyText>
       ) : (
         <ScrollArea className={cn(compact ? 'h-[360px]' : 'h-[460px]', 'pr-3')}>
           <div className="flex flex-col">
@@ -1416,16 +1528,16 @@ const SettingsCard = ({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Community settings</CardTitle>
+        <CardTitle>Community filters</CardTitle>
         <CardDescription>
-          Tune Firewatch without leaving the incident board.
+          Choose what sends posts into this review queue.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
         <FieldBlock
-          description={`${splitList(keywords).length} active terms. Comma-separated terms raise incident risk when they appear in comments or reports.`}
+          description={`${splitList(keywords).length} active terms. Comma-separated words or phrases that should raise mod attention.`}
           htmlFor="fw-keywords"
-          label="Heated keywords"
+          label="Watched words"
         >
           <Input
             id="fw-keywords"
@@ -1435,9 +1547,9 @@ const SettingsCard = ({
         </FieldBlock>
 
         <FieldBlock
-          description={`${splitList(suspiciousDomains).length} domains watched in comment bodies and report details.`}
+          description={`${splitList(suspiciousDomains).length} domains watched in comments and report reasons.`}
           htmlFor="fw-domains"
-          label="Suspicious domains"
+          label="Watched domains"
         >
           <Input
             id="fw-domains"
@@ -1448,17 +1560,17 @@ const SettingsCard = ({
 
         <div className="grid gap-3 md:grid-cols-3">
           <ThresholdInput
-            label="Heat"
+            label="Review at"
             value={heatThreshold}
             onChange={setHeatThreshold}
           />
           <ThresholdInput
-            label="Fire"
+            label="Act at"
             value={fireThreshold}
             onChange={setFireThreshold}
           />
           <ThresholdInput
-            label="Wildfire"
+            label="Lock at"
             value={wildfireThreshold}
             onChange={setWildfireThreshold}
           />
@@ -1467,10 +1579,10 @@ const SettingsCard = ({
         {invalidThresholds ? (
           <Alert variant="destructive">
             <AlertTriangle />
-            <AlertTitle>Thresholds need ordering</AlertTitle>
+            <AlertTitle>Scores need ordering</AlertTitle>
             <AlertDescription>
-              Use numbers from 1 to 100 where Heat is below Fire and Fire is
-              below Wildfire.
+              Use numbers from 1 to 100 where Review is below Act and Act is
+              below Lock.
             </AlertDescription>
           </Alert>
         ) : null}
@@ -1547,7 +1659,7 @@ const ThresholdInput = ({
   </FieldBlock>
 );
 
-const ReadinessCard = ({
+const FilterHelpCard = ({
   config,
   incident,
 }: {
@@ -1556,77 +1668,62 @@ const ReadinessCard = ({
 }) => (
   <Card>
     <CardHeader>
-      <CardTitle>Launch readiness</CardTitle>
+      <CardTitle>How posts enter review</CardTitle>
       <CardDescription>
-        The checks a moderator expects before trusting the app.
+        Firewatch queues posts for mods, but actions stay manual.
       </CardDescription>
     </CardHeader>
-    <CardContent className="flex flex-col gap-3">
-      <ReadinessRow
-        label="Signal ingestion"
-        value="Comment create, comment report, post report, and manual escalation"
-      />
-      <ReadinessRow
-        label="Config coverage"
-        value={`${config.keywords.length} keywords and ${config.suspiciousDomains.length} suspicious domains`}
-      />
-      <ReadinessRow
-        label="Response playbooks"
-        value="Claim, cooldown, cleanup, lockdown, escalation, and resolution"
-      />
-      <ReadinessRow
-        label="Current incident"
-        value={`${incident.stats.signalCount} signals, ${incident.stats.flaggedCount} flagged comments, ${incident.actions.length} actions`}
-      />
-      <Separator />
+    <CardContent className="flex flex-col gap-4">
+      <div className="space-y-3 text-sm leading-6 text-muted-foreground">
+        <p>
+          Posts appear here from reports, new comments, watched words, watched
+          domains, repeated wording, reply piles, or the post menu.
+        </p>
+        <p>
+          This community has {config.keywords.length} watched words and{' '}
+          {config.suspiciousDomains.length} watched domains. The selected post
+          has {incident.stats.signalCount} recent events and{' '}
+          {incident.stats.flaggedCount} comments needing review.
+        </p>
+      </div>
       <Alert>
         <CheckCircle2 />
-        <AlertTitle>Product posture</AlertTitle>
+        <AlertTitle>No automatic removals</AlertTitle>
         <AlertDescription>
-          Firewatch is deterministic, explainable, and mod-controlled. It does
-          not auto-punish users from a hidden score.
+          Firewatch explains why a post needs review. It does not remove
+          comments, lock posts, or mark anything handled until a mod clicks the
+          action.
         </AlertDescription>
       </Alert>
     </CardContent>
   </Card>
 );
 
-const ReadinessRow = ({ label, value }: { label: string; value: string }) => (
-  <div className="rounded-lg border bg-muted/20 p-3">
-    <p className="text-sm font-medium leading-5">{label}</p>
-    <p className="mt-1 text-sm leading-6 text-muted-foreground">{value}</p>
-  </div>
-);
-
 const EmptyBoard = ({
   busy,
-  config,
   onCreateDemo,
 }: {
   busy: boolean;
-  config: FirewatchConfig;
   onCreateDemo: () => void;
 }) => (
   <div className="mx-auto flex w-full max-w-md flex-col gap-5 py-8">
     <div className="flex flex-col gap-2.5">
       <h1 className="text-2xl font-medium leading-tight sm:text-3xl">
-        No active incidents
+        No posts need review
       </h1>
       <p className="text-sm leading-6 text-muted-foreground">
-        Firewatch is ready to score comment velocity, reports, keywords,
-        suspicious domains, repeated phrases, branch pile-ons, removal clusters,
-        and manual escalations.
+        Firewatch will list posts here when reports, watched words, suspicious
+        domains, repeated comments, reply piles, or post-menu sends need a mod
+        look.
       </p>
     </div>
     <Button className="h-10 w-full text-sm font-medium" disabled={busy} onClick={onCreateDemo}>
       <Sparkles data-icon="inline-start" />
-      {busy ? 'Seeding demo' : 'Create demo incident'}
+      {busy ? 'Creating demo post' : 'Create demo post'}
     </Button>
-    <div className="grid gap-3 sm:grid-cols-3">
-      <MetricCard icon={<Gauge />} label="Heat" value={String(config.heatThreshold)} />
-      <MetricCard icon={<Flame />} label="Fire" value={String(config.fireThreshold)} />
-      <MetricCard icon={<ShieldAlert />} label="Wildfire" value={String(config.wildfireThreshold)} />
-    </div>
+    <p className="text-xs leading-5 text-muted-foreground">
+      Use Filters when mods want to change what gets queued.
+    </p>
   </div>
 );
 

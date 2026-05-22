@@ -8,6 +8,7 @@ export type SignalType =
   | 'post_report'
   | 'manual_escalation'
   | 'mod_action'
+  | 'automod_filter'
   | 'demo_seed';
 
 export type FirewatchConfig = {

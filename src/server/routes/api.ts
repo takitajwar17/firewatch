@@ -17,7 +17,6 @@ import {
   getIncidentById,
   getIncidents,
   lockIncident,
-  lockdownIncident,
   removeFlaggedComment,
   resolveIncident,
   saveConfig,
@@ -108,15 +107,6 @@ api.post('/incidents/:postId/lock', async (c) => {
   }
 });
 
-api.post('/incidents/:postId/lockdown', async (c) => {
-  try {
-    const incident = await lockdownIncident(c.req.param('postId'));
-    return c.json<ActionResponse>({ type: 'action', incident });
-  } catch (error) {
-    return incidentActionError(c, error);
-  }
-});
-
 api.post('/incidents/:postId/escalate', async (c) => {
   try {
     const incident = await escalateIncident(c.req.param('postId'));
@@ -162,9 +152,13 @@ api.post('/config', async (c) => {
 
 api.post('/incidents/:postId/comments/:commentId/remove', async (c) => {
   try {
+    const body: { reason?: string } = await c.req
+      .json<{ reason?: string }>()
+      .catch(() => ({}));
     const incident = await removeFlaggedComment(
       c.req.param('postId'),
-      c.req.param('commentId')
+      c.req.param('commentId'),
+      body.reason
     );
     return c.json<ActionResponse>({ type: 'action', incident });
   } catch (error) {
@@ -176,11 +170,11 @@ const incidentActionError = (
   c: HonoContext,
   error: unknown
 ) => {
-  console.error('Incident action failed:', error);
+  console.error('Firewatch action failed:', error);
   return c.json<ErrorResponse>(
     {
       status: 'error',
-      message: error instanceof Error ? error.message : 'Incident action failed',
+      message: error instanceof Error ? error.message : 'Action failed',
     },
     400
   );
