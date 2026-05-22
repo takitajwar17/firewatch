@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { navigateTo } from '@devvit/web/client';
 import { ExternalLink, RefreshCw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -12,19 +13,21 @@ import {
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { EmptyText, FieldBlock } from './common';
+import { DisclosurePanel, EmptyText, FieldBlock } from './common';
 import { formatUsername } from './format';
 import type { ActionRunner } from './types';
-import type { Incident } from '../../shared/api';
+import type { FirewatchConfig, Incident } from '../../shared/api';
 
 export const FlaggedCommentsCard = ({
   busyAction,
+  config,
   cleanupReason,
   incident,
   onAction,
   onCleanupReasonChange,
 }: {
   busyAction: string | undefined;
+  config: FirewatchConfig;
   cleanupReason: string;
   incident: Incident;
   onAction: ActionRunner;
@@ -36,6 +39,7 @@ export const FlaggedCommentsCard = ({
   const alreadyActioned = incident.flaggedComments.filter(
     (comment) => comment.removed || comment.reviewed
   );
+  const controls = config.actionControls;
 
   return (
     <Card>
@@ -51,7 +55,7 @@ export const FlaggedCommentsCard = ({
         ) : (
           <>
             <FieldBlock
-              description="Applied to Remove and Remove + ban."
+              description="Used when a selected action needs a mod reason."
               htmlFor="fw-cleanup-reason"
               label="Removal and ban reason"
             >
@@ -70,11 +74,33 @@ export const FlaggedCommentsCard = ({
                   const canBanAuthor = authorLabel !== 'unknown user';
                   const approveAction = `approve:${comment.id}`;
                   const removeAction = `remove:${comment.id}`;
+                  const spamAction = `comment:${comment.id}:spam`;
+                  const lockAction = `comment:${comment.id}:lock`;
+                  const unlockAction = `comment:${comment.id}:unlock`;
+                  const ignoreReportsAction = `comment:${comment.id}:ignore`;
+                  const watchReportsAction = `comment:${comment.id}:watch`;
+                  const threadAction = `comment:${comment.id}:thread`;
+                  const showAction = `comment:${comment.id}:show`;
+                  const approveUserAction = `user:${comment.author}:approve`;
+                  const muteUserAction = `user:${comment.author}:mute`;
+                  const modNoteAction = `user:${comment.author}:note`;
+                  const removeContentAction = `user:${comment.author}:content`;
                   const banAction = `ban:${comment.author}`;
+                  const hasAdvancedCommentActions =
+                    controls.markCommentSpam ||
+                    (controls.removeCommentThreads && controls.removeComments) ||
+                    controls.lockComments ||
+                    controls.ignoreReports ||
+                    controls.showComments;
+                  const hasAdvancedUserActions =
+                    controls.approveUsers ||
+                    controls.muteUsers ||
+                    controls.addModNotes ||
+                    controls.removeUserContent;
 
                   return (
                     <div key={comment.id} className="rounded-lg border p-3">
-                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                      <div className="flex flex-col gap-3">
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <p className="text-sm font-medium leading-5">
@@ -94,7 +120,7 @@ export const FlaggedCommentsCard = ({
                           </div>
                         </div>
 
-                        <div className="flex shrink-0 flex-wrap gap-2">
+                        <div className="flex flex-wrap gap-2">
                           {permalink ? (
                             <Button
                               size="sm"
@@ -105,67 +131,268 @@ export const FlaggedCommentsCard = ({
                               Open
                             </Button>
                           ) : null}
-                          <Button
-                            disabled={Boolean(busyAction)}
-                            size="sm"
-                            variant="outline"
-                            onClick={() =>
-                              onAction(
-                                approveAction,
-                                `/api/incidents/${incident.postId}/comments/${comment.id}/approve`
-                              )
-                            }
-                          >
-                            {busyAction === approveAction ? (
-                              <RefreshCw
-                                className="animate-spin"
-                                data-icon="inline-start"
-                              />
-                            ) : null}
-                            {busyAction === approveAction ? 'Working' : 'Approve'}
-                          </Button>
-                          <Button
-                            disabled={Boolean(busyAction)}
-                            size="sm"
-                            variant="outline"
-                            onClick={() =>
-                              onAction(
-                                removeAction,
-                                `/api/incidents/${incident.postId}/comments/${comment.id}/remove`,
-                                { reason: cleanupReason }
-                              )
-                            }
-                          >
-                            {busyAction === removeAction ? (
-                              <RefreshCw
-                                className="animate-spin"
-                                data-icon="inline-start"
-                              />
-                            ) : null}
-                            {busyAction === removeAction ? 'Working' : 'Remove'}
-                          </Button>
-                          <Button
-                            disabled={Boolean(busyAction) || !canBanAuthor}
-                            size="sm"
-                            title="Remove this user's review comments, then ban them from the subreddit."
-                            variant="destructive"
-                            onClick={() =>
-                              onAction(
-                                banAction,
-                                `/api/incidents/${incident.postId}/users/${encodeURIComponent(comment.author)}/ban`,
-                                { reason: cleanupReason }
-                              )
-                            }
-                          >
-                            {busyAction === banAction ? (
-                              <RefreshCw
-                                className="animate-spin"
-                                data-icon="inline-start"
-                              />
-                            ) : null}
-                            {busyAction === banAction ? 'Working' : 'Remove + ban'}
-                          </Button>
+                          {controls.approveComments ? (
+                            <Button
+                              disabled={Boolean(busyAction)}
+                              size="sm"
+                              variant="outline"
+                              onClick={() =>
+                                onAction(
+                                  approveAction,
+                                  `/api/incidents/${incident.postId}/comments/${comment.id}/approve`
+                                )
+                              }
+                            >
+                              {busyAction === approveAction ? (
+                                <RefreshCw
+                                  className="animate-spin"
+                                  data-icon="inline-start"
+                                />
+                              ) : null}
+                              {busyAction === approveAction ? 'Working' : 'Approve'}
+                            </Button>
+                          ) : null}
+                          {controls.removeComments ? (
+                            <Button
+                              disabled={Boolean(busyAction)}
+                              size="sm"
+                              variant="outline"
+                              onClick={() =>
+                                onAction(
+                                  removeAction,
+                                  `/api/incidents/${incident.postId}/comments/${comment.id}/remove`,
+                                  { reason: cleanupReason }
+                                )
+                              }
+                            >
+                              {busyAction === removeAction ? (
+                                <RefreshCw
+                                  className="animate-spin"
+                                  data-icon="inline-start"
+                                />
+                              ) : null}
+                              {busyAction === removeAction ? 'Working' : 'Remove'}
+                            </Button>
+                          ) : null}
+                          {controls.banUsers && controls.removeComments ? (
+                            <Button
+                              disabled={Boolean(busyAction) || !canBanAuthor}
+                              size="sm"
+                              title="Remove this user's review comments, then ban them from the subreddit."
+                              variant="destructive"
+                              onClick={() =>
+                                onAction(
+                                  banAction,
+                                  `/api/incidents/${incident.postId}/users/${encodeURIComponent(comment.author)}/ban`,
+                                  { reason: cleanupReason }
+                                )
+                              }
+                            >
+                              {busyAction === banAction ? (
+                                <RefreshCw
+                                  className="animate-spin"
+                                  data-icon="inline-start"
+                                />
+                              ) : null}
+                              {busyAction === banAction ? 'Working' : 'Ban user'}
+                            </Button>
+                          ) : null}
                         </div>
+
+                        {hasAdvancedCommentActions || hasAdvancedUserActions ? (
+                          <DisclosurePanel
+                            description="Spam, thread cleanup, locking, reports, and user tools."
+                            title="More Reddit actions"
+                          >
+                            <div className="flex flex-col gap-3">
+                              {hasAdvancedCommentActions ? (
+                                <ActionGroup label="Comment">
+                                  {controls.markCommentSpam ? (
+                                    <NativeActionButton
+                                      action={spamAction}
+                                      busyAction={busyAction}
+                                      label="Spam"
+                                      variant="destructive"
+                                      onClick={() =>
+                                        onAction(
+                                          spamAction,
+                                          `/api/incidents/${incident.postId}/comments/${comment.id}/native-action`,
+                                          {
+                                            action: 'spam',
+                                            reason: cleanupReason,
+                                          }
+                                        )
+                                      }
+                                    />
+                                  ) : null}
+                                  {controls.removeCommentThreads &&
+                                  controls.removeComments ? (
+                                    <NativeActionButton
+                                      action={threadAction}
+                                      busyAction={busyAction}
+                                      label="Remove thread"
+                                      variant="destructive"
+                                      onClick={() =>
+                                        onAction(
+                                          threadAction,
+                                          `/api/incidents/${incident.postId}/comments/${comment.id}/native-action`,
+                                          {
+                                            action: 'remove-thread',
+                                            reason: cleanupReason,
+                                          }
+                                        )
+                                      }
+                                    />
+                                  ) : null}
+                                  {controls.lockComments ? (
+                                    <>
+                                      <NativeActionButton
+                                        action={lockAction}
+                                        busyAction={busyAction}
+                                        label="Lock"
+                                        onClick={() =>
+                                          onAction(
+                                            lockAction,
+                                            `/api/incidents/${incident.postId}/comments/${comment.id}/native-action`,
+                                            { action: 'lock' }
+                                          )
+                                        }
+                                      />
+                                      <NativeActionButton
+                                        action={unlockAction}
+                                        busyAction={busyAction}
+                                        label="Unlock"
+                                        variant="ghost"
+                                        onClick={() =>
+                                          onAction(
+                                            unlockAction,
+                                            `/api/incidents/${incident.postId}/comments/${comment.id}/native-action`,
+                                            { action: 'unlock' }
+                                          )
+                                        }
+                                      />
+                                    </>
+                                  ) : null}
+                                  {controls.ignoreReports ? (
+                                    <>
+                                      <NativeActionButton
+                                        action={ignoreReportsAction}
+                                        busyAction={busyAction}
+                                        label="Ignore reports"
+                                        onClick={() =>
+                                          onAction(
+                                            ignoreReportsAction,
+                                            `/api/incidents/${incident.postId}/comments/${comment.id}/native-action`,
+                                            { action: 'ignore-reports' }
+                                          )
+                                        }
+                                      />
+                                      <NativeActionButton
+                                        action={watchReportsAction}
+                                        busyAction={busyAction}
+                                        label="Watch reports"
+                                        variant="ghost"
+                                        onClick={() =>
+                                          onAction(
+                                            watchReportsAction,
+                                            `/api/incidents/${incident.postId}/comments/${comment.id}/native-action`,
+                                            { action: 'unignore-reports' }
+                                          )
+                                        }
+                                      />
+                                    </>
+                                  ) : null}
+                                  {controls.showComments ? (
+                                    <NativeActionButton
+                                      action={showAction}
+                                      busyAction={busyAction}
+                                      label="Show"
+                                      onClick={() =>
+                                        onAction(
+                                          showAction,
+                                          `/api/incidents/${incident.postId}/comments/${comment.id}/native-action`,
+                                          { action: 'show-comment' }
+                                        )
+                                      }
+                                    />
+                                  ) : null}
+                                </ActionGroup>
+                              ) : null}
+
+                              {hasAdvancedUserActions ? (
+                                <ActionGroup label="User">
+                                  {controls.approveUsers ? (
+                                    <NativeActionButton
+                                      action={approveUserAction}
+                                      busyAction={busyAction}
+                                      disabled={!canBanAuthor}
+                                      label="Approve user"
+                                      onClick={() =>
+                                        onAction(
+                                          approveUserAction,
+                                          `/api/incidents/${incident.postId}/users/${encodeURIComponent(comment.author)}/native-action`,
+                                          { action: 'approve' }
+                                        )
+                                      }
+                                    />
+                                  ) : null}
+                                  {controls.muteUsers ? (
+                                    <NativeActionButton
+                                      action={muteUserAction}
+                                      busyAction={busyAction}
+                                      disabled={!canBanAuthor}
+                                      label="Mute"
+                                      onClick={() =>
+                                        onAction(
+                                          muteUserAction,
+                                          `/api/incidents/${incident.postId}/users/${encodeURIComponent(comment.author)}/native-action`,
+                                          { action: 'mute', note: cleanupReason }
+                                        )
+                                      }
+                                    />
+                                  ) : null}
+                                  {controls.addModNotes ? (
+                                    <NativeActionButton
+                                      action={modNoteAction}
+                                      busyAction={busyAction}
+                                      disabled={!canBanAuthor}
+                                      label="Add mod note"
+                                      onClick={() =>
+                                        onAction(
+                                          modNoteAction,
+                                          `/api/incidents/${incident.postId}/users/${encodeURIComponent(comment.author)}/native-action`,
+                                          {
+                                            action: 'add-mod-note',
+                                            note: cleanupReason,
+                                          }
+                                        )
+                                      }
+                                    />
+                                  ) : null}
+                                  {controls.removeUserContent ? (
+                                    <NativeActionButton
+                                      action={removeContentAction}
+                                      busyAction={busyAction}
+                                      disabled={!canBanAuthor}
+                                      label="Remove recent content"
+                                      variant="destructive"
+                                      onClick={() =>
+                                        onAction(
+                                          removeContentAction,
+                                          `/api/incidents/${incident.postId}/users/${encodeURIComponent(comment.author)}/native-action`,
+                                          {
+                                            action: 'remove-recent-content',
+                                            reason: cleanupReason,
+                                          }
+                                        )
+                                      }
+                                    />
+                                  ) : null}
+                                </ActionGroup>
+                              ) : null}
+                            </div>
+                          </DisclosurePanel>
+                        ) : null}
                       </div>
                     </div>
                   );
@@ -230,6 +457,49 @@ export const FlaggedCommentsCard = ({
     </Card>
   );
 };
+
+const NativeActionButton = ({
+  action,
+  busyAction,
+  disabled,
+  label,
+  onClick,
+  variant = 'outline',
+}: {
+  action: string;
+  busyAction: string | undefined;
+  disabled?: boolean;
+  label: string;
+  onClick: () => void;
+  variant?: 'outline' | 'destructive' | 'ghost';
+}) => (
+  <Button
+    disabled={Boolean(busyAction) || disabled}
+    size="sm"
+    variant={variant}
+    onClick={onClick}
+  >
+    {busyAction === action ? (
+      <RefreshCw className="animate-spin" data-icon="inline-start" />
+    ) : null}
+    {busyAction === action ? 'Working' : label}
+  </Button>
+);
+
+const ActionGroup = ({
+  children,
+  label,
+}: {
+  children: ReactNode;
+  label: string;
+}) => (
+  <div className="flex flex-col gap-2">
+    <p className="text-xs font-medium leading-5 text-muted-foreground">
+      {label}
+    </p>
+    <div className="flex flex-wrap gap-2">{children}</div>
+  </div>
+);
 
 export const RepeatedPhrasesCard = ({ incident }: { incident: Incident }) => (
   <Card>

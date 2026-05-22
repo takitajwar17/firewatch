@@ -34,6 +34,44 @@ export const emptyConfig: FirewatchConfig = {
   heatThreshold: 35,
   fireThreshold: 65,
   wildfireThreshold: 85,
+  reminderText:
+    'Mod note: Please keep this discussion civil, stay on topic, and follow the community rules. Rule-breaking comments may be removed.',
+  actionControls: {
+    approveComments: true,
+    removeComments: true,
+    banUsers: true,
+    stickyReminder: true,
+    lockPost: true,
+    unlockPost: true,
+    approvePosts: true,
+    removePosts: true,
+    markPostSpam: true,
+    markPostNsfw: true,
+    markPostSpoiler: true,
+    ignoreReports: true,
+    crowdControl: true,
+    setPostFlair: true,
+    lockComments: true,
+    markCommentSpam: true,
+    removeCommentThreads: true,
+    showComments: true,
+    approveUsers: true,
+    muteUsers: true,
+    addModNotes: true,
+    removeUserContent: true,
+    handoffNotes: true,
+    markHandled: true,
+  },
+  signalWeights: {
+    commentVelocity: 6,
+    reports: 15,
+    watchedWords: 8,
+    watchedDomains: 10,
+    replyPileOns: 15,
+    repeatedWording: 5,
+    recentRemovals: 8,
+    manualSend: 25,
+  },
 };
 
 export const formatTime = (timestamp: number) =>
@@ -146,6 +184,9 @@ export const readErrorMessage = async (res: Response) => {
 
 export const actionLabel = (action: string) => {
   if (action.startsWith('ban:')) return 'Remove and ban user';
+  if (action.startsWith('post:')) return 'Reddit post action';
+  if (action.startsWith('comment:')) return 'Reddit comment action';
+  if (action.startsWith('user:')) return 'Reddit user action';
   if (action.startsWith('approve:')) return 'Approve comment';
   if (action.startsWith('remove:') || action.startsWith('t1_')) {
     return 'Remove comment';
@@ -174,6 +215,9 @@ export const actionSuccessMessage = (action: string) => {
   if (action.startsWith('ban:')) {
     return 'User banned after their review comments were removed.';
   }
+  if (action.startsWith('post:')) return 'Post action saved.';
+  if (action.startsWith('comment:')) return 'Comment action saved.';
+  if (action.startsWith('user:')) return 'User action saved.';
   if (action.startsWith('approve:')) return 'Comment approved.';
   if (action.startsWith('remove:') || action.startsWith('t1_')) {
     return 'Comment removed.';

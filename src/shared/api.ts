@@ -31,12 +31,80 @@ export type SignalSource =
   | 'mod_action'
   | 'firewatch_notice';
 
+export type CrowdControlLevel = 'OFF' | 'LENIENT' | 'MEDIUM' | 'STRICT';
+
+export type NativePostAction =
+  | 'approve'
+  | 'remove'
+  | 'spam'
+  | 'unlock'
+  | 'mark-nsfw'
+  | 'unmark-nsfw'
+  | 'mark-spoiler'
+  | 'unmark-spoiler'
+  | 'ignore-reports'
+  | 'unignore-reports'
+  | 'crowd-control'
+  | 'set-flair';
+
+export type NativeCommentAction =
+  | 'spam'
+  | 'lock'
+  | 'unlock'
+  | 'ignore-reports'
+  | 'unignore-reports'
+  | 'remove-thread'
+  | 'show-comment';
+
+export type NativeUserAction =
+  | 'approve'
+  | 'mute'
+  | 'add-mod-note'
+  | 'remove-recent-content';
+
 export type FirewatchConfig = {
   keywords: string[];
   suspiciousDomains: string[];
   heatThreshold: number;
   fireThreshold: number;
   wildfireThreshold: number;
+  reminderText: string;
+  actionControls: {
+    approveComments: boolean;
+    removeComments: boolean;
+    banUsers: boolean;
+    stickyReminder: boolean;
+    lockPost: boolean;
+    unlockPost: boolean;
+    approvePosts: boolean;
+    removePosts: boolean;
+    markPostSpam: boolean;
+    markPostNsfw: boolean;
+    markPostSpoiler: boolean;
+    ignoreReports: boolean;
+    crowdControl: boolean;
+    setPostFlair: boolean;
+    lockComments: boolean;
+    markCommentSpam: boolean;
+    removeCommentThreads: boolean;
+    showComments: boolean;
+    approveUsers: boolean;
+    muteUsers: boolean;
+    addModNotes: boolean;
+    removeUserContent: boolean;
+    handoffNotes: boolean;
+    markHandled: boolean;
+  };
+  signalWeights: {
+    commentVelocity: number;
+    reports: number;
+    watchedWords: number;
+    watchedDomains: number;
+    replyPileOns: number;
+    repeatedWording: number;
+    recentRemovals: number;
+    manualSend: number;
+  };
 };
 
 export type FirewatchDemoScenario = {
@@ -73,7 +141,28 @@ export type IncidentAction = {
     | 'cleanup'
     | 'comment_approved'
     | 'comment_removed'
+    | 'comment_spammed'
+    | 'comment_locked'
+    | 'comment_unlocked'
+    | 'comment_reports_ignored'
+    | 'comment_reports_unignored'
+    | 'comment_thread_removed'
+    | 'comment_shown'
     | 'user_banned'
+    | 'user_approved'
+    | 'user_muted'
+    | 'user_content_removed'
+    | 'mod_note_added'
+    | 'post_approved'
+    | 'post_removed'
+    | 'post_spammed'
+    | 'post_unlocked'
+    | 'post_nsfw'
+    | 'post_spoiler'
+    | 'post_reports_ignored'
+    | 'post_reports_unignored'
+    | 'post_crowd_control'
+    | 'post_flaired'
     | 'locked'
     | 'escalated'
     | 'resolved'

@@ -21,7 +21,7 @@ import {
   DEFAULT_DEMO_SCENARIO_ID,
   FIREWATCH_DEMO_SCENARIOS,
 } from '../../shared/firewatch-presets';
-import { FieldBlock, SectionHeader } from './common';
+import { DisclosurePanel, FieldBlock, SectionHeader } from './common';
 import { splitList } from './format';
 import type { FirewatchConfig } from '../../shared/api';
 import type { ConfigSaveHandler, DemoCreateHandler } from './types';
@@ -48,7 +48,16 @@ export const CommunitySettingsPage = ({
     />
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
       <CommunityFiltersCard
-        key={`${config.keywords.join('|')}:${config.suspiciousDomains.join('|')}:${config.heatThreshold}:${config.fireThreshold}:${config.wildfireThreshold}`}
+        key={[
+          config.keywords.join('|'),
+          config.suspiciousDomains.join('|'),
+          config.heatThreshold,
+          config.fireThreshold,
+          config.wildfireThreshold,
+          config.reminderText,
+          Object.values(config.actionControls).join('|'),
+          Object.values(config.signalWeights).join('|'),
+        ].join(':')}
         busy={busyAction === 'config'}
         config={config}
         onSave={onSaveConfig}
@@ -85,6 +94,9 @@ const CommunityFiltersCard = ({
   const [wildfireThreshold, setWildfireThreshold] = useState(
     String(config.wildfireThreshold)
   );
+  const [reminderText, setReminderText] = useState(config.reminderText);
+  const [actionControls, setActionControls] = useState(config.actionControls);
+  const [signalWeights, setSignalWeights] = useState(config.signalWeights);
 
   const parsedHeat = Number(heatThreshold);
   const parsedFire = Number(fireThreshold);
@@ -103,7 +115,7 @@ const CommunityFiltersCard = ({
       <CardHeader>
         <CardTitle>What Firewatch watches</CardTitle>
         <CardDescription>
-          These words, domains, and score thresholds apply across the subreddit.
+          These words and domains are the main subreddit-wide triggers.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
@@ -133,33 +145,87 @@ const CommunityFiltersCard = ({
           />
         </FieldBlock>
 
-        <div className="flex flex-col gap-3">
-          <p className="text-sm font-medium leading-5">Attention thresholds</p>
-          <p className="text-xs leading-5 text-muted-foreground">
-            Firewatch uses these scores to label posts for review, action, and
-            lockdown-level attention.
-          </p>
-        </div>
-        <div className="grid gap-3 md:grid-cols-3">
-          <ThresholdInput
-            id="review"
-            label="Review at"
-            value={heatThreshold}
-            onChange={setHeatThreshold}
-          />
-          <ThresholdInput
-            id="act"
-            label="Act at"
-            value={fireThreshold}
-            onChange={setFireThreshold}
-          />
-          <ThresholdInput
-            id="lock"
-            label="Lock at"
-            value={wildfireThreshold}
-            onChange={setWildfireThreshold}
-          />
-        </div>
+        <DisclosurePanel
+          description="Thresholds, signal weights, and the sticky reminder copy."
+          title="Scoring and reminder"
+        >
+          <div className="flex flex-col gap-5">
+            <div className="flex flex-col gap-3">
+              <p className="text-sm font-medium leading-5">
+                Attention thresholds
+              </p>
+              <p className="text-xs leading-5 text-muted-foreground">
+                Firewatch uses these scores to label posts for review, action,
+                and lockdown-level attention.
+              </p>
+              <div className="grid gap-3 md:grid-cols-3">
+                <ThresholdInput
+                  id="review"
+                  label="Review at"
+                  value={heatThreshold}
+                  onChange={setHeatThreshold}
+                />
+                <ThresholdInput
+                  id="act"
+                  label="Act at"
+                  value={fireThreshold}
+                  onChange={setFireThreshold}
+                />
+                <ThresholdInput
+                  id="lock"
+                  label="Lock at"
+                  value={wildfireThreshold}
+                  onChange={setWildfireThreshold}
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <p className="text-sm font-medium leading-5">Signal weights</p>
+              <p className="text-xs leading-5 text-muted-foreground">
+                Set a weight to 0 to ignore that signal. Higher weights make
+                Firewatch raise attention faster.
+              </p>
+              <div className="grid gap-3 md:grid-cols-2">
+                {SIGNAL_WEIGHT_FIELDS.map((field) => (
+                  <ThresholdInput
+                    key={field.id}
+                    id={`weight-${field.id}`}
+                    label={field.label}
+                    max={50}
+                    min={0}
+                    value={String(signalWeights[field.id])}
+                    onChange={(value) =>
+                      setSignalWeights((current) => ({
+                        ...current,
+                        [field.id]: parseNumberInput(value, current[field.id]),
+                      }))
+                    }
+                  />
+                ))}
+              </div>
+            </div>
+
+            <FieldBlock
+              description="Posted as a distinguished sticky comment when mods use Sticky reminder."
+              htmlFor="fw-reminder-text"
+              label="Sticky reminder text"
+            >
+              <SettingsTextarea
+                id="fw-reminder-text"
+                maxLength={800}
+                rows={4}
+                value={reminderText}
+                onChange={(event) => setReminderText(event.target.value)}
+              />
+            </FieldBlock>
+          </div>
+        </DisclosurePanel>
+
+        <ActionPermissionsControl
+          actionControls={actionControls}
+          onChange={setActionControls}
+        />
 
         {invalidThresholds ? (
           <Alert variant="destructive">
@@ -182,6 +248,9 @@ const CommunityFiltersCard = ({
               heatThreshold: parsedHeat,
               fireThreshold: parsedFire,
               wildfireThreshold: parsedWildfire,
+              reminderText,
+              actionControls,
+              signalWeights,
             })
           }
         >
@@ -195,6 +264,167 @@ const CommunityFiltersCard = ({
       </CardContent>
     </Card>
   );
+};
+
+const SIGNAL_WEIGHT_FIELDS: {
+  id: keyof FirewatchConfig['signalWeights'];
+  label: string;
+}[] = [
+  { id: 'commentVelocity', label: 'New comments weight' },
+  { id: 'reports', label: 'Reports weight' },
+  { id: 'watchedWords', label: 'Watched words weight' },
+  { id: 'watchedDomains', label: 'Watched domains weight' },
+  { id: 'replyPileOns', label: 'Reply clusters weight' },
+  { id: 'repeatedWording', label: 'Repeated wording weight' },
+  { id: 'recentRemovals', label: 'Recent removals weight' },
+  { id: 'manualSend', label: 'Manual send weight' },
+];
+
+type ActionControlField = {
+  id: keyof FirewatchConfig['actionControls'];
+  label: string;
+};
+
+const CORE_ACTION_FIELDS: ActionControlField[] = [
+  { id: 'approveComments', label: 'Approve comments' },
+  { id: 'removeComments', label: 'Remove comments' },
+  { id: 'banUsers', label: 'Ban users' },
+  { id: 'stickyReminder', label: 'Sticky reminders' },
+  { id: 'lockPost', label: 'Lock posts' },
+  { id: 'handoffNotes', label: 'Handoff notes' },
+  { id: 'markHandled', label: 'Mark handled' },
+];
+
+const POST_ACTION_FIELDS: ActionControlField[] = [
+  { id: 'approvePosts', label: 'Approve posts' },
+  { id: 'removePosts', label: 'Remove posts' },
+  { id: 'markPostSpam', label: 'Spam posts' },
+  { id: 'unlockPost', label: 'Unlock posts' },
+  { id: 'markPostNsfw', label: 'Mark posts NSFW' },
+  { id: 'markPostSpoiler', label: 'Mark posts spoiler' },
+  { id: 'ignoreReports', label: 'Ignore reports' },
+  { id: 'crowdControl', label: 'Crowd Control' },
+  { id: 'setPostFlair', label: 'Set post flair' },
+];
+
+const COMMENT_ACTION_FIELDS: ActionControlField[] = [
+  { id: 'markCommentSpam', label: 'Spam comments' },
+  { id: 'lockComments', label: 'Lock comments' },
+  { id: 'removeCommentThreads', label: 'Remove comment threads' },
+  { id: 'showComments', label: 'Show comments' },
+];
+
+const USER_ACTION_FIELDS: ActionControlField[] = [
+  { id: 'approveUsers', label: 'Approve users' },
+  { id: 'muteUsers', label: 'Mute users' },
+  { id: 'addModNotes', label: 'Add mod notes' },
+  { id: 'removeUserContent', label: 'Remove user content' },
+];
+
+const ActionPermissionsControl = ({
+  actionControls,
+  onChange,
+}: {
+  actionControls: FirewatchConfig['actionControls'];
+  onChange: (value: FirewatchConfig['actionControls']) => void;
+}) => {
+  const toggleAction = (
+    id: keyof FirewatchConfig['actionControls'],
+    checked: boolean
+  ) => {
+    onChange({
+      ...actionControls,
+      [id]: checked,
+    });
+  };
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div>
+        <p className="text-sm font-medium leading-5">Allowed mod actions</p>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">
+          Common Firewatch workflow actions stay visible. Less common Reddit
+          tools are still available behind contextual menus.
+        </p>
+      </div>
+
+      <ActionToggleGroup
+        actionControls={actionControls}
+        fields={CORE_ACTION_FIELDS}
+        onChange={toggleAction}
+      />
+
+      <DisclosurePanel
+        description="Post, comment, and user tools used only when a mod opens More Reddit actions."
+        title="Advanced Reddit permissions"
+      >
+        <div className="grid gap-4">
+          <ActionToggleGroup
+            actionControls={actionControls}
+            fields={POST_ACTION_FIELDS}
+            title="Post"
+            onChange={toggleAction}
+          />
+          <ActionToggleGroup
+            actionControls={actionControls}
+            fields={COMMENT_ACTION_FIELDS}
+            title="Comment"
+            onChange={toggleAction}
+          />
+          <ActionToggleGroup
+            actionControls={actionControls}
+            fields={USER_ACTION_FIELDS}
+            title="User"
+            onChange={toggleAction}
+          />
+        </div>
+      </DisclosurePanel>
+    </div>
+  );
+};
+
+const ActionToggleGroup = ({
+  actionControls,
+  fields,
+  onChange,
+  title,
+}: {
+  actionControls: FirewatchConfig['actionControls'];
+  fields: ActionControlField[];
+  onChange: (
+    id: keyof FirewatchConfig['actionControls'],
+    checked: boolean
+  ) => void;
+  title?: string;
+}) => (
+  <div className="flex flex-col gap-2">
+    {title ? (
+      <p className="text-xs font-medium leading-5 text-muted-foreground">
+        {title}
+      </p>
+    ) : null}
+    <div className="grid gap-2 md:grid-cols-2">
+      {fields.map((field) => (
+        <label
+          key={field.id}
+          className="flex min-h-11 items-center gap-2 rounded-lg border bg-background/70 px-3 py-2 text-sm font-medium"
+        >
+          <input
+            checked={actionControls[field.id]}
+            className="size-4"
+            type="checkbox"
+            onChange={(event) => onChange(field.id, event.target.checked)}
+          />
+          {field.label}
+        </label>
+      ))}
+    </div>
+  </div>
+);
+
+const parseNumberInput = (value: string, fallback: number) => {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : fallback;
 };
 
 const SettingsTextarea = ({
@@ -213,11 +443,15 @@ const SettingsTextarea = ({
 const ThresholdInput = ({
   id,
   label,
+  max = 100,
+  min = 1,
   onChange,
   value,
 }: {
   id: string;
   label: string;
+  max?: number;
+  min?: number;
   onChange: (value: string) => void;
   value: string;
 }) => (
@@ -225,8 +459,8 @@ const ThresholdInput = ({
     <Input
       id={`fw-threshold-${id}`}
       inputMode="numeric"
-      max={100}
-      min={1}
+      max={max}
+      min={min}
       step={1}
       type="number"
       value={value}

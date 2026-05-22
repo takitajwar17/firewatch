@@ -1,5 +1,8 @@
 import type { FirewatchConfig } from '../../shared/api';
 
+export const DEFAULT_COOLDOWN_COMMENT_TEXT =
+  'Mod note: Please keep this discussion civil, stay on topic, and follow the community rules. Rule-breaking comments may be removed.';
+
 export const DEFAULT_CONFIG: FirewatchConfig = {
   keywords: [
     'account recovery',
@@ -43,6 +46,43 @@ export const DEFAULT_CONFIG: FirewatchConfig = {
   heatThreshold: 35,
   fireThreshold: 65,
   wildfireThreshold: 85,
+  reminderText: DEFAULT_COOLDOWN_COMMENT_TEXT,
+  actionControls: {
+    approveComments: true,
+    removeComments: true,
+    banUsers: true,
+    stickyReminder: true,
+    lockPost: true,
+    unlockPost: true,
+    approvePosts: true,
+    removePosts: true,
+    markPostSpam: true,
+    markPostNsfw: true,
+    markPostSpoiler: true,
+    ignoreReports: true,
+    crowdControl: true,
+    setPostFlair: true,
+    lockComments: true,
+    markCommentSpam: true,
+    removeCommentThreads: true,
+    showComments: true,
+    approveUsers: true,
+    muteUsers: true,
+    addModNotes: true,
+    removeUserContent: true,
+    handoffNotes: true,
+    markHandled: true,
+  },
+  signalWeights: {
+    commentVelocity: 6,
+    reports: 15,
+    watchedWords: 8,
+    watchedDomains: 10,
+    replyPileOns: 15,
+    repeatedWording: 5,
+    recentRemovals: 8,
+    manualSend: 25,
+  },
 };
 
 export const INDEX_KEY = 'fw:index';
@@ -55,8 +95,6 @@ export const MAX_TREND_POINTS = 8;
 export const VELOCITY_BASELINE_COMMENTS = 4;
 export const INCIDENT_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 export const TREND_BUCKET_MS = 10 * 60 * 1000;
-export const COOLDOWN_COMMENT_TEXT =
-  'Mod note: Please keep this discussion civil, stay on topic, and follow the community rules. Rule-breaking comments may be removed.';
 
 export const STOP_WORDS = new Set([
   'about',

@@ -34,8 +34,8 @@
         "endpoint": "/internal/menu/open-board"
       },
       {
-        "label": "Firewatch filters",
-        "description": "Set watched words, domains, and review scores.",
+        "label": "Firewatch settings",
+        "description": "Set watched words, domains, review scores, reminders, and available mod actions.",
         "location": "subreddit",
         "forUserType": "moderator",
         "endpoint": "/internal/menu/configure"

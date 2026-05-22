@@ -4,13 +4,20 @@ import { context, reddit } from '@devvit/web/server';
 import type {
   ActionResponse,
   ConfigResponse,
+  CrowdControlLevel,
   DashboardInitResponse,
   DemoResetResponse,
   ErrorResponse,
   FirewatchDemoScenarioId,
   Incident,
+  NativeCommentAction,
+  NativePostAction,
+  NativeUserAction,
 } from '../../shared/api';
 import {
+  applyNativeCommentAction,
+  applyNativePostAction,
+  applyNativeUserAction,
   approveFlaggedComment,
   banUserAndRemoveComments,
   claimIncident,
@@ -90,6 +97,18 @@ api.post('/incidents/:postId/lock', async (c) => {
   return incidentAction(c, () => lockIncident(c.req.param('postId')));
 });
 
+api.post('/incidents/:postId/post-action', async (c) => {
+  return incidentAction(c, async () => {
+    const body: {
+      action: NativePostAction;
+      crowdControlLevel?: CrowdControlLevel;
+      flairText?: string;
+      reason?: string;
+    } = await c.req.json();
+    return applyNativePostAction(c.req.param('postId'), body);
+  });
+});
+
 api.post('/incidents/:postId/escalate', async (c) => {
   return incidentAction(c, () => escalateIncident(c.req.param('postId')));
 });
@@ -125,6 +144,9 @@ api.post('/config', async (c) => {
       heatThreshold?: number;
       fireThreshold?: number;
       wildfireThreshold?: number;
+      reminderText?: string;
+      actionControls?: Parameters<typeof saveConfig>[0]['actionControls'];
+      signalWeights?: Parameters<typeof saveConfig>[0]['signalWeights'];
     }>();
     const config = await saveConfig(values);
     return c.json<ConfigResponse>({ type: 'config', config });
@@ -152,6 +174,18 @@ api.post('/incidents/:postId/comments/:commentId/approve', async (c) => {
   );
 });
 
+api.post('/incidents/:postId/comments/:commentId/native-action', async (c) => {
+  return incidentAction(c, async () => {
+    const body: { action: NativeCommentAction; reason?: string } =
+      await c.req.json();
+    return applyNativeCommentAction(
+      c.req.param('postId'),
+      c.req.param('commentId'),
+      body
+    );
+  });
+});
+
 api.post('/incidents/:postId/users/:username/ban', async (c) => {
   return incidentAction(c, async () => {
     const body: { reason?: string } = await c.req
@@ -161,6 +195,18 @@ api.post('/incidents/:postId/users/:username/ban', async (c) => {
       c.req.param('postId'),
       c.req.param('username'),
       body.reason
+    );
+  });
+});
+
+api.post('/incidents/:postId/users/:username/native-action', async (c) => {
+  return incidentAction(c, async () => {
+    const body: { action: NativeUserAction; note?: string; reason?: string } =
+      await c.req.json();
+    return applyNativeUserAction(
+      c.req.param('postId'),
+      c.req.param('username'),
+      body
     );
   });
 });

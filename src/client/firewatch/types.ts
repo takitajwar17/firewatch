@@ -21,6 +21,9 @@ export type ConfigFormValues = {
   heatThreshold: number;
   fireThreshold: number;
   wildfireThreshold: number;
+  reminderText: string;
+  actionControls: DashboardInitResponse['config']['actionControls'];
+  signalWeights: DashboardInitResponse['config']['signalWeights'];
 };
 
 export type ConfigSaveHandler = (values: ConfigFormValues) => Promise<void>;

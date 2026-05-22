@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { ChevronDown, RefreshCw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -66,6 +66,36 @@ export const ScoreBadge = ({ incident }: { incident: Incident }) => (
 
 export const EmptyText = ({ children }: { children: ReactNode }) => (
   <p className="text-sm leading-6 text-muted-foreground">{children}</p>
+);
+
+export const DisclosurePanel = ({
+  children,
+  defaultOpen,
+  description,
+  title,
+}: {
+  children: ReactNode;
+  defaultOpen?: boolean;
+  description?: string;
+  title: string;
+}) => (
+  <details
+    className="group rounded-lg border bg-muted/20 open:bg-muted/25"
+    open={defaultOpen}
+  >
+    <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 [&::-webkit-details-marker]:hidden">
+      <span className="min-w-0">
+        <span className="block text-sm font-medium leading-5">{title}</span>
+        {description ? (
+          <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">
+            {description}
+          </span>
+        ) : null}
+      </span>
+      <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+    </summary>
+    <div className="border-t px-3 py-3">{children}</div>
+  </details>
 );
 
 export const FieldBlock = ({

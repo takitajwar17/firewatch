@@ -244,21 +244,21 @@ const scoreComment = (
   );
 
   if (keywordHits > 0) {
-    score += keywordHits * 12;
+    score += keywordHits * config.signalWeights.watchedWords;
     reasons.push(
       `${keywordHits} watched word match${keywordHits > 1 ? 'es' : ''}`
     );
   }
 
   if (suspiciousHits > 0) {
-    score += suspiciousHits * 10;
+    score += suspiciousHits * config.signalWeights.watchedDomains;
     reasons.push(
       `${suspiciousHits} watched domain match${suspiciousHits > 1 ? 'es' : ''}`
     );
   }
 
   if (signal.type === 'comment_report') {
-    score += 20;
+    score += config.signalWeights.reports;
     reasons.push(signal.reason ? `reported: ${signal.reason}` : 'reported');
   }
 
@@ -433,8 +433,13 @@ const buildImpactSnapshot = ({
     (action) => action.type !== 'demo_seeded'
   );
   const removals =
+    countActionTargets(incident.actions, 'post_removed') +
+    countActionTargets(incident.actions, 'post_spammed') +
     countActionTargets(incident.actions, 'comment_removed') +
+    countActionTargets(incident.actions, 'comment_spammed') +
+    countActionTargets(incident.actions, 'comment_thread_removed') +
     countActionTargets(incident.actions, 'cleanup') +
+    countActionTargets(incident.actions, 'user_content_removed') +
     countActionTargets(incident.actions, 'user_banned');
   const resolvedAt = incident.resolvedAt ?? now();
 
@@ -446,7 +451,10 @@ const buildImpactSnapshot = ({
     usersHandled: usersHandled.size,
     actionsTaken: moderationActions.length,
     removals,
-    approvals: countActionTargets(incident.actions, 'comment_approved'),
+    approvals:
+      countActionTargets(incident.actions, 'comment_approved') +
+      countActionTargets(incident.actions, 'post_approved') +
+      countActionTargets(incident.actions, 'user_approved'),
     bans: incident.actions.filter((action) => action.type === 'user_banned')
       .length,
     handoffSaved:
@@ -598,15 +606,40 @@ export const calculateIncident = (
     0,
     recentComments.length - VELOCITY_BASELINE_COMMENTS
   );
-  const velocityPoints = clamp(velocityOverflow * 6, 0, 30);
-  const reportPoints = clamp(totalReportCount * 15, 0, 35);
-  const keywordPoints = clamp(keywordHits * 8, 0, 25);
-  const suspiciousPoints = clamp(suspiciousHits * 10, 0, 20);
-  const pileOnPoints = clamp(branchPileOnCount * 15, 0, 20);
-  const phrasePoints = clamp(repeatedPhraseHits * 5, 0, 20);
+  const velocityPoints = clamp(
+    velocityOverflow * config.signalWeights.commentVelocity,
+    0,
+    30
+  );
+  const reportPoints = clamp(totalReportCount * config.signalWeights.reports, 0, 35);
+  const keywordPoints = clamp(
+    keywordHits * config.signalWeights.watchedWords,
+    0,
+    25
+  );
+  const suspiciousPoints = clamp(
+    suspiciousHits * config.signalWeights.watchedDomains,
+    0,
+    20
+  );
+  const pileOnPoints = clamp(
+    branchPileOnCount * config.signalWeights.replyPileOns,
+    0,
+    20
+  );
+  const phrasePoints = clamp(
+    repeatedPhraseHits * config.signalWeights.repeatedWording,
+    0,
+    20
+  );
   const removalSignalCount = removalsLastHour + externalRemovalActions.length;
-  const removalPoints = clamp(removalSignalCount * 8, 0, 20);
-  const manualPoints = manualEscalations.length > 0 ? 25 : 0;
+  const removalPoints = clamp(
+    removalSignalCount * config.signalWeights.recentRemovals,
+    0,
+    20
+  );
+  const manualPoints =
+    manualEscalations.length > 0 ? config.signalWeights.manualSend : 0;
 
   if (velocityPoints > 0) {
     reasons.push({

@@ -21,21 +21,24 @@ import {
   ImpactSnapshotCard,
   IncidentHero,
   IncidentIntro,
+  NativePostControlsCard,
   ParticipantsCard,
   ResponseCard,
   RiskReasonsCard,
   TrendCard,
 } from './incident-overview';
 import type { ActionRunner } from './types';
-import type { Incident } from '../../shared/api';
+import type { FirewatchConfig, Incident } from '../../shared/api';
 
 export const IncidentDetail = ({
-  incident,
   busyAction,
+  config,
+  incident,
   onAction,
 }: {
-  incident: Incident;
   busyAction: string | undefined;
+  config: FirewatchConfig;
+  incident: Incident;
   onAction: ActionRunner;
 }) => {
   const unresolvedComments = incident.flaggedComments.filter(
@@ -87,7 +90,7 @@ export const IncidentDetail = ({
           value={String(incident.stats.reportSignals)}
         />
         <MetricCard
-          description="Waiting for approve, remove, or remove plus ban."
+          description="Waiting for approve, remove, or ban user."
           icon={<ClipboardList />}
           label="Comments"
           value={String(unresolvedComments.length)}
@@ -108,6 +111,7 @@ export const IncidentDetail = ({
 
       <IncidentHero
         busyAction={busyAction}
+        config={config}
         incident={incident}
         onAction={runModAction}
       />
@@ -139,6 +143,12 @@ export const IncidentDetail = ({
           />
           <div className="flex flex-col gap-4">
             <RiskReasonsCard incident={incident} />
+            <NativePostControlsCard
+              busyAction={busyAction}
+              config={config}
+              incident={incident}
+              onAction={runModAction}
+            />
             <TrendCard incident={incident} />
           </div>
           <div className="flex flex-col gap-4">
@@ -159,6 +169,7 @@ export const IncidentDetail = ({
           />
           <FlaggedCommentsCard
             busyAction={busyAction}
+            config={config}
             cleanupReason={cleanupReason}
             incident={incident}
             onAction={runModAction}

@@ -75,6 +75,7 @@ export const App = () => {
         <IncidentDetail
           key={selectedIncident.postId}
           busyAction={busyAction}
+          config={data.config}
           incident={selectedIncident}
           onAction={runAction}
         />

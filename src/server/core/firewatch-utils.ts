@@ -1,5 +1,6 @@
 import { context } from '@devvit/web/server';
 import type {
+  FirewatchConfig,
   Incident,
   IncidentLevel,
   IncidentSignal,
@@ -102,9 +103,12 @@ export const deriveIncidentStatus = (
   commentsToReview = 0
 ): IncidentStatus => {
   const normalized = normalizeStatus(incident.status);
+  const lockAction = incident.actions.find(
+    (action) => action.type === 'locked' || action.type === 'post_unlocked'
+  );
   const locked =
     normalized === 'locked' ||
-    incident.actions.some((action) => action.type === 'locked');
+    lockAction?.type === 'locked';
   const finalNoteSaved =
     Boolean(incident.summary) ||
     Boolean(incident.resolvedAt) ||
@@ -148,6 +152,171 @@ export const parseCsv = (value: string | undefined, fallback: string[]) => {
     .filter(Boolean);
 
   return parsed.length > 0 ? Array.from(new Set(parsed)) : fallback;
+};
+
+const normalizeBoolean = (value: unknown, fallback: boolean) =>
+  typeof value === 'boolean' ? value : fallback;
+
+const normalizeWeight = (value: unknown, fallback: number, max = 50) => {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return fallback;
+  return clamp(Math.round(numericValue), 0, max);
+};
+
+export const normalizeConfig = (
+  value: Partial<FirewatchConfig> | undefined
+): FirewatchConfig => {
+  const thresholds = normalizeThresholds(
+    Number(value?.heatThreshold ?? DEFAULT_CONFIG.heatThreshold),
+    Number(value?.fireThreshold ?? DEFAULT_CONFIG.fireThreshold),
+    Number(value?.wildfireThreshold ?? DEFAULT_CONFIG.wildfireThreshold)
+  );
+  const actionControls = value?.actionControls;
+  const signalWeights = value?.signalWeights;
+  const reminderText = value?.reminderText?.trim();
+
+  return {
+    keywords: value?.keywords?.length ? value.keywords : DEFAULT_CONFIG.keywords,
+    suspiciousDomains: value?.suspiciousDomains?.length
+      ? value.suspiciousDomains
+      : DEFAULT_CONFIG.suspiciousDomains,
+    ...thresholds,
+    reminderText: reminderText
+      ? reminderText.slice(0, 800)
+      : DEFAULT_CONFIG.reminderText,
+    actionControls: {
+      approveComments: normalizeBoolean(
+        actionControls?.approveComments,
+        DEFAULT_CONFIG.actionControls.approveComments
+      ),
+      removeComments: normalizeBoolean(
+        actionControls?.removeComments,
+        DEFAULT_CONFIG.actionControls.removeComments
+      ),
+      banUsers: normalizeBoolean(
+        actionControls?.banUsers,
+        DEFAULT_CONFIG.actionControls.banUsers
+      ),
+      stickyReminder: normalizeBoolean(
+        actionControls?.stickyReminder,
+        DEFAULT_CONFIG.actionControls.stickyReminder
+      ),
+      lockPost: normalizeBoolean(
+        actionControls?.lockPost,
+        DEFAULT_CONFIG.actionControls.lockPost
+      ),
+      unlockPost: normalizeBoolean(
+        actionControls?.unlockPost,
+        DEFAULT_CONFIG.actionControls.unlockPost
+      ),
+      approvePosts: normalizeBoolean(
+        actionControls?.approvePosts,
+        DEFAULT_CONFIG.actionControls.approvePosts
+      ),
+      removePosts: normalizeBoolean(
+        actionControls?.removePosts,
+        DEFAULT_CONFIG.actionControls.removePosts
+      ),
+      markPostSpam: normalizeBoolean(
+        actionControls?.markPostSpam,
+        DEFAULT_CONFIG.actionControls.markPostSpam
+      ),
+      markPostNsfw: normalizeBoolean(
+        actionControls?.markPostNsfw,
+        DEFAULT_CONFIG.actionControls.markPostNsfw
+      ),
+      markPostSpoiler: normalizeBoolean(
+        actionControls?.markPostSpoiler,
+        DEFAULT_CONFIG.actionControls.markPostSpoiler
+      ),
+      ignoreReports: normalizeBoolean(
+        actionControls?.ignoreReports,
+        DEFAULT_CONFIG.actionControls.ignoreReports
+      ),
+      crowdControl: normalizeBoolean(
+        actionControls?.crowdControl,
+        DEFAULT_CONFIG.actionControls.crowdControl
+      ),
+      setPostFlair: normalizeBoolean(
+        actionControls?.setPostFlair,
+        DEFAULT_CONFIG.actionControls.setPostFlair
+      ),
+      lockComments: normalizeBoolean(
+        actionControls?.lockComments,
+        DEFAULT_CONFIG.actionControls.lockComments
+      ),
+      markCommentSpam: normalizeBoolean(
+        actionControls?.markCommentSpam,
+        DEFAULT_CONFIG.actionControls.markCommentSpam
+      ),
+      removeCommentThreads: normalizeBoolean(
+        actionControls?.removeCommentThreads,
+        DEFAULT_CONFIG.actionControls.removeCommentThreads
+      ),
+      showComments: normalizeBoolean(
+        actionControls?.showComments,
+        DEFAULT_CONFIG.actionControls.showComments
+      ),
+      approveUsers: normalizeBoolean(
+        actionControls?.approveUsers,
+        DEFAULT_CONFIG.actionControls.approveUsers
+      ),
+      muteUsers: normalizeBoolean(
+        actionControls?.muteUsers,
+        DEFAULT_CONFIG.actionControls.muteUsers
+      ),
+      addModNotes: normalizeBoolean(
+        actionControls?.addModNotes,
+        DEFAULT_CONFIG.actionControls.addModNotes
+      ),
+      removeUserContent: normalizeBoolean(
+        actionControls?.removeUserContent,
+        DEFAULT_CONFIG.actionControls.removeUserContent
+      ),
+      handoffNotes: normalizeBoolean(
+        actionControls?.handoffNotes,
+        DEFAULT_CONFIG.actionControls.handoffNotes
+      ),
+      markHandled: normalizeBoolean(
+        actionControls?.markHandled,
+        DEFAULT_CONFIG.actionControls.markHandled
+      ),
+    },
+    signalWeights: {
+      commentVelocity: normalizeWeight(
+        signalWeights?.commentVelocity,
+        DEFAULT_CONFIG.signalWeights.commentVelocity
+      ),
+      reports: normalizeWeight(
+        signalWeights?.reports,
+        DEFAULT_CONFIG.signalWeights.reports
+      ),
+      watchedWords: normalizeWeight(
+        signalWeights?.watchedWords,
+        DEFAULT_CONFIG.signalWeights.watchedWords
+      ),
+      watchedDomains: normalizeWeight(
+        signalWeights?.watchedDomains,
+        DEFAULT_CONFIG.signalWeights.watchedDomains
+      ),
+      replyPileOns: normalizeWeight(
+        signalWeights?.replyPileOns,
+        DEFAULT_CONFIG.signalWeights.replyPileOns
+      ),
+      repeatedWording: normalizeWeight(
+        signalWeights?.repeatedWording,
+        DEFAULT_CONFIG.signalWeights.repeatedWording
+      ),
+      recentRemovals: normalizeWeight(
+        signalWeights?.recentRemovals,
+        DEFAULT_CONFIG.signalWeights.recentRemovals
+      ),
+      manualSend: normalizeWeight(
+        signalWeights?.manualSend,
+        DEFAULT_CONFIG.signalWeights.manualSend
+      ),
+    },
+  };
 };
 
 export const normalizeThresholds = (

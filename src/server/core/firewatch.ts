@@ -1,10 +1,14 @@
 import { context, redis, reddit } from '@devvit/web/server';
 import type {
+  CrowdControlLevel,
   FirewatchConfig,
   FirewatchDemoScenarioId,
   Incident,
   IncidentAction,
   IncidentSignal,
+  NativeCommentAction,
+  NativePostAction,
+  NativeUserAction,
   SignalSource,
 } from '../../shared/api';
 import {
@@ -12,7 +16,6 @@ import {
   getDemoScenario,
 } from '../../shared/firewatch-presets';
 import {
-  COOLDOWN_COMMENT_TEXT,
   DEFAULT_CONFIG,
   INDEX_KEY,
   MAX_ACTIONS,
@@ -36,9 +39,9 @@ import {
   inferSignalSource,
   makeId,
   normalizeCommentId,
+  normalizeConfig,
   normalizePostId,
   normalizeStatus,
-  normalizeThresholds,
   normalizeUsername,
   now,
   parseCsv,
@@ -96,20 +99,19 @@ export const getConfig = async (
 
   try {
     const parsed: Partial<FirewatchConfig> = JSON.parse(stored);
-    const thresholds = normalizeThresholds(
-      Number(parsed.heatThreshold ?? DEFAULT_CONFIG.heatThreshold),
-      Number(parsed.fireThreshold ?? DEFAULT_CONFIG.fireThreshold),
-      Number(parsed.wildfireThreshold ?? DEFAULT_CONFIG.wildfireThreshold)
-    );
-
-    return {
+    return normalizeConfig({
       keywords: mergeConfigList(parsed.keywords, DEFAULT_CONFIG.keywords),
       suspiciousDomains: mergeConfigList(
         parsed.suspiciousDomains,
         DEFAULT_CONFIG.suspiciousDomains
       ),
-      ...thresholds,
-    };
+      heatThreshold: parsed.heatThreshold,
+      fireThreshold: parsed.fireThreshold,
+      wildfireThreshold: parsed.wildfireThreshold,
+      reminderText: parsed.reminderText,
+      actionControls: parsed.actionControls,
+      signalWeights: parsed.signalWeights,
+    });
   } catch (error) {
     console.error('Failed to parse Firewatch config', error);
     return DEFAULT_CONFIG;
@@ -122,21 +124,30 @@ export const saveConfig = async (values: {
   heatThreshold?: number;
   fireThreshold?: number;
   wildfireThreshold?: number;
+  reminderText?: string;
+  actionControls?: Partial<FirewatchConfig['actionControls']>;
+  signalWeights?: Partial<FirewatchConfig['signalWeights']>;
 }) => {
   const current = await getConfig();
-  const thresholds = normalizeThresholds(
-    Number(values.heatThreshold ?? current.heatThreshold),
-    Number(values.fireThreshold ?? current.fireThreshold),
-    Number(values.wildfireThreshold ?? current.wildfireThreshold)
-  );
-  const nextConfig: FirewatchConfig = {
+  const nextConfig = normalizeConfig({
     keywords: parseCsv(values.keywords, current.keywords),
     suspiciousDomains: parseCsv(
       values.suspiciousDomains,
       current.suspiciousDomains
     ),
-    ...thresholds,
-  };
+    heatThreshold: values.heatThreshold ?? current.heatThreshold,
+    fireThreshold: values.fireThreshold ?? current.fireThreshold,
+    wildfireThreshold: values.wildfireThreshold ?? current.wildfireThreshold,
+    reminderText: values.reminderText ?? current.reminderText,
+    actionControls: {
+      ...current.actionControls,
+      ...values.actionControls,
+    },
+    signalWeights: {
+      ...current.signalWeights,
+      ...values.signalWeights,
+    },
+  });
 
   await redis.set(configKey(context.subredditName), JSON.stringify(nextConfig));
   return nextConfig;
@@ -151,6 +162,9 @@ export const getConfigFormDefaults = async () => {
     heatThreshold: config.heatThreshold,
     fireThreshold: config.fireThreshold,
     wildfireThreshold: config.wildfireThreshold,
+    reminderText: config.reminderText,
+    actionControls: config.actionControls,
+    signalWeights: config.signalWeights,
   };
 };
 
@@ -439,6 +453,13 @@ const appendAction = async (
   return refreshedIncident;
 };
 
+const getIncidentOrThrow = async (postId: string) => {
+  const normalizedPostId = normalizePostId(postId);
+  const incident = await getIncident(normalizedPostId);
+  if (!incident) throw new Error('Post is not in Firewatch yet');
+  return incident;
+};
+
 const currentUsername = async () =>
   context.username ?? (await reddit.getCurrentUsername()) ?? undefined;
 
@@ -518,10 +539,14 @@ export const claimIncident = async (postId: string) => {
 
 export const coolDownIncident = async (postId: string) => {
   const normalizedPostId = normalizePostId(postId);
+  const config = await getConfig();
+  if (!config.actionControls.stickyReminder) {
+    throw new Error('Sticky reminders are disabled in Firewatch settings');
+  }
   const post = await reddit.getPostById(normalizedPostId);
   const actor = await actorName();
   const comment = await post.addComment({
-    text: COOLDOWN_COMMENT_TEXT,
+    text: config.reminderText,
   });
   await comment.distinguish(true);
 
@@ -531,7 +556,7 @@ export const coolDownIncident = async (postId: string) => {
     postId: normalizedPostId,
     commentId: comment.id,
     author: context.appSlug,
-    body: COOLDOWN_COMMENT_TEXT,
+    body: config.reminderText,
     createdAt: now(),
     metadata: {
       firewatchNotice: true,
@@ -547,6 +572,10 @@ export const coolDownIncident = async (postId: string) => {
 
 export const lockIncident = async (postId: string) => {
   const normalizedPostId = normalizePostId(postId);
+  const config = await getConfig();
+  if (!config.actionControls.lockPost) {
+    throw new Error('Post locking is disabled in Firewatch settings');
+  }
   const post = await reddit.getPostById(normalizedPostId);
   const actor = await actorName();
   await post.lock();
@@ -574,13 +603,14 @@ const trimRemovalNote = (reason: string | undefined) => {
 const removeCommentIfReal = async (
   incident: Incident,
   commentId: string,
-  reason?: string
+  reason?: string,
+  isSpam = false
 ) => {
   const normalizedCommentId = normalizeCommentId(commentId);
   if (isDemoComment(incident, normalizedCommentId)) return false;
 
   const comment = await reddit.getCommentById(normalizedCommentId);
-  await comment.remove(false);
+  await comment.remove(isSpam);
   const modNote = trimRemovalNote(reason);
   if (modNote) {
     await comment.addRemovalNote({
@@ -609,6 +639,10 @@ export const approveFlaggedComment = async (
   const normalizedCommentId = normalizeCommentId(commentId);
   const sourceIncident = await getIncident(normalizedPostId);
   if (!sourceIncident) throw new Error('Post is not in Firewatch yet');
+  const config = await getConfig(sourceIncident.subredditName);
+  if (!config.actionControls.approveComments) {
+    throw new Error('Comment approvals are disabled in Firewatch settings');
+  }
 
   const actor = await actorName();
   const approvedOnReddit = await approveCommentIfReal(
@@ -646,6 +680,10 @@ export const removeFlaggedComment = async (
   const normalizedCommentId = normalizeCommentId(commentId);
   const sourceIncident = await getIncident(normalizedPostId);
   if (!sourceIncident) throw new Error('Post is not in Firewatch yet');
+  const config = await getConfig(sourceIncident.subredditName);
+  if (!config.actionControls.removeComments) {
+    throw new Error('Comment removals are disabled in Firewatch settings');
+  }
 
   const actor = await actorName();
   const removedOnReddit = await removeCommentIfReal(
@@ -685,6 +723,13 @@ export const banUserAndRemoveComments = async (
 
   const sourceIncident = await getIncident(normalizedPostId);
   if (!sourceIncident) throw new Error('Post is not in Firewatch yet');
+  const config = await getConfig(sourceIncident.subredditName);
+  if (!config.actionControls.banUsers) {
+    throw new Error('User bans are disabled in Firewatch settings');
+  }
+  if (!config.actionControls.removeComments) {
+    throw new Error('Comment removals are required before banning users');
+  }
 
   const targetComments = sourceIncident.flaggedComments.filter(
     (comment) =>
@@ -750,6 +795,564 @@ export const banUserAndRemoveComments = async (
   const nextIncident: Incident = {
     ...incident,
     flaggedComments: incident.flaggedComments.map((flaggedComment) =>
+      targetIds.includes(flaggedComment.id)
+        ? { ...flaggedComment, removed: true, reviewed: false }
+        : flaggedComment
+    ),
+  };
+  const refreshedIncident = await refreshIncident(nextIncident);
+
+  await saveIncident(refreshedIncident);
+  return refreshedIncident;
+};
+
+const postActionControl = (
+  action: NativePostAction
+): keyof FirewatchConfig['actionControls'] => {
+  switch (action) {
+    case 'approve':
+      return 'approvePosts';
+    case 'remove':
+      return 'removePosts';
+    case 'spam':
+      return 'markPostSpam';
+    case 'unlock':
+      return 'unlockPost';
+    case 'mark-nsfw':
+    case 'unmark-nsfw':
+      return 'markPostNsfw';
+    case 'mark-spoiler':
+    case 'unmark-spoiler':
+      return 'markPostSpoiler';
+    case 'ignore-reports':
+    case 'unignore-reports':
+      return 'ignoreReports';
+    case 'crowd-control':
+      return 'crowdControl';
+    case 'set-flair':
+      return 'setPostFlair';
+  }
+};
+
+const nativePostActionType = (
+  action: NativePostAction
+): IncidentAction['type'] => {
+  switch (action) {
+    case 'approve':
+      return 'post_approved';
+    case 'remove':
+      return 'post_removed';
+    case 'spam':
+      return 'post_spammed';
+    case 'unlock':
+      return 'post_unlocked';
+    case 'mark-nsfw':
+    case 'unmark-nsfw':
+      return 'post_nsfw';
+    case 'mark-spoiler':
+    case 'unmark-spoiler':
+      return 'post_spoiler';
+    case 'ignore-reports':
+      return 'post_reports_ignored';
+    case 'unignore-reports':
+      return 'post_reports_unignored';
+    case 'crowd-control':
+      return 'post_crowd_control';
+    case 'set-flair':
+      return 'post_flaired';
+  }
+};
+
+const postActionDetail = ({
+  action,
+  crowdControlLevel,
+  flairText,
+  reason,
+}: {
+  action: NativePostAction;
+  crowdControlLevel?: CrowdControlLevel;
+  flairText?: string;
+  reason?: string;
+}) => {
+  switch (action) {
+    case 'approve':
+      return 'Approved post';
+    case 'remove':
+      return `Removed post${reason ? `: ${reason}` : ''}`;
+    case 'spam':
+      return `Removed post as spam${reason ? `: ${reason}` : ''}`;
+    case 'unlock':
+      return 'Unlocked post';
+    case 'mark-nsfw':
+      return 'Marked post NSFW';
+    case 'unmark-nsfw':
+      return 'Removed NSFW tag';
+    case 'mark-spoiler':
+      return 'Marked post spoiler';
+    case 'unmark-spoiler':
+      return 'Removed spoiler tag';
+    case 'ignore-reports':
+      return 'Ignored future reports on post';
+    case 'unignore-reports':
+      return 'Stopped ignoring post reports';
+    case 'crowd-control':
+      return `Set crowd control to ${crowdControlLevel ?? 'MEDIUM'}`;
+    case 'set-flair':
+      return flairText ? `Set post flair to "${flairText}"` : 'Set post flair';
+  }
+};
+
+const validateCrowdControlLevel = (
+  level: string | undefined
+): CrowdControlLevel => {
+  if (
+    level === 'OFF' ||
+    level === 'LENIENT' ||
+    level === 'MEDIUM' ||
+    level === 'STRICT'
+  ) {
+    return level;
+  }
+  return 'MEDIUM';
+};
+
+export const applyNativePostAction = async (
+  postId: string,
+  values: {
+    action: NativePostAction;
+    crowdControlLevel?: string;
+    flairText?: string;
+    reason?: string;
+  }
+) => {
+  const normalizedPostId = normalizePostId(postId);
+  const incident = await getIncidentOrThrow(normalizedPostId);
+  const config = await getConfig(incident.subredditName);
+  const control = postActionControl(values.action);
+  if (!config.actionControls[control]) {
+    throw new Error('This Reddit post action is disabled in Firewatch settings');
+  }
+
+  const actor = await actorName();
+  const post = await reddit.getPostById(normalizedPostId);
+  const reason = values.reason?.trim();
+  const removalNote = trimRemovalNote(reason);
+  const flairText = values.flairText?.trim().slice(0, 64);
+  const crowdControlLevel = validateCrowdControlLevel(values.crowdControlLevel);
+
+  switch (values.action) {
+    case 'approve':
+      await post.approve();
+      break;
+    case 'remove':
+      await post.remove(false);
+      if (removalNote) {
+        await post.addRemovalNote({ reasonId: '', modNote: removalNote });
+      }
+      break;
+    case 'spam':
+      await post.remove(true);
+      if (removalNote) {
+        await post.addRemovalNote({ reasonId: '', modNote: removalNote });
+      }
+      break;
+    case 'unlock':
+      await post.unlock();
+      break;
+    case 'mark-nsfw':
+      await post.markAsNsfw();
+      break;
+    case 'unmark-nsfw':
+      await post.unmarkAsNsfw();
+      break;
+    case 'mark-spoiler':
+      await post.markAsSpoiler();
+      break;
+    case 'unmark-spoiler':
+      await post.unmarkAsSpoiler();
+      break;
+    case 'ignore-reports':
+      await post.ignoreReports();
+      break;
+    case 'unignore-reports':
+      await post.unignoreReports();
+      break;
+    case 'crowd-control':
+      await post.updateCrowdControlLevel(crowdControlLevel);
+      break;
+    case 'set-flair':
+      if (!flairText) throw new Error('Enter post flair text first');
+      await reddit.setPostFlair({
+        postId: normalizedPostId,
+        subredditName: incident.subredditName,
+        text: flairText,
+      });
+      break;
+  }
+
+  return appendAction(normalizedPostId, {
+    type: nativePostActionType(values.action),
+    actor,
+    detail: postActionDetail({
+      action: values.action,
+      crowdControlLevel,
+      flairText,
+      reason,
+    }),
+    targetIds: [normalizedPostId],
+  });
+};
+
+const commentActionControl = (
+  action: NativeCommentAction
+): keyof FirewatchConfig['actionControls'] => {
+  switch (action) {
+    case 'spam':
+      return 'markCommentSpam';
+    case 'lock':
+    case 'unlock':
+      return 'lockComments';
+    case 'ignore-reports':
+    case 'unignore-reports':
+      return 'ignoreReports';
+    case 'remove-thread':
+      return 'removeCommentThreads';
+    case 'show-comment':
+      return 'showComments';
+  }
+};
+
+const nativeCommentActionType = (
+  action: NativeCommentAction
+): IncidentAction['type'] => {
+  switch (action) {
+    case 'spam':
+      return 'comment_spammed';
+    case 'lock':
+      return 'comment_locked';
+    case 'unlock':
+      return 'comment_unlocked';
+    case 'ignore-reports':
+      return 'comment_reports_ignored';
+    case 'unignore-reports':
+      return 'comment_reports_unignored';
+    case 'remove-thread':
+      return 'comment_thread_removed';
+    case 'show-comment':
+      return 'comment_shown';
+  }
+};
+
+const commentActionDetail = ({
+  action,
+  count,
+  reason,
+}: {
+  action: NativeCommentAction;
+  count: number;
+  reason?: string;
+}) => {
+  switch (action) {
+    case 'spam':
+      return `Removed comment as spam${reason ? `: ${reason}` : ''}`;
+    case 'lock':
+      return 'Locked comment';
+    case 'unlock':
+      return 'Unlocked comment';
+    case 'ignore-reports':
+      return 'Ignored future reports on comment';
+    case 'unignore-reports':
+      return 'Stopped ignoring comment reports';
+    case 'remove-thread':
+      return `Removed comment thread (${count} comment${count === 1 ? '' : 's'})${
+        reason ? `: ${reason}` : ''
+      }`;
+    case 'show-comment':
+      return 'Marked comment as shown';
+  }
+};
+
+const collectThreadCommentIds = async (
+  incident: Incident,
+  commentId: string
+) => {
+  const normalizedCommentId = normalizeCommentId(commentId);
+  if (isDemoComment(incident, normalizedCommentId)) {
+    return [normalizedCommentId];
+  }
+
+  const comments = await reddit
+    .getComments({
+      postId: normalizePostId(incident.postId),
+      commentId: normalizedCommentId,
+      depth: 10,
+      limit: 100,
+      pageSize: 100,
+    })
+    .all();
+
+  return Array.from(
+    new Set([normalizedCommentId, ...comments.map((comment) => comment.id)])
+  );
+};
+
+export const applyNativeCommentAction = async (
+  postId: string,
+  commentId: string,
+  values: {
+    action: NativeCommentAction;
+    reason?: string;
+  }
+) => {
+  const normalizedPostId = normalizePostId(postId);
+  const normalizedCommentId = normalizeCommentId(commentId);
+  const incident = await getIncidentOrThrow(normalizedPostId);
+  const config = await getConfig(incident.subredditName);
+  const control = commentActionControl(values.action);
+  if (!config.actionControls[control]) {
+    throw new Error('This Reddit comment action is disabled in Firewatch settings');
+  }
+  if (
+    values.action === 'remove-thread' &&
+    !config.actionControls.removeComments
+  ) {
+    throw new Error('Comment removals are disabled in Firewatch settings');
+  }
+
+  const actor = await actorName();
+  const reason = values.reason?.trim();
+  let targetIds: string[] = [normalizedCommentId];
+
+  if (values.action === 'remove-thread') {
+    targetIds = await collectThreadCommentIds(incident, normalizedCommentId);
+    await Promise.all(
+      targetIds.map((targetId) => removeCommentIfReal(incident, targetId, reason))
+    );
+  } else if (values.action === 'spam') {
+    await removeCommentIfReal(incident, normalizedCommentId, reason, true);
+  } else if (!isDemoComment(incident, normalizedCommentId)) {
+    const comment = await reddit.getCommentById(normalizedCommentId);
+    if (values.action === 'lock') await comment.lock();
+    if (values.action === 'unlock') await comment.unlock();
+    if (values.action === 'ignore-reports') await comment.ignoreReports();
+    if (values.action === 'unignore-reports') await comment.unignoreReports();
+    if (values.action === 'show-comment') await comment.showComment();
+  }
+
+  const withAction = await appendAction(normalizedPostId, {
+    type: nativeCommentActionType(values.action),
+    actor,
+    detail: commentActionDetail({
+      action: values.action,
+      count: targetIds.length,
+      reason,
+    }),
+    targetIds,
+  });
+
+  if (values.action !== 'remove-thread' && values.action !== 'spam') {
+    return withAction;
+  }
+
+  const nextIncident: Incident = {
+    ...withAction,
+    flaggedComments: withAction.flaggedComments.map((flaggedComment) =>
+      targetIds.includes(flaggedComment.id)
+        ? { ...flaggedComment, removed: true, reviewed: false }
+        : flaggedComment
+    ),
+  };
+  const refreshedIncident = await refreshIncident(nextIncident);
+
+  await saveIncident(refreshedIncident);
+  return refreshedIncident;
+};
+
+const userActionControl = (
+  action: NativeUserAction
+): keyof FirewatchConfig['actionControls'] => {
+  switch (action) {
+    case 'approve':
+      return 'approveUsers';
+    case 'mute':
+      return 'muteUsers';
+    case 'add-mod-note':
+      return 'addModNotes';
+    case 'remove-recent-content':
+      return 'removeUserContent';
+  }
+};
+
+const nativeUserActionType = (
+  action: NativeUserAction
+): IncidentAction['type'] => {
+  switch (action) {
+    case 'approve':
+      return 'user_approved';
+    case 'mute':
+      return 'user_muted';
+    case 'add-mod-note':
+      return 'mod_note_added';
+    case 'remove-recent-content':
+      return 'user_content_removed';
+  }
+};
+
+const userActionDetail = ({
+  action,
+  count,
+  note,
+  username,
+}: {
+  action: NativeUserAction;
+  count: number;
+  note?: string;
+  username: string;
+}) => {
+  switch (action) {
+    case 'approve':
+      return `Approved u/${username} in this subreddit`;
+    case 'mute':
+      return `Muted u/${username} from modmail${note ? `: ${note}` : ''}`;
+    case 'add-mod-note':
+      return `Added native mod note for u/${username}${note ? `: ${note}` : ''}`;
+    case 'remove-recent-content':
+      return `Removed ${count} recent item${count === 1 ? '' : 's'} from u/${username}`;
+  }
+};
+
+const trackedCommentIdsByUser = (incident: Incident, username: string) =>
+  incident.flaggedComments
+    .filter(
+      (comment) =>
+        !comment.removed &&
+        normalizeUsername(comment.author)?.toLowerCase() ===
+          username.toLowerCase()
+    )
+    .map((comment) => comment.id);
+
+const isDemoUser = (incident: Incident, username: string) =>
+  Boolean(incident.demo) &&
+  incident.recentSignals.some(
+    (signal) =>
+      signal.isDemo &&
+      normalizeUsername(signal.author)?.toLowerCase() === username.toLowerCase()
+  );
+
+const removeRecentUserContent = async (
+  incident: Incident,
+  username: string,
+  reason?: string
+) => {
+  const trackedIds = trackedCommentIdsByUser(incident, username);
+  const removedIds = new Set<string>();
+
+  await Promise.all(
+    trackedIds.map(async (commentId) => {
+      await removeCommentIfReal(incident, commentId, reason);
+      removedIds.add(commentId);
+    })
+  );
+
+  const demoOnly =
+    Boolean(incident.demo) &&
+    trackedIds.length > 0 &&
+    trackedIds.every((commentId) => isDemoComment(incident, commentId));
+
+  if (demoOnly) return Array.from(removedIds);
+
+  const recentItems = await reddit
+    .getCommentsAndPostsByUser({
+      username,
+      sort: 'new',
+      timeframe: 'all',
+      limit: 100,
+      pageSize: 100,
+    })
+    .all();
+  const subredditItems = recentItems.filter(
+    (item) => item.subredditName === incident.subredditName
+  );
+
+  for (const item of subredditItems) {
+    if (removedIds.has(item.id)) continue;
+    await item.remove(false);
+    removedIds.add(item.id);
+  }
+
+  return Array.from(removedIds);
+};
+
+export const applyNativeUserAction = async (
+  postId: string,
+  username: string,
+  values: {
+    action: NativeUserAction;
+    note?: string;
+    reason?: string;
+  }
+) => {
+  const normalizedPostId = normalizePostId(postId);
+  const normalizedUsername = normalizeUsername(username);
+  if (!normalizedUsername) throw new Error('Cannot act on an unknown user');
+
+  const incident = await getIncidentOrThrow(normalizedPostId);
+  const config = await getConfig(incident.subredditName);
+  const control = userActionControl(values.action);
+  if (!config.actionControls[control]) {
+    throw new Error('This Reddit user action is disabled in Firewatch settings');
+  }
+
+  const actor = await actorName();
+  const note =
+    values.note?.trim() || values.reason?.trim() || 'Firewatch moderator action';
+  let targetIds = [normalizedUsername];
+  const demoUser = isDemoUser(incident, normalizedUsername);
+
+  if (values.action === 'approve' && !demoUser) {
+    await reddit.approveUser(normalizedUsername, incident.subredditName);
+  }
+  if (values.action === 'mute' && !demoUser) {
+    await reddit.muteUser({
+      note,
+      subredditName: incident.subredditName,
+      username: normalizedUsername,
+    });
+  }
+  if (values.action === 'add-mod-note' && !demoUser) {
+    await reddit.addModNote({
+      label: 'SPAM_WATCH',
+      note: note.slice(0, 250),
+      redditId: normalizedPostId,
+      subreddit: incident.subredditName,
+      user: normalizedUsername,
+    });
+  }
+  if (values.action === 'remove-recent-content') {
+    targetIds = await removeRecentUserContent(
+      incident,
+      normalizedUsername,
+      values.reason
+    );
+  }
+
+  const withAction = await appendAction(normalizedPostId, {
+    type: nativeUserActionType(values.action),
+    actor,
+    detail: userActionDetail({
+      action: values.action,
+      count: targetIds.length,
+      note,
+      username: normalizedUsername,
+    }),
+    targetIds,
+  });
+
+  if (values.action !== 'remove-recent-content') return withAction;
+
+  const nextIncident: Incident = {
+    ...withAction,
+    flaggedComments: withAction.flaggedComments.map((flaggedComment) =>
       targetIds.includes(flaggedComment.id)
         ? { ...flaggedComment, removed: true, reviewed: false }
         : flaggedComment
@@ -840,6 +1443,10 @@ export const escalateIncident = async (postId: string) => {
   const normalizedPostId = normalizePostId(postId);
   const incident = await getIncident(normalizedPostId);
   if (!incident) throw new Error('Post is not in Firewatch yet');
+  const config = await getConfig(incident.subredditName);
+  if (!config.actionControls.handoffNotes) {
+    throw new Error('Handoff notes are disabled in Firewatch settings');
+  }
 
   const actor = await actorName();
   const currentIncident = await refreshIncident(incident);
@@ -864,6 +1471,10 @@ export const resolveIncident = async (postId: string) => {
   const normalizedPostId = normalizePostId(postId);
   const incident = await getIncident(normalizedPostId);
   if (!incident) throw new Error('Post is not in Firewatch yet');
+  const config = await getConfig(incident.subredditName);
+  if (!config.actionControls.markHandled) {
+    throw new Error('Mark handled is disabled in Firewatch settings');
+  }
 
   const actor = await actorName();
   const resolvedAt = now();
