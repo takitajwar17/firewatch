@@ -291,19 +291,24 @@ export const deleteStoredCommentContent = async (
     const refreshed = await refreshIncident(sanitizedIncident);
     await saveIncident(refreshed);
   } catch (error) {
-    console.error(`Failed to refresh sanitized incident ${normalizedPostId}`, error);
+    console.error(
+      `Failed to refresh sanitized incident ${normalizedPostId}`,
+      error
+    );
     await saveIncident(sanitizedIncident);
   }
 };
 
 const getPostSnapshot = async (postId: string) => {
   const post = await reddit.getPostById(normalizePostId(postId));
+  const createdAt = post.createdAt.getTime();
 
   return {
     title: post.title || 'Untitled post',
     permalink: post.permalink,
     subredditName: post.subredditName,
     numberOfReports: post.numberOfReports,
+    createdAt: Number.isFinite(createdAt) ? createdAt : undefined,
   };
 };
 
@@ -336,31 +341,29 @@ export const upsertIncidentSignal = async (input: SignalInput) => {
     id: makeId('sig'),
     createdAt: input.createdAt ?? now(),
   };
-  const baseIncident: Incident =
-    existing ??
-    {
-      postId,
-      subredditName: postSnapshot.subredditName,
-      title: postSnapshot.title,
-      permalink: postSnapshot.permalink,
-      score: 0,
-      level: 'watch',
-      peakScore: 0,
-      peakLevel: 'watch',
-      status: 'open',
-      createdAt: now(),
-      updatedAt: now(),
-      reasons: [],
-      flaggedComments: [],
-      recentSignals: [],
-      involvedUsers: [],
-      repeatedPhrases: [],
-      stats: makeEmptyStats(),
-      impact: makeEmptyImpact(),
-      trend: [],
-      responseSuggestion: getResponseSuggestion(0, 'watch', 'open'),
-      actions: [],
-    };
+  const baseIncident: Incident = existing ?? {
+    postId,
+    subredditName: postSnapshot.subredditName,
+    title: postSnapshot.title,
+    permalink: postSnapshot.permalink,
+    score: 0,
+    level: 'watch',
+    peakScore: 0,
+    peakLevel: 'watch',
+    status: 'open',
+    createdAt: postSnapshot.createdAt ?? signal.createdAt,
+    updatedAt: signal.createdAt,
+    reasons: [],
+    flaggedComments: [],
+    recentSignals: [],
+    involvedUsers: [],
+    repeatedPhrases: [],
+    stats: makeEmptyStats(),
+    impact: makeEmptyImpact(),
+    trend: [],
+    responseSuggestion: getResponseSuggestion(0, 'watch', 'open'),
+    actions: [],
+  };
   const nextStatus =
     signal.type === 'manual_escalation' ||
     baseIncident.status === 'resolved' ||
@@ -502,10 +505,14 @@ export const claimIncident = async (postId: string) => {
   };
 
   if (incident.claim) {
-    await redis.set(claimKey(normalizedPostId), JSON.stringify(incident.claim), {
-      expiration: retentionExpiration(),
-      nx: true,
-    });
+    await redis.set(
+      claimKey(normalizedPostId),
+      JSON.stringify(incident.claim),
+      {
+        expiration: retentionExpiration(),
+        nx: true,
+      }
+    );
   }
 
   const claimValue = JSON.stringify(existingClaim);
@@ -531,9 +538,10 @@ export const claimIncident = async (postId: string) => {
   return appendAction(normalizedPostId, {
     type: 'claimed',
     actor,
-    detail: storedClaim.username !== actor
-      ? `Already taken by u/${storedClaim.username}`
-      : `Taken by u/${actor}`,
+    detail:
+      storedClaim.username !== actor
+        ? `Already taken by u/${storedClaim.username}`
+        : `Taken by u/${actor}`,
   });
 };
 
@@ -1052,7 +1060,9 @@ export const applyNativePostAction = async (
   const config = await getConfig(incident.subredditName);
   const control = postActionControl(values.action);
   if (!config.actionControls[control]) {
-    throw new Error('This Reddit post action is disabled in Firewatch settings');
+    throw new Error(
+      'This Reddit post action is disabled in Firewatch settings'
+    );
   }
 
   const actor = await actorName();
@@ -1232,7 +1242,9 @@ export const applyNativeCommentAction = async (
   const config = await getConfig(incident.subredditName);
   const control = commentActionControl(values.action);
   if (!config.actionControls[control]) {
-    throw new Error('This Reddit comment action is disabled in Firewatch settings');
+    throw new Error(
+      'This Reddit comment action is disabled in Firewatch settings'
+    );
   }
   if (
     values.action === 'remove-thread' &&
@@ -1248,7 +1260,9 @@ export const applyNativeCommentAction = async (
   if (values.action === 'remove-thread') {
     targetIds = await collectThreadCommentIds(incident, normalizedCommentId);
     await Promise.all(
-      targetIds.map((targetId) => removeCommentIfReal(incident, targetId, reason))
+      targetIds.map((targetId) =>
+        removeCommentIfReal(incident, targetId, reason)
+      )
     );
   } else if (values.action === 'spam') {
     await removeCommentIfReal(incident, normalizedCommentId, reason, true);
@@ -1433,12 +1447,16 @@ export const applyNativeUserAction = async (
   const config = await getConfig(incident.subredditName);
   const control = userActionControl(values.action);
   if (!config.actionControls[control]) {
-    throw new Error('This Reddit user action is disabled in Firewatch settings');
+    throw new Error(
+      'This Reddit user action is disabled in Firewatch settings'
+    );
   }
 
   const actor = await actorName();
   const note =
-    values.note?.trim() || values.reason?.trim() || 'Firewatch moderator action';
+    values.note?.trim() ||
+    values.reason?.trim() ||
+    'Firewatch moderator action';
   let targetIds = [normalizedUsername];
   const demoUser = isDemoUser(incident, normalizedUsername);
 
@@ -1953,7 +1971,9 @@ export const getOrCreateFirewatchBoardPost = async () => {
     try {
       return await reddit.getPostById(normalizePostId(storedPostId));
     } catch (error) {
-      console.error(`Stored Firewatch queue post could not be opened: ${error}`);
+      console.error(
+        `Stored Firewatch queue post could not be opened: ${error}`
+      );
     }
   }
 

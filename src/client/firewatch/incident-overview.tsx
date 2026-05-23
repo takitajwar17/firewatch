@@ -102,7 +102,7 @@ export const IncidentIntro = ({ incident }: { incident: Incident }) => {
               value={String(incident.flaggedComments.length)}
             />
             <span className="px-1 text-xs font-semibold leading-6 text-muted-foreground">
-              Updated {formatTime(incident.updatedAt)}
+              Latest activity {formatTime(incident.updatedAt)}
             </span>
           </div>
         </article>

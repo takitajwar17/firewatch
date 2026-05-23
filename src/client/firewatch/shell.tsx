@@ -423,7 +423,7 @@ const IncidentQueueItem = ({
       )}
     >
       <span>{formatStatus(incident.status)}</span>
-      <span>{formatTime(incident.updatedAt)}</span>
+      <span>{formatTime(incident.createdAt)}</span>
     </div>
   </button>
 );

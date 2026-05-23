@@ -36,6 +36,22 @@ type PostSnapshot = {
   permalink?: string;
   subredditName: string;
   numberOfReports: number;
+  createdAt?: number;
+};
+
+const isValidTimestamp = (timestamp: number | undefined): timestamp is number =>
+  typeof timestamp === 'number' && Number.isFinite(timestamp) && timestamp > 0;
+
+const minTimestamp = (...timestamps: (number | undefined)[]) => {
+  const validTimestamps = timestamps.filter(isValidTimestamp);
+  if (validTimestamps.length === 0) return undefined;
+  return Math.min(...validTimestamps);
+};
+
+const maxTimestamp = (...timestamps: (number | undefined)[]) => {
+  const validTimestamps = timestamps.filter(isValidTimestamp);
+  if (validTimestamps.length === 0) return undefined;
+  return Math.max(...validTimestamps);
 };
 
 const getLevel = (score: number, config: FirewatchConfig): IncidentLevel => {
@@ -63,10 +79,7 @@ const tokenize = (text: string) =>
     .split(/\s+/)
     .map((word) => word.trim())
     .filter(
-      (word) =>
-        word.length > 2 &&
-        !STOP_WORDS.has(word) &&
-        !/^\d+$/.test(word)
+      (word) => word.length > 2 && !STOP_WORDS.has(word) && !/^\d+$/.test(word)
     );
 
 const extractRepeatedPhrases = (
@@ -190,7 +203,8 @@ export const getResponseSuggestion = (
   if (status === 'handled' || status === 'resolved') {
     return {
       label: 'No further action',
-      detail: 'This post has a saved final note and no comments left in review.',
+      detail:
+        'This post has a saved final note and no comments left in review.',
       level,
       steps: [
         'Review the final mod note.',
@@ -405,16 +419,16 @@ const countActionTargets = (
     0
   );
 
-const COMMENT_REMOVAL_ACTION_TYPES = new Set<Incident['actions'][number]['type']>(
-  [
-    'cleanup',
-    'comment_removed',
-    'comment_spammed',
-    'comment_thread_removed',
-    'user_banned',
-    'user_content_removed',
-  ]
-);
+const COMMENT_REMOVAL_ACTION_TYPES = new Set<
+  Incident['actions'][number]['type']
+>([
+  'cleanup',
+  'comment_removed',
+  'comment_spammed',
+  'comment_thread_removed',
+  'user_banned',
+  'user_content_removed',
+]);
 
 const REMOVAL_ACTION_TYPES = new Set<Incident['actions'][number]['type']>([
   'cleanup',
@@ -435,9 +449,8 @@ const normalizeActionCommentTarget = (targetId: string) => {
 const actionCommentTargets = (action: Incident['actions'][number]) =>
   (action.targetIds ?? [])
     .map(normalizeActionCommentTarget)
-    .filter(
-      (targetId): targetId is ReturnType<typeof normalizeCommentId> =>
-        Boolean(targetId)
+    .filter((targetId): targetId is ReturnType<typeof normalizeCommentId> =>
+      Boolean(targetId)
     );
 
 const countRemovalTargets = (action: Incident['actions'][number]) =>
@@ -551,7 +564,9 @@ export const calculateIncident = (
       .filter(Boolean)
       .map(normalizeCommentId)
   );
-  const userSignals = recentSignals.filter((signal) => signal.source === 'user');
+  const userSignals = recentSignals.filter(
+    (signal) => signal.source === 'user'
+  );
   const activeUserSignals = userSignals.filter(
     (signal) =>
       !signal.commentId ||
@@ -572,7 +587,8 @@ export const calculateIncident = (
     (signal) => signal.type === 'comment_create'
   );
   const reports = scoreSignals.filter(
-    (signal) => signal.type === 'comment_report' || signal.type === 'post_report'
+    (signal) =>
+      signal.type === 'comment_report' || signal.type === 'post_report'
   );
   const commentReports = scoreSignals.filter(
     (signal) => signal.type === 'comment_report'
@@ -603,12 +619,14 @@ export const calculateIncident = (
     0
   );
   const keywordHits = scoreSignals.reduce(
-    (total, signal) => total + countKeywordHits(signal.body ?? '', config.keywords),
+    (total, signal) =>
+      total + countKeywordHits(signal.body ?? '', config.keywords),
     0
   );
   const suspiciousHits = scoreSignals.reduce(
     (total, signal) =>
-      total + countSuspiciousDomainHits(signal.body ?? '', config.suspiciousDomains),
+      total +
+      countSuspiciousDomainHits(signal.body ?? '', config.suspiciousDomains),
     0
   );
   const parentAuthors = activeUserSignals.reduce<Record<string, Set<string>>>(
@@ -640,7 +658,11 @@ export const calculateIncident = (
     0,
     30
   );
-  const reportPoints = clamp(totalReportCount * config.signalWeights.reports, 0, 35);
+  const reportPoints = clamp(
+    totalReportCount * config.signalWeights.reports,
+    0,
+    35
+  );
   const keywordPoints = clamp(
     keywordHits * config.signalWeights.watchedWords,
     0,
@@ -689,9 +711,7 @@ export const calculateIncident = (
       label: 'Reports',
       detail: `${commentReports.length} comment reports plus ${postReportCount} post reports`,
       points: reportPoints,
-      evidence: reports
-        .slice(0, 3)
-        .map((signal) => signal.reason ?? 'Report'),
+      evidence: reports.slice(0, 3).map((signal) => signal.reason ?? 'Report'),
     });
   }
 
@@ -821,21 +841,41 @@ export const calculateIncident = (
       ...comment,
       author: normalizeUsername(comment.author) ?? 'unknown user',
       removed:
-        comment.removed || removedCommentIds.has(normalizeCommentId(comment.id)),
+        comment.removed ||
+        removedCommentIds.has(normalizeCommentId(comment.id)),
       reviewed:
         Boolean(comment.reviewed) ||
         reviewedCommentIds.has(normalizeCommentId(comment.id)),
     }));
-  const actionedIds = new Set(activeFlaggedComments.map((comment) => comment.id));
+  const actionedIds = new Set(
+    activeFlaggedComments.map((comment) => comment.id)
+  );
   const flaggedComments = [
     ...activeFlaggedComments,
-    ...alreadyActionedComments.filter((comment) => !actionedIds.has(comment.id)),
+    ...alreadyActionedComments.filter(
+      (comment) => !actionedIds.has(comment.id)
+    ),
   ].slice(0, MAX_FLAGGED_COMMENTS);
   const level = getLevel(score, config);
   const peakScore = Math.max(incident.peakScore ?? 0, score);
   const peakLevel = getLevel(peakScore, config);
   const status = deriveIncidentStatus(incident, activeFlaggedComments.length);
   const involvedUsers = buildParticipants(userSignals, activeFlaggedComments);
+  const fallbackCreatedAt =
+    minTimestamp(
+      incident.createdAt,
+      ...normalizedSignals.map((signal) => signal.createdAt)
+    ) ?? incident.createdAt;
+  const createdAt = postSnapshot.createdAt ?? fallbackCreatedAt;
+  const updatedAt =
+    maxTimestamp(
+      ...normalizedSignals.map((signal) => signal.createdAt),
+      ...incident.actions.map((action) => action.createdAt),
+      ...incident.flaggedComments.map((comment) => comment.createdAt),
+      incident.claim?.claimedAt,
+      incident.resolvedAt,
+      createdAt
+    ) ?? createdAt;
   const usersInReview = new Set(
     activeFlaggedComments
       .map((comment) => normalizeUsername(comment.author))
@@ -872,6 +912,7 @@ export const calculateIncident = (
     title: postSnapshot.title,
     permalink: postSnapshot.permalink,
     subredditName: postSnapshot.subredditName,
+    createdAt,
     score,
     level,
     peakScore,
@@ -894,6 +935,6 @@ export const calculateIncident = (
       status,
       activeFlaggedComments.length
     ),
-    updatedAt: now(),
+    updatedAt,
   };
 };
