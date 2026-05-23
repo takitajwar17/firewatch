@@ -6,7 +6,9 @@ import type {
   FirewatchDemoScenarioId,
   Incident,
 } from '../../shared/api';
-import { actionLabel, actionSuccessMessage, emptyConfig, readErrorMessage } from './format';
+import { sortIncidentsByPriority } from '../../shared/incidents';
+import { requestJson } from './api-client';
+import { actionLabel, actionSuccessMessage, emptyConfig } from './format';
 import type {
   ActionRunner,
   ConfigFormValues,
@@ -22,6 +24,9 @@ const EMPTY_DASHBOARD: DashboardInitResponse = {
   config: emptyConfig,
 };
 
+const fetchDashboardInit = () =>
+  requestJson<DashboardInitResponse>('/api/init');
+
 export const useDashboard = () => {
   const [loadState, setLoadState] = useState<LoadState>({ status: 'loading' });
   const [selectedPostId, setSelectedPostId] = useState<string | undefined>();
@@ -33,21 +38,18 @@ export const useDashboard = () => {
     setSelectedPostId((current) =>
       current && data.incidents.some((incident) => incident.postId === current)
         ? current
-        : data.selectedPostId ?? data.incidents[0]?.postId
+        : (data.selectedPostId ?? data.incidents[0]?.postId)
     );
   }, []);
 
   const refresh = useCallback(async () => {
     try {
-      const res = await fetch('/api/init');
-      if (!res.ok) throw new Error(await readErrorMessage(res));
-
-      const data: DashboardInitResponse = await res.json();
-      applyDashboard(data);
+      applyDashboard(await fetchDashboardInit());
     } catch (error) {
       setLoadState({
         status: 'error',
-        message: error instanceof Error ? error.message : 'Failed to load dashboard',
+        message:
+          error instanceof Error ? error.message : 'Failed to load dashboard',
       });
     }
   }, [applyDashboard]);
@@ -57,17 +59,16 @@ export const useDashboard = () => {
 
     const load = async () => {
       try {
-        const res = await fetch('/api/init');
-        if (!res.ok) throw new Error(await readErrorMessage(res));
-
-        const data: DashboardInitResponse = await res.json();
+        const data = await fetchDashboardInit();
         if (!cancelled) applyDashboard(data);
       } catch (error) {
         if (!cancelled) {
           setLoadState({
             status: 'error',
             message:
-              error instanceof Error ? error.message : 'Failed to load dashboard',
+              error instanceof Error
+                ? error.message
+                : 'Failed to load dashboard',
           });
         }
       }
@@ -108,7 +109,9 @@ export const useDashboard = () => {
       );
       const incidents = currentHasIncident
         ? current.data.incidents.map((incident) =>
-            incident.postId === updatedIncident.postId ? updatedIncident : incident
+            incident.postId === updatedIncident.postId
+              ? updatedIncident
+              : incident
           )
         : [updatedIncident, ...current.data.incidents];
 
@@ -116,9 +119,7 @@ export const useDashboard = () => {
         status: 'ready',
         data: {
           ...current.data,
-          incidents: incidents.sort(
-            (a, b) => b.score - a.score || b.updatedAt - a.updatedAt
-          ),
+          incidents: sortIncidentsByPriority(incidents),
         },
       };
     });
@@ -129,18 +130,10 @@ export const useDashboard = () => {
     setBusyAction(action);
     setNotice(undefined);
     try {
-      const requestInit: RequestInit = {
+      const payload = await requestJson<{ incident: Incident }>(endpoint, {
+        body,
         method: 'POST',
-      };
-      if (body) {
-        requestInit.headers = { 'content-type': 'application/json' };
-        requestInit.body = JSON.stringify(body);
-      }
-
-      const res = await fetch(endpoint, requestInit);
-      if (!res.ok) throw new Error(await readErrorMessage(res));
-
-      const payload: { incident: Incident } = await res.json();
+      });
       updateIncident(payload.incident);
       setNotice({ type: 'success', message: actionSuccessMessage(action) });
       return payload.incident;
@@ -170,12 +163,9 @@ export const useDashboard = () => {
     setBusyAction('reset-demo');
     setNotice(undefined);
     try {
-      const res = await fetch('/api/demo/reset', {
+      const payload = await requestJson<DemoResetResponse>('/api/demo/reset', {
         method: 'POST',
       });
-      if (!res.ok) throw new Error(await readErrorMessage(res));
-
-      const payload: DemoResetResponse = await res.json();
       applyDashboard(payload);
       setNotice({
         type: 'success',
@@ -201,14 +191,10 @@ export const useDashboard = () => {
     setBusyAction('config');
     setNotice(undefined);
     try {
-      const res = await fetch('/api/config', {
+      const payload = await requestJson<ConfigResponse>('/api/config', {
+        body: values,
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(values),
       });
-      if (!res.ok) throw new Error(await readErrorMessage(res));
-
-      const payload: ConfigResponse = await res.json();
       setLoadState((current) =>
         current.status === 'ready'
           ? {

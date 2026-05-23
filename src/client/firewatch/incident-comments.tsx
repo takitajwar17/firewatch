@@ -168,10 +168,13 @@ export const FlaggedCommentsCard = ({
                             </Button>
                           ) : null}
                           {controls.approveComments ? (
-                            <Button
-                              className="max-w-full"
-                              disabled={Boolean(busyAction)}
-                              size="sm"
+                            <NativeActionButton
+                              action={approveAction}
+                              busyAction={busyAction}
+                              icon={
+                                <RedditApproveIcon data-icon="inline-start" />
+                              }
+                              label="Approve"
                               variant="secondary"
                               onClick={() =>
                                 onAction(
@@ -179,25 +182,16 @@ export const FlaggedCommentsCard = ({
                                   `/api/incidents/${incident.postId}/comments/${comment.id}/approve`
                                 )
                               }
-                            >
-                              {busyAction === approveAction ? (
-                                <RedditRefreshIcon
-                                  className="animate-spin"
-                                  data-icon="inline-start"
-                                />
-                              ) : (
-                                <RedditApproveIcon data-icon="inline-start" />
-                              )}
-                              {busyAction === approveAction
-                                ? 'Working'
-                                : 'Approve'}
-                            </Button>
+                            />
                           ) : null}
                           {controls.removeComments ? (
-                            <Button
-                              className="max-w-full"
-                              disabled={Boolean(busyAction)}
-                              size="sm"
+                            <NativeActionButton
+                              action={removeAction}
+                              busyAction={busyAction}
+                              icon={
+                                <RedditRemoveIcon data-icon="inline-start" />
+                              }
+                              label="Remove"
                               variant="secondary"
                               onClick={() =>
                                 onAction(
@@ -206,25 +200,15 @@ export const FlaggedCommentsCard = ({
                                   { reason: cleanupReason }
                                 )
                               }
-                            >
-                              {busyAction === removeAction ? (
-                                <RedditRefreshIcon
-                                  className="animate-spin"
-                                  data-icon="inline-start"
-                                />
-                              ) : (
-                                <RedditRemoveIcon data-icon="inline-start" />
-                              )}
-                              {busyAction === removeAction
-                                ? 'Working'
-                                : 'Remove'}
-                            </Button>
+                            />
                           ) : null}
                           {controls.banUsers && controls.removeComments ? (
-                            <Button
-                              className="max-w-full"
-                              disabled={Boolean(busyAction) || !canBanAuthor}
-                              size="sm"
+                            <NativeActionButton
+                              action={banAction}
+                              busyAction={busyAction}
+                              disabled={!canBanAuthor}
+                              icon={<RedditBanIcon data-icon="inline-start" />}
+                              label="Ban user"
                               title="Remove this user's recent subreddit content, then ban them from the subreddit."
                               variant="destructive"
                               onClick={() =>
@@ -234,19 +218,7 @@ export const FlaggedCommentsCard = ({
                                   { reason: cleanupReason }
                                 )
                               }
-                            >
-                              {busyAction === banAction ? (
-                                <RedditRefreshIcon
-                                  className="animate-spin"
-                                  data-icon="inline-start"
-                                />
-                              ) : (
-                                <RedditBanIcon data-icon="inline-start" />
-                              )}
-                              {busyAction === banAction
-                                ? 'Working'
-                                : 'Ban user'}
-                            </Button>
+                            />
                           ) : null}
                         </div>
 
@@ -561,6 +533,7 @@ const NativeActionButton = ({
   icon,
   label,
   onClick,
+  title,
   variant = 'outline',
 }: {
   action: string;
@@ -569,12 +542,14 @@ const NativeActionButton = ({
   icon?: ReactNode;
   label: string;
   onClick: () => void;
-  variant?: 'outline' | 'destructive' | 'ghost';
+  title?: string;
+  variant?: 'outline' | 'secondary' | 'destructive' | 'ghost';
 }) => (
   <Button
     className="max-w-full"
     disabled={Boolean(busyAction) || disabled}
     size="sm"
+    title={title}
     variant={variant}
     onClick={onClick}
   >

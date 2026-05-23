@@ -15,6 +15,7 @@ import {
   DEFAULT_DEMO_SCENARIO_ID,
   getDemoScenario,
 } from '../../shared/firewatch-presets';
+import { sortIncidentsByPriority } from '../../shared/incidents';
 import {
   DEFAULT_CONFIG,
   INDEX_KEY,
@@ -410,9 +411,7 @@ export const getIncidents = async () => {
   const visibleIncidents = incidents.filter(shouldShowInQueue);
   await saveIndex(visibleIncidents.map((incident) => incident.postId));
 
-  return visibleIncidents
-    .sort((a, b) => b.score - a.score || b.updatedAt - a.updatedAt)
-    .slice(0, 25);
+  return sortIncidentsByPriority(visibleIncidents).slice(0, 25);
 };
 
 export const getIncidentById = async (postId: string) => {
