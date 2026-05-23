@@ -1,7 +1,9 @@
 import type {
   DashboardInitResponse,
   FirewatchDemoScenarioId,
+  FirewatchRuleInput,
   Incident,
+  RuleTestResponse,
 } from '../../shared/api';
 
 export type LoadState =
@@ -28,11 +30,15 @@ export type ConfigFormValues = {
 
 export type ConfigSaveHandler = (values: ConfigFormValues) => Promise<void>;
 
-export type FirewatchView = 'queue' | 'settings';
+export type FirewatchView = 'queue' | 'automations' | 'settings';
 
-export type DemoCreateHandler = (
-  scenarioId?: FirewatchDemoScenarioId
-) => void;
+export type DemoCreateHandler = (scenarioId?: FirewatchDemoScenarioId) => void;
+
+export type RuleSaveHandler = (values: FirewatchRuleInput) => Promise<void>;
+
+export type RuleTestHandler = (
+  ruleId: string
+) => Promise<RuleTestResponse | undefined>;
 
 export type Notice = {
   type: 'success' | 'error';

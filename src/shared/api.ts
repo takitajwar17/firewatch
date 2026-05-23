@@ -3,6 +3,7 @@ export type IncidentLevel = 'watch' | 'heat' | 'fire' | 'wildfire';
 export type FirewatchDemoScenarioId =
   | 'heated_thread'
   | 'scam_link_cleanup'
+  | 'suspicious_giveaway_escalating'
   | 'support_safety_cleanup';
 
 export type IncidentStatus =
@@ -90,10 +91,215 @@ export type IncidentActionType =
   | 'post_reports_unignored'
   | 'post_crowd_control'
   | 'post_flaired'
+  | 'firewatch_strike_added'
+  | 'rule_action_executed'
+  | 'rule_prepared'
   | 'locked'
   | 'escalated'
   | 'resolved'
   | 'demo_seeded';
+
+export type RuleMode =
+  | 'suggest_only'
+  | 'prepare_for_approval'
+  | 'auto_run_safe_actions'
+  | 'auto_run_all_selected_actions';
+
+export type RuleTrigger =
+  | { type: 'new_post' }
+  | { type: 'new_comment' }
+  | { type: 'post_report' }
+  | { type: 'comment_report' }
+  | { type: 'comment_removed' }
+  | { type: 'post_removed' }
+  | { type: 'incident_score_changed' }
+  | { type: 'user_strike_count_changed' };
+
+export type RuleScope = {
+  target: 'post' | 'comment' | 'user' | 'incident';
+  subredditId: string;
+  excludeModerators: boolean;
+  excludeApprovedUsers: boolean;
+  excludeFirewatchNotices: boolean;
+  excludeAutoModerator: boolean;
+  postFlairs?: string[];
+  commentAuthors?: string[];
+  ignoredAuthors?: string[];
+};
+
+export type RuleCondition =
+  | {
+      type: 'text_contains';
+      value: string;
+      match: 'contains' | 'exact' | 'regex';
+      caseSensitive?: boolean;
+    }
+  | {
+      type: 'watched_word_hit';
+      minHits: number;
+    }
+  | {
+      type: 'watched_domain_hit';
+      domains?: string[];
+      minHits: number;
+    }
+  | {
+      type: 'has_link';
+      minLinks: number;
+    }
+  | {
+      type: 'user_strikes';
+      operator: '>=' | '>' | '=';
+      value: number;
+      windowMinutes?: number;
+    }
+  | {
+      type: 'user_removed_comments';
+      operator: '>=' | '>' | '=';
+      value: number;
+      windowMinutes: number;
+    }
+  | {
+      type: 'post_reports';
+      operator: '>=' | '>' | '=';
+      value: number;
+      windowMinutes?: number;
+    }
+  | {
+      type: 'incident_score';
+      operator: '>=' | '>' | '=';
+      value: number;
+    }
+  | {
+      type: 'repeated_phrase';
+      minMatches: number;
+      windowMinutes: number;
+    }
+  | {
+      type: 'reply_cluster';
+      minComments: number;
+      windowMinutes: number;
+    };
+
+export type RuleCounter = {
+  countBy: 'user' | 'post' | 'thread' | 'domain' | 'phrase';
+  threshold: number;
+  windowMinutes: number;
+};
+
+export type RuleAction =
+  | { type: 'queue_incident'; reason: string }
+  | { type: 'add_firewatch_strike'; reason: string; weight?: number }
+  | { type: 'save_firewatch_log'; message: string }
+  | { type: 'generate_handoff'; template?: string }
+  | { type: 'add_native_mod_note'; note: string }
+  | { type: 'remove_comment'; reason: string }
+  | { type: 'remove_post'; reason: string }
+  | { type: 'approve_comment' }
+  | { type: 'approve_post' }
+  | { type: 'mark_spam'; target: 'post' | 'comment' }
+  | { type: 'sticky_reminder'; text: string }
+  | { type: 'lock_post'; reason?: string }
+  | { type: 'set_post_flair'; flairText: string }
+  | { type: 'ignore_reports'; target: 'post' | 'comment' }
+  | { type: 'prepare_temp_ban'; durationDays: number; reason: string }
+  | { type: 'prepare_permanent_ban'; reason: string }
+  | { type: 'mute_user'; durationDays?: number; reason: string }
+  | { type: 'mark_handled' };
+
+export type FirewatchRule = {
+  id: string;
+  name: string;
+  description?: string;
+  enabled: boolean;
+  trigger: RuleTrigger;
+  scope: RuleScope;
+  conditions: RuleCondition[];
+  counter?: RuleCounter;
+  actions: RuleAction[];
+  mode: RuleMode;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type FirewatchRuleInput = Omit<
+  FirewatchRule,
+  'createdAt' | 'createdBy' | 'id' | 'updatedAt'
+> & {
+  id?: string;
+};
+
+export type PreparedRuleAction = {
+  id: string;
+  action: RuleAction;
+  label: string;
+  risk: 'safe' | 'destructive' | 'restricted';
+  targetId?: string | undefined;
+  targetType: 'post' | 'comment' | 'user' | 'incident';
+  username?: string | undefined;
+};
+
+export type MatchedResponseRule = {
+  id: string;
+  ruleId: string;
+  ruleName: string;
+  mode: RuleMode;
+  matchedAt: string;
+  targetId: string;
+  targetType: 'post' | 'comment' | 'user' | 'incident';
+  username?: string | undefined;
+  why: string[];
+  preparedActions: PreparedRuleAction[];
+};
+
+export type RuleExecutionLog = {
+  id: string;
+  ruleId: string;
+  ruleName: string;
+  triggeredAt: string;
+  triggerType: string;
+  targetType: 'post' | 'comment' | 'user' | 'incident';
+  targetId: string;
+  matchedConditions: string[];
+  preparedActions: string[];
+  executedActions: string[];
+  skippedActions: string[];
+  mode: RuleMode;
+  actor: 'firewatch' | string;
+};
+
+export type UserStrike = {
+  id: string;
+  subredditId: string;
+  username: string;
+  reason: string;
+  source:
+    | 'rule_match'
+    | 'comment_removed'
+    | 'post_removed'
+    | 'manual_mod_action'
+    | 'report'
+    | 'watched_domain'
+    | 'watched_word';
+  weight: number;
+  relatedPostId?: string;
+  relatedCommentId?: string;
+  createdAt: string;
+  expiresAt?: string;
+  createdBy: 'firewatch' | string;
+};
+
+export type UserStrikeSummary = {
+  username: string;
+  totalWeight: number;
+  strikeCount: number;
+  recentWindowDays: number;
+  removedComments: number;
+  suspiciousDomainHits: number;
+  strikes: UserStrike[];
+  preparedAction?: string;
+};
 
 export type FirewatchConfig = {
   keywords: string[];
@@ -274,6 +480,8 @@ export type Incident = {
   recentSignals: IncidentSignal[];
   involvedUsers: IncidentParticipant[];
   repeatedPhrases: RepeatedPhrase[];
+  matchedRules?: MatchedResponseRule[];
+  userStrikeSummaries?: UserStrikeSummary[];
   stats: IncidentStats;
   impact: IncidentImpactSnapshot;
   trend: IncidentTrendPoint[];
@@ -295,6 +503,8 @@ export type DashboardInitResponse = {
   selectedPostId?: string;
   incidents: Incident[];
   config: FirewatchConfig;
+  rules: FirewatchRule[];
+  ruleLogs: RuleExecutionLog[];
 };
 
 export type ActionResponse = {
@@ -309,6 +519,24 @@ export type ConfigResponse = {
 
 export type DemoResetResponse = DashboardInitResponse & {
   resetCount: number;
+};
+
+export type RulesResponse = {
+  type: 'rules';
+  rules: FirewatchRule[];
+  ruleLogs: RuleExecutionLog[];
+};
+
+export type RuleTestResponse = {
+  type: 'rule-test';
+  ruleId: string;
+  ruleName: string;
+  matchedCount: number;
+  examples: {
+    label: string;
+    detail: string;
+  }[];
+  preparedActions: string[];
 };
 
 export type ErrorResponse = {

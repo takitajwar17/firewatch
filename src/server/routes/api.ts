@@ -8,10 +8,13 @@ import type {
   DashboardInitResponse,
   DemoResetResponse,
   FirewatchDemoScenarioId,
+  FirewatchRuleInput,
   Incident,
   NativeCommentAction,
   NativePostAction,
   NativeUserAction,
+  RulesResponse,
+  RuleTestResponse,
 } from '../../shared/api';
 import type { FirewatchConfigUpdate } from '../../shared/firewatch-config';
 import { errorResponse } from './responses';
@@ -22,6 +25,7 @@ import {
   approveFlaggedComment,
   banUserAndRemoveComments,
   claimIncident,
+  clearIncidentUserStrikes,
   coolDownIncident,
   createDemoIncident,
   escalateIncident,
@@ -33,8 +37,17 @@ import {
   removeFlaggedComment,
   resetDemoIncidents,
   resolveIncident,
+  runPreparedRuleActions,
   saveConfig,
 } from '../core/firewatch';
+import {
+  disableAllResponseRules,
+  getResponseRules,
+  getRuleExecutionLogs,
+  importResponseRuleTemplates,
+  saveResponseRule,
+  testResponseRule,
+} from '../core/firewatch-rules';
 
 export const api = new Hono();
 
@@ -43,10 +56,12 @@ const loadDashboardData = async (): Promise<DashboardInitResponse> => {
     typeof context.postData?.incidentPostId === 'string'
       ? context.postData.incidentPostId
       : undefined;
-  const [incidents, config, username] = await Promise.all([
+  const [incidents, config, username, rules, ruleLogs] = await Promise.all([
     getIncidents(),
     getConfig(),
     reddit.getCurrentUsername(),
+    getResponseRules(context.subredditName),
+    getRuleExecutionLogs(context.subredditName),
   ]);
   const selectedPostId =
     contextSelectedPostId ??
@@ -67,6 +82,8 @@ const loadDashboardData = async (): Promise<DashboardInitResponse> => {
     selectedPostId,
     incidents: mergedIncidents,
     config,
+    rules,
+    ruleLogs,
   };
 };
 
@@ -147,6 +164,59 @@ api.post('/config', async (c) => {
   }
 });
 
+api.post('/rules', async (c) => {
+  try {
+    const input = await c.req.json<FirewatchRuleInput>();
+    const rules = await saveResponseRule({
+      input,
+      subredditName: context.subredditName,
+      username: context.username ?? 'mod',
+    });
+    const ruleLogs = await getRuleExecutionLogs(context.subredditName);
+    return c.json<RulesResponse>({ type: 'rules', rules, ruleLogs });
+  } catch (error) {
+    return incidentActionError(c, error);
+  }
+});
+
+api.post('/rules/import-templates', async (c) => {
+  try {
+    const rules = await importResponseRuleTemplates(context.subredditName);
+    const ruleLogs = await getRuleExecutionLogs(context.subredditName);
+    return c.json<RulesResponse>({ type: 'rules', rules, ruleLogs });
+  } catch (error) {
+    return incidentActionError(c, error);
+  }
+});
+
+api.post('/rules/disable-all', async (c) => {
+  try {
+    const rules = await disableAllResponseRules(context.subredditName);
+    const ruleLogs = await getRuleExecutionLogs(context.subredditName);
+    return c.json<RulesResponse>({ type: 'rules', rules, ruleLogs });
+  } catch (error) {
+    return incidentActionError(c, error);
+  }
+});
+
+api.post('/rules/:ruleId/test', async (c) => {
+  try {
+    const [incidents, config] = await Promise.all([
+      getIncidents(),
+      getConfig(),
+    ]);
+    return c.json<RuleTestResponse>(
+      await testResponseRule({
+        config,
+        incidents,
+        ruleId: c.req.param('ruleId'),
+      })
+    );
+  } catch (error) {
+    return incidentActionError(c, error);
+  }
+});
+
 api.post('/incidents/:postId/comments/:commentId/remove', async (c) => {
   return incidentAction(c, async () => {
     const body = await readOptionalJson<{ reason: string }>(c);
@@ -197,6 +267,18 @@ api.post('/incidents/:postId/users/:username/native-action', async (c) => {
       body
     );
   });
+});
+
+api.post('/incidents/:postId/rules/:ruleId/run', async (c) => {
+  return incidentAction(c, () =>
+    runPreparedRuleActions(c.req.param('postId'), c.req.param('ruleId'))
+  );
+});
+
+api.post('/incidents/:postId/users/:username/strikes/clear', async (c) => {
+  return incidentAction(c, () =>
+    clearIncidentUserStrikes(c.req.param('postId'), c.req.param('username'))
+  );
 });
 
 const incidentAction = async (c: HonoContext, run: () => Promise<Incident>) => {

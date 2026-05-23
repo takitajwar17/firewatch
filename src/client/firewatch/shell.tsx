@@ -8,6 +8,7 @@ import { PanelLabel, ScoreBadge } from './common';
 import { formatStatus, formatTime, formatUsername, pluralize } from './format';
 import {
   RedditApproveIcon,
+  RedditListIcon,
   RedditQueueIcon,
   RedditRefreshIcon,
   RedditReportIcon,
@@ -141,6 +142,12 @@ const CommandPanel = ({
     </div>
     <div className="flex flex-col gap-3 px-4 pb-4">
       <SidebarNavButton
+        active={activeView === 'automations'}
+        icon={<RedditListIcon />}
+        label="Automations"
+        onClick={() => onViewChange('automations')}
+      />
+      <SidebarNavButton
         active={activeView === 'settings'}
         icon={<RedditSettingsIcon />}
         label="Firewatch Settings"
@@ -223,6 +230,19 @@ const WorkspaceHeader = ({
   subredditName: string;
 }) => {
   const isSettings = activeView === 'settings';
+  const isAutomations = activeView === 'automations';
+  const headerIcon = isSettings ? (
+    <RedditSettingsIcon />
+  ) : isAutomations ? (
+    <RedditListIcon />
+  ) : (
+    <RedditQueueIcon />
+  );
+  const headerTitle = isSettings
+    ? 'Firewatch settings'
+    : isAutomations
+      ? 'Automations'
+      : 'Queue';
   const [refreshing, setRefreshing] = useState(false);
   const refreshTimerRef = useRef<number | undefined>(undefined);
 
@@ -261,15 +281,24 @@ const WorkspaceHeader = ({
       <div className="hidden min-w-0 items-center gap-3 lg:flex">
         <div className="flex items-center gap-2.5">
           <span className="text-muted-foreground [&_svg]:size-5">
-            {isSettings ? <RedditSettingsIcon /> : <RedditQueueIcon />}
+            {headerIcon}
           </span>
           <h1 className="text-xl font-bold leading-7 tracking-normal">
-            {isSettings ? 'Firewatch settings' : 'Queue'}
+            {headerTitle}
           </h1>
         </div>
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
+        <Button
+          className="lg:hidden"
+          size="icon-sm"
+          variant={isAutomations ? 'secondary' : 'ghost'}
+          onClick={() => onViewChange(isAutomations ? 'queue' : 'automations')}
+        >
+          <RedditListIcon />
+          <span className="sr-only">Automations</span>
+        </Button>
         <Button
           className="lg:hidden"
           size="icon-sm"

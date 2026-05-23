@@ -20,14 +20,35 @@ import {
   type ConfigActionControlField,
 } from '../../shared/firewatch-config';
 import {
+  RULE_MODE_DESCRIPTIONS,
+  RULE_MODE_LABELS,
+  RULE_TARGET_LABELS,
+  RULE_TRIGGER_LABELS,
+  defaultRuleScope,
+  summarizeRule,
+} from '../../shared/response-rules';
+import {
   DisclosurePanel,
   FieldBlock,
   PlaybookButton,
   SectionHeader,
 } from './common';
 import { splitList } from './format';
-import type { FirewatchConfig } from '../../shared/api';
-import type { ConfigSaveHandler, DemoCreateHandler } from './types';
+import type {
+  FirewatchConfig,
+  FirewatchRule,
+  FirewatchRuleInput,
+  RuleExecutionLog,
+  RuleMode,
+  RuleTestResponse,
+  RuleTrigger,
+} from '../../shared/api';
+import type {
+  ConfigSaveHandler,
+  DemoCreateHandler,
+  RuleSaveHandler,
+  RuleTestHandler,
+} from './types';
 import {
   RedditAddIcon,
   RedditApproveIcon,
@@ -49,35 +70,725 @@ export const CommunitySettingsPage = ({
   onCreateDemo: DemoCreateHandler;
   onResetDemos: () => void;
   onSaveConfig: ConfigSaveHandler;
-}) => (
-  <div className="flex min-w-0 flex-col gap-4 sm:gap-5">
-    <SectionHeader
-      title="Settings"
-      description="Watched terms, thresholds, and mod actions."
-    />
-    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 sm:gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-      <CommunityFiltersCard
-        key={[
-          config.keywords.join('|'),
-          config.suspiciousDomains.join('|'),
-          config.heatThreshold,
-          config.fireThreshold,
-          config.wildfireThreshold,
-          config.reminderText,
-          Object.values(config.actionControls).join('|'),
-          Object.values(config.signalWeights).join('|'),
-        ].join(':')}
-        busy={busyAction === 'config'}
-        config={config}
-        onSave={onSaveConfig}
+}) => {
+  return (
+    <div className="flex min-w-0 flex-col gap-4 sm:gap-5">
+      <SectionHeader
+        title="Settings"
+        description="Watched terms, thresholds, mod actions, and demo tools."
       />
-      <CommunityToolsCard
-        busyAction={busyAction}
-        hasDemoIncidents={hasDemoIncidents}
-        onCreateDemo={onCreateDemo}
-        onResetDemos={onResetDemos}
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 sm:gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <CommunityFiltersCard
+          key={[
+            config.keywords.join('|'),
+            config.suspiciousDomains.join('|'),
+            config.heatThreshold,
+            config.fireThreshold,
+            config.wildfireThreshold,
+            config.reminderText,
+            Object.values(config.actionControls).join('|'),
+            Object.values(config.signalWeights).join('|'),
+          ].join(':')}
+          busy={busyAction === 'config'}
+          config={config}
+          onSave={onSaveConfig}
+        />
+        <CommunityToolsCard
+          busyAction={busyAction}
+          hasDemoIncidents={hasDemoIncidents}
+          onCreateDemo={onCreateDemo}
+          onResetDemos={onResetDemos}
+        />
+      </div>
+    </div>
+  );
+};
+
+export const ResponseRulesCard = ({
+  busyAction,
+  ruleLogs,
+  rules,
+  subredditId,
+  onDisableAllRules,
+  onImportTemplates,
+  onSaveRule,
+  onTestRule,
+}: {
+  busyAction: string | undefined;
+  ruleLogs: RuleExecutionLog[];
+  rules: FirewatchRule[];
+  subredditId: string;
+  onDisableAllRules: () => void;
+  onImportTemplates: () => void;
+  onSaveRule: RuleSaveHandler;
+  onTestRule: RuleTestHandler;
+}) => {
+  const [editingRule, setEditingRule] = useState<FirewatchRule | undefined>();
+  const [creating, setCreating] = useState(false);
+  const [showLogs, setShowLogs] = useState(false);
+  const [testResult, setTestResult] = useState<RuleTestResponse | undefined>();
+  const showBuilder = creating || Boolean(editingRule);
+
+  const testRule = async (ruleId: string) => {
+    const result = await onTestRule(ruleId);
+    if (result) {
+      setTestResult(result);
+      setShowLogs(true);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Response Rules</CardTitle>
+        <CardDescription>
+          Create custom rules that watch posts, comments, reports, user strikes,
+          and incident scores. Firewatch can suggest actions, prepare actions
+          for approval, or run safe actions automatically.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <div className="flex flex-wrap gap-2">
+          <PlaybookButton
+            icon={<RedditAddIcon data-icon="inline-start" />}
+            label="Create rule"
+            variant="default"
+            onClick={() => {
+              setCreating(true);
+              setEditingRule(undefined);
+            }}
+          />
+          <PlaybookButton
+            disabled={busyAction === 'rule-import'}
+            icon={<RedditAddIcon data-icon="inline-start" />}
+            label="Import template"
+            loading={busyAction === 'rule-import'}
+            loadingLabel="Importing"
+            variant="outline"
+            onClick={onImportTemplates}
+          />
+          <PlaybookButton
+            disabled={busyAction === 'rule-disable-all' || rules.length === 0}
+            icon={<RedditRemoveIcon data-icon="inline-start" />}
+            label="Disable all"
+            loading={busyAction === 'rule-disable-all'}
+            loadingLabel="Disabling"
+            variant="ghost"
+            onClick={onDisableAllRules}
+          />
+          <PlaybookButton
+            icon={<RedditReportIcon data-icon="inline-start" />}
+            label="View rule log"
+            variant={showLogs ? 'secondary' : 'ghost'}
+            onClick={() => setShowLogs((current) => !current)}
+          />
+        </div>
+
+        {showBuilder ? (
+          <RuleBuilder
+            busy={busyAction === 'rule-save'}
+            rule={editingRule}
+            subredditId={subredditId}
+            onCancel={() => {
+              setCreating(false);
+              setEditingRule(undefined);
+            }}
+            onSave={async (input) => {
+              await onSaveRule(input);
+              setCreating(false);
+              setEditingRule(undefined);
+            }}
+            onTestRule={testRule}
+          />
+        ) : null}
+
+        <div className="grid min-w-0 gap-3 lg:grid-cols-3">
+          {rules.map((rule) => (
+            <RuleListItem
+              key={rule.id}
+              busyAction={busyAction}
+              rule={rule}
+              onEdit={() => {
+                setEditingRule(rule);
+                setCreating(false);
+              }}
+              onTest={() => testRule(rule.id)}
+            />
+          ))}
+        </div>
+
+        {testResult ? <RuleTestResultCard result={testResult} /> : null}
+        {showLogs ? <RuleLogPreview logs={ruleLogs} /> : null}
+      </CardContent>
+    </Card>
+  );
+};
+
+const RuleListItem = ({
+  busyAction,
+  rule,
+  onEdit,
+  onTest,
+}: {
+  busyAction: string | undefined;
+  rule: FirewatchRule;
+  onEdit: () => void;
+  onTest: () => void;
+}) => (
+  <article className="flex min-w-0 flex-col gap-3 rounded-lg border bg-muted/35 p-3">
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <p className="truncate text-sm font-bold leading-5">
+          {rule.enabled ? '✓ ' : ''}
+          {rule.name}
+        </p>
+        <p className="mt-1 line-clamp-3 text-xs leading-5 text-muted-foreground">
+          {summarizeRule(rule)}
+        </p>
+      </div>
+      <span
+        className={cn(
+          'shrink-0 rounded-full px-2 py-1 text-[11px] font-bold leading-none',
+          rule.enabled
+            ? 'bg-primary/15 text-primary'
+            : 'bg-muted text-muted-foreground'
+        )}
+      >
+        {rule.enabled ? 'On' : 'Off'}
+      </span>
+    </div>
+    <div className="flex flex-wrap gap-2">
+      <PlaybookButton
+        className="h-7 text-xs"
+        label="Edit"
+        variant="outline"
+        onClick={onEdit}
+      />
+      <PlaybookButton
+        className="h-7 text-xs"
+        disabled={busyAction === `rule-test:${rule.id}`}
+        label="Test"
+        loading={busyAction === `rule-test:${rule.id}`}
+        loadingLabel="Testing"
+        variant="ghost"
+        onClick={onTest}
       />
     </div>
+  </article>
+);
+
+type BuilderConditionType =
+  | 'incident_score'
+  | 'post_reports'
+  | 'text_contains'
+  | 'user_strikes'
+  | 'user_removed_comments'
+  | 'watched_domain_hit'
+  | 'watched_word_hit';
+
+type BuilderActionType =
+  | 'add_native_mod_note'
+  | 'generate_handoff'
+  | 'remove_comment'
+  | 'sticky_reminder'
+  | 'strike_and_note'
+  | 'temp_ban';
+
+const RULE_TRIGGER_OPTIONS: {
+  label: string;
+  value: RuleTrigger['type'];
+}[] = [
+  { label: RULE_TRIGGER_LABELS.new_comment, value: 'new_comment' },
+  { label: RULE_TRIGGER_LABELS.new_post, value: 'new_post' },
+  { label: RULE_TRIGGER_LABELS.comment_removed, value: 'comment_removed' },
+  {
+    label: RULE_TRIGGER_LABELS.incident_score_changed,
+    value: 'incident_score_changed',
+  },
+  {
+    label: RULE_TRIGGER_LABELS.user_strike_count_changed,
+    value: 'user_strike_count_changed',
+  },
+];
+
+const RULE_TARGET_OPTIONS: {
+  label: string;
+  value: FirewatchRule['scope']['target'];
+}[] = [
+  { label: RULE_TARGET_LABELS.comment, value: 'comment' },
+  { label: RULE_TARGET_LABELS.post, value: 'post' },
+  { label: RULE_TARGET_LABELS.user, value: 'user' },
+  { label: RULE_TARGET_LABELS.incident, value: 'incident' },
+];
+
+const RULE_CONDITION_OPTIONS: {
+  label: string;
+  value: BuilderConditionType;
+}[] = [
+  { label: 'Watched domain hit', value: 'watched_domain_hit' },
+  { label: 'Watched word hit', value: 'watched_word_hit' },
+  { label: 'Text contains phrase', value: 'text_contains' },
+  { label: 'Author has Firewatch strikes', value: 'user_strikes' },
+  { label: 'Author has removed comments', value: 'user_removed_comments' },
+  { label: 'Post has reports', value: 'post_reports' },
+  { label: 'Incident score is at least', value: 'incident_score' },
+];
+
+const RULE_ACTION_OPTIONS: {
+  label: string;
+  value: BuilderActionType;
+}[] = [
+  { label: 'Add strike and mod note', value: 'strike_and_note' },
+  { label: 'Prepare comment removal', value: 'remove_comment' },
+  { label: 'Add native mod note', value: 'add_native_mod_note' },
+  { label: 'Prepare 1-day ban', value: 'temp_ban' },
+  { label: 'Save handoff draft', value: 'generate_handoff' },
+  { label: 'Prepare sticky reminder', value: 'sticky_reminder' },
+];
+
+const RULE_MODE_OPTIONS: {
+  label: string;
+  value: RuleMode;
+}[] = [
+  { label: RULE_MODE_LABELS.suggest_only, value: 'suggest_only' },
+  {
+    label: RULE_MODE_LABELS.prepare_for_approval,
+    value: 'prepare_for_approval',
+  },
+  {
+    label: RULE_MODE_LABELS.auto_run_safe_actions,
+    value: 'auto_run_safe_actions',
+  },
+  {
+    label: RULE_MODE_LABELS.auto_run_all_selected_actions,
+    value: 'auto_run_all_selected_actions',
+  },
+];
+
+const firstBuilderCondition = (
+  rule: FirewatchRule | undefined
+): BuilderConditionType => {
+  const type = rule?.conditions[0]?.type;
+  if (
+    type === 'incident_score' ||
+    type === 'post_reports' ||
+    type === 'text_contains' ||
+    type === 'user_strikes' ||
+    type === 'user_removed_comments' ||
+    type === 'watched_domain_hit' ||
+    type === 'watched_word_hit'
+  ) {
+    return type;
+  }
+  return 'watched_domain_hit';
+};
+
+const firstBuilderAction = (
+  rule: FirewatchRule | undefined
+): BuilderActionType => {
+  const actionTypes = rule?.actions.map((action) => action.type) ?? [];
+  if (actionTypes.includes('prepare_temp_ban')) return 'temp_ban';
+  if (
+    actionTypes.includes('add_firewatch_strike') &&
+    actionTypes.includes('add_native_mod_note')
+  ) {
+    return 'strike_and_note';
+  }
+  const firstAction = actionTypes[0];
+  if (
+    firstAction === 'add_native_mod_note' ||
+    firstAction === 'generate_handoff' ||
+    firstAction === 'remove_comment' ||
+    firstAction === 'sticky_reminder'
+  ) {
+    return firstAction;
+  }
+  return 'strike_and_note';
+};
+
+const RuleBuilder = ({
+  busy,
+  rule,
+  subredditId,
+  onCancel,
+  onSave,
+  onTestRule,
+}: {
+  busy: boolean;
+  rule: FirewatchRule | undefined;
+  subredditId: string;
+  onCancel: () => void;
+  onSave: (input: FirewatchRuleInput) => Promise<void>;
+  onTestRule: (ruleId: string) => void;
+}) => {
+  const [name, setName] = useState(rule?.name ?? 'Scam link response');
+  const [description, setDescription] = useState(rule?.description ?? '');
+  const [enabled, setEnabled] = useState(rule?.enabled ?? true);
+  const [triggerType, setTriggerType] = useState<RuleTrigger['type']>(
+    rule?.trigger.type ?? 'new_comment'
+  );
+  const [target, setTarget] = useState(rule?.scope.target ?? 'comment');
+  const [conditionType, setConditionType] = useState<BuilderConditionType>(
+    firstBuilderCondition(rule)
+  );
+  const [phrase, setPhrase] = useState('recovery agent');
+  const [threshold, setThreshold] = useState('2');
+  const [windowHours, setWindowHours] = useState('24');
+  const [actionType, setActionType] = useState<BuilderActionType>(
+    firstBuilderAction(rule)
+  );
+  const [mode, setMode] = useState<RuleMode>(
+    rule?.mode ?? 'prepare_for_approval'
+  );
+  const validName = name.trim().length > 0;
+
+  const buildCondition = (): FirewatchRuleInput['conditions'] => {
+    const numericThreshold = Math.max(1, Number(threshold) || 1);
+    const windowMinutes = Math.max(1, Number(windowHours) || 1) * 60;
+
+    if (conditionType === 'text_contains') {
+      return [
+        {
+          type: 'text_contains',
+          value: phrase,
+          match: 'contains',
+          caseSensitive: false,
+        },
+      ];
+    }
+    if (conditionType === 'watched_word_hit') {
+      return [{ type: 'watched_word_hit', minHits: numericThreshold }];
+    }
+    if (conditionType === 'watched_domain_hit') {
+      return [{ type: 'watched_domain_hit', minHits: numericThreshold }];
+    }
+    if (conditionType === 'user_strikes') {
+      return [
+        {
+          type: 'user_strikes',
+          operator: '>=',
+          value: numericThreshold,
+          windowMinutes,
+        },
+      ];
+    }
+    if (conditionType === 'user_removed_comments') {
+      return [
+        {
+          type: 'user_removed_comments',
+          operator: '>=',
+          value: numericThreshold,
+          windowMinutes,
+        },
+      ];
+    }
+    if (conditionType === 'post_reports') {
+      return [
+        {
+          type: 'post_reports',
+          operator: '>=',
+          value: numericThreshold,
+          windowMinutes,
+        },
+      ];
+    }
+    return [
+      {
+        type: 'incident_score',
+        operator: '>=',
+        value: Math.max(1, Math.min(100, numericThreshold)),
+      },
+    ];
+  };
+
+  const buildActions = (): FirewatchRuleInput['actions'] => {
+    if (actionType === 'remove_comment') {
+      return [
+        {
+          type: 'remove_comment',
+          reason: 'Response rule prepared comment removal',
+        },
+      ];
+    }
+    if (actionType === 'add_native_mod_note') {
+      return [
+        {
+          type: 'add_native_mod_note',
+          note: 'Firewatch response rule matched this user.',
+        },
+      ];
+    }
+    if (actionType === 'generate_handoff') {
+      return [
+        {
+          type: 'generate_handoff',
+          template: 'Response rule matched. Review prepared actions.',
+        },
+      ];
+    }
+    if (actionType === 'sticky_reminder') {
+      return [
+        {
+          type: 'sticky_reminder',
+          text: 'Mod note: This thread is under active review. Keep discussion civil and avoid suspicious links.',
+        },
+      ];
+    }
+    if (actionType === 'temp_ban') {
+      return [
+        {
+          type: 'add_native_mod_note',
+          note: 'Firewatch repeat offender rule matched.',
+        },
+        {
+          type: 'prepare_temp_ban',
+          durationDays: 1,
+          reason: 'Repeated rule-breaking behavior tracked by Firewatch',
+        },
+      ];
+    }
+    return [
+      {
+        type: 'add_firewatch_strike',
+        reason: 'Response rule matched',
+        weight: 1,
+      },
+      {
+        type: 'add_native_mod_note',
+        note: 'Firewatch response rule matched this user.',
+      },
+    ];
+  };
+
+  const saveRule = () =>
+    onSave({
+      ...(rule ? { id: rule.id } : {}),
+      name,
+      ...(description.trim() ? { description: description.trim() } : {}),
+      enabled,
+      trigger: { type: triggerType },
+      scope: defaultRuleScope(subredditId, target),
+      conditions: buildCondition(),
+      actions: buildActions(),
+      mode,
+    });
+
+  return (
+    <div className="rounded-lg border bg-muted/40 p-3">
+      <div className="grid min-w-0 gap-3 md:grid-cols-2">
+        <FieldBlock htmlFor="fw-rule-name" label="Rule name">
+          <Input
+            id="fw-rule-name"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+          />
+        </FieldBlock>
+        <FieldBlock htmlFor="fw-rule-description" label="Description">
+          <Input
+            id="fw-rule-description"
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+          />
+        </FieldBlock>
+        <RuleSelect
+          id="fw-rule-trigger"
+          label="When"
+          options={RULE_TRIGGER_OPTIONS}
+          value={triggerType}
+          onChange={(value) => setTriggerType(value)}
+        />
+        <RuleSelect
+          id="fw-rule-target"
+          label="Apply to"
+          options={RULE_TARGET_OPTIONS}
+          value={target}
+          onChange={(value) => setTarget(value)}
+        />
+        <RuleSelect
+          id="fw-rule-condition"
+          label="If"
+          options={RULE_CONDITION_OPTIONS}
+          value={conditionType}
+          onChange={(value) => setConditionType(value)}
+        />
+        {conditionType === 'text_contains' ? (
+          <FieldBlock htmlFor="fw-rule-phrase" label="Phrase">
+            <Input
+              id="fw-rule-phrase"
+              value={phrase}
+              onChange={(event) => setPhrase(event.target.value)}
+            />
+          </FieldBlock>
+        ) : (
+          <FieldBlock htmlFor="fw-rule-threshold" label="Threshold">
+            <Input
+              id="fw-rule-threshold"
+              inputMode="numeric"
+              type="number"
+              value={threshold}
+              onChange={(event) => setThreshold(event.target.value)}
+            />
+          </FieldBlock>
+        )}
+        {(conditionType === 'user_removed_comments' ||
+          conditionType === 'user_strikes' ||
+          conditionType === 'post_reports') && (
+          <FieldBlock htmlFor="fw-rule-window" label="Within hours">
+            <Input
+              id="fw-rule-window"
+              inputMode="numeric"
+              type="number"
+              value={windowHours}
+              onChange={(event) => setWindowHours(event.target.value)}
+            />
+          </FieldBlock>
+        )}
+        <RuleSelect
+          id="fw-rule-action"
+          label="Then"
+          options={RULE_ACTION_OPTIONS}
+          value={actionType}
+          onChange={(value) => setActionType(value)}
+        />
+        <RuleSelect
+          id="fw-rule-mode"
+          label="Safety mode"
+          options={RULE_MODE_OPTIONS}
+          value={mode}
+          onChange={(value) => setMode(value)}
+        />
+      </div>
+      <label className="mt-3 flex w-fit items-center gap-2 text-sm font-semibold">
+        <input
+          checked={enabled}
+          className="size-4 accent-primary"
+          type="checkbox"
+          onChange={(event) => setEnabled(event.target.checked)}
+        />
+        Enabled
+      </label>
+      <p className="mt-2 text-xs leading-5 text-muted-foreground">
+        {RULE_MODE_DESCRIPTIONS[mode]}
+      </p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <PlaybookButton
+          disabled={busy || !validName}
+          icon={<RedditApproveIcon data-icon="inline-start" />}
+          label="Save rule"
+          loading={busy}
+          loadingLabel="Saving"
+          variant="default"
+          onClick={saveRule}
+        />
+        <PlaybookButton
+          disabled={!rule}
+          label="Test rule"
+          title={rule ? undefined : 'Save the rule before testing it'}
+          variant="outline"
+          onClick={() => {
+            if (rule) onTestRule(rule.id);
+          }}
+        />
+        <PlaybookButton label="Cancel" variant="ghost" onClick={onCancel} />
+      </div>
+    </div>
+  );
+};
+
+const RuleSelect = <Value extends string>({
+  id,
+  label,
+  onChange,
+  options,
+  value,
+}: {
+  id: string;
+  label: string;
+  onChange: (value: Value) => void;
+  options: {
+    label: string;
+    value: Value;
+  }[];
+  value: Value;
+}) => (
+  <FieldBlock htmlFor={id} label={label}>
+    <select
+      id={id}
+      className="h-9 w-full min-w-0 rounded-full border border-transparent bg-secondary px-4 text-sm outline-none hover:bg-accent focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/25"
+      value={value}
+      onChange={(event) => {
+        const option = options.find(
+          (item) => item.value === event.target.value
+        );
+        if (option) onChange(option.value);
+      }}
+    >
+      {options.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+  </FieldBlock>
+);
+
+const RuleTestResultCard = ({ result }: { result: RuleTestResponse }) => (
+  <div className="rounded-lg border bg-card p-3">
+    <p className="text-sm font-bold leading-5">
+      This rule would have matched {result.matchedCount} item
+      {result.matchedCount === 1 ? '' : 's'}.
+    </p>
+    {result.examples.length ? (
+      <div className="mt-3 flex flex-col gap-2">
+        {result.examples.map((example, index) => (
+          <div key={`${example.label}:${index}`} className="text-sm leading-5">
+            <span className="font-semibold">{index + 1}. </span>
+            <span>{example.label}</span>
+            <span className="text-muted-foreground"> - {example.detail}</span>
+          </div>
+        ))}
+      </div>
+    ) : (
+      <p className="mt-2 text-sm leading-5 text-muted-foreground">
+        No recent examples matched this rule.
+      </p>
+    )}
+    {result.preparedActions.length ? (
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        {result.preparedActions.map((action) => (
+          <span
+            key={action}
+            className="rounded-full bg-secondary px-2 py-1 text-xs font-semibold"
+          >
+            {action}
+          </span>
+        ))}
+      </div>
+    ) : null}
+  </div>
+);
+
+const RuleLogPreview = ({ logs }: { logs: RuleExecutionLog[] }) => (
+  <div className="rounded-lg border bg-card p-3">
+    <p className="text-sm font-bold leading-5">Rule log</p>
+    {logs.length === 0 ? (
+      <p className="mt-2 text-sm leading-5 text-muted-foreground">
+        No response rules have matched yet.
+      </p>
+    ) : (
+      <div className="mt-2 flex flex-col gap-2">
+        {logs.slice(0, 5).map((log) => (
+          <div key={log.id} className="rounded-md bg-muted/60 p-2">
+            <p className="text-sm font-semibold leading-5">
+              {log.ruleName} matched {log.targetType} {log.targetId}.
+            </p>
+            <p className="text-xs leading-5 text-muted-foreground">
+              Prepared {log.preparedActions.join(', ') || 'no actions'}.
+            </p>
+          </div>
+        ))}
+      </div>
+    )}
   </div>
 );
 

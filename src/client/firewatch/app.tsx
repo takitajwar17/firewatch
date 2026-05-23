@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { AutomationsPage } from './automations';
 import { EmptyBoard, ErrorBoard, LoadingBoard } from './board-states';
 import { CommunitySettingsPage } from './community-settings';
 import { IncidentDetail } from './incident-detail';
@@ -12,15 +13,19 @@ export const App = () => {
     busyAction,
     createDemoIncident,
     data,
+    disableAllRules,
+    importRuleTemplates,
     loadState,
     notice,
     refresh,
     resetDemoIncidents,
     runAction,
     saveDashboardConfig,
+    saveResponseRule,
     selectedIncident,
     selectedPostId,
     setSelectedPostId,
+    testResponseRule,
   } = useDashboard();
   const hasDemoIncidents = data.incidents.some((incident) =>
     Boolean(incident.demo)
@@ -62,6 +67,17 @@ export const App = () => {
     >
       {loadState.status === 'loading' ? (
         <LoadingBoard />
+      ) : activeView === 'automations' ? (
+        <AutomationsPage
+          busyAction={busyAction}
+          ruleLogs={data.ruleLogs}
+          rules={data.rules}
+          subredditName={data.subredditName}
+          onDisableAllRules={disableAllRules}
+          onImportRuleTemplates={importRuleTemplates}
+          onSaveRule={saveResponseRule}
+          onTestRule={testResponseRule}
+        />
       ) : activeView === 'settings' ? (
         <CommunitySettingsPage
           busyAction={busyAction}
@@ -78,6 +94,7 @@ export const App = () => {
           config={data.config}
           incident={selectedIncident}
           onAction={runAction}
+          onEditRules={() => setActiveView('automations')}
         />
       ) : (
         <EmptyBoard

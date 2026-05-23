@@ -136,7 +136,7 @@ type PlaybookButtonProps = {
   loading?: boolean;
   loadingLabel?: string;
   onClick: () => void;
-  title?: string;
+  title?: string | undefined;
   variant?: 'default' | 'outline' | 'secondary' | 'destructive' | 'ghost';
 };
 

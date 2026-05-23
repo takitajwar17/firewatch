@@ -18,6 +18,7 @@ import {
   RiskReasonsCard,
   TrendCard,
 } from './incident-overview';
+import { MatchedRulesCard } from './incident-rules';
 import type { ActionRunner } from './types';
 import type { FirewatchConfig, Incident } from '../../shared/api';
 import {
@@ -32,11 +33,13 @@ export const IncidentDetail = ({
   config,
   incident,
   onAction,
+  onEditRules,
 }: {
   busyAction: string | undefined;
   config: FirewatchConfig;
   incident: Incident;
   onAction: ActionRunner;
+  onEditRules: () => void;
 }) => {
   const unresolvedComments = incident.flaggedComments.filter(
     (comment) => !comment.removed && !comment.reviewed
@@ -57,6 +60,9 @@ export const IncidentDetail = ({
 
     if (action === 'escalate' || action === 'resolve') {
       setActiveTab('reports');
+    }
+    if (action.startsWith('rule:') || action.startsWith('clear-strikes:')) {
+      setActiveTab('overview');
     }
 
     if (
@@ -141,6 +147,12 @@ export const IncidentDetail = ({
             description="Signals, post tools, impact, and users."
           />
           <div className="flex flex-col gap-4">
+            <MatchedRulesCard
+              busyAction={busyAction}
+              incident={incident}
+              onAction={runModAction}
+              onEditRules={onEditRules}
+            />
             <RiskReasonsCard incident={incident} />
             <NativePostControlsCard
               busyAction={busyAction}
@@ -153,7 +165,11 @@ export const IncidentDetail = ({
           <div className="flex flex-col gap-4">
             <ImpactSnapshotCard incident={incident} />
             <ResponseCard incident={incident} />
-            <ParticipantsCard incident={incident} />
+            <ParticipantsCard
+              busyAction={busyAction}
+              incident={incident}
+              onAction={runModAction}
+            />
           </div>
         </TabsContent>
 

@@ -4,7 +4,10 @@ import type {
   DashboardInitResponse,
   DemoResetResponse,
   FirewatchDemoScenarioId,
+  FirewatchRuleInput,
   Incident,
+  RulesResponse,
+  RuleTestResponse,
 } from '../../shared/api';
 import { sortIncidentsByPriority } from '../../shared/incidents';
 import { requestJson } from './api-client';
@@ -22,6 +25,8 @@ const EMPTY_DASHBOARD: DashboardInitResponse = {
   subredditName: '',
   incidents: [],
   config: emptyConfig,
+  rules: [],
+  ruleLogs: [],
 };
 
 const fetchDashboardInit = () =>
@@ -136,6 +141,9 @@ export const useDashboard = () => {
       });
       updateIncident(payload.incident);
       setNotice({ type: 'success', message: actionSuccessMessage(action) });
+      if (action.startsWith('rule:') || action.startsWith('clear-strikes:')) {
+        void refresh();
+      }
       return payload.incident;
     } catch (error) {
       console.error(`Firewatch action failed: ${action}`, error);
@@ -220,18 +228,138 @@ export const useDashboard = () => {
     }
   };
 
+  const applyRulesResponse = (payload: RulesResponse) => {
+    setLoadState((current) =>
+      current.status === 'ready'
+        ? {
+            status: 'ready',
+            data: {
+              ...current.data,
+              rules: payload.rules,
+              ruleLogs: payload.ruleLogs,
+            },
+          }
+        : current
+    );
+  };
+
+  const saveResponseRule = async (values: FirewatchRuleInput) => {
+    setBusyAction('rule-save');
+    setNotice(undefined);
+    try {
+      const payload = await requestJson<RulesResponse>('/api/rules', {
+        body: values,
+        method: 'POST',
+      });
+      applyRulesResponse(payload);
+      setNotice({ type: 'success', message: 'Response rule saved.' });
+    } catch (error) {
+      setNotice({
+        type: 'error',
+        message:
+          error instanceof Error
+            ? `Could not save response rule: ${error.message}`
+            : 'Could not save response rule.',
+      });
+    } finally {
+      setBusyAction(undefined);
+    }
+  };
+
+  const importRuleTemplates = async () => {
+    setBusyAction('rule-import');
+    setNotice(undefined);
+    try {
+      const payload = await requestJson<RulesResponse>(
+        '/api/rules/import-templates',
+        { method: 'POST' }
+      );
+      applyRulesResponse(payload);
+      setNotice({
+        type: 'success',
+        message: 'Response rule templates loaded.',
+      });
+    } catch (error) {
+      setNotice({
+        type: 'error',
+        message:
+          error instanceof Error
+            ? `Could not import templates: ${error.message}`
+            : 'Could not import templates.',
+      });
+    } finally {
+      setBusyAction(undefined);
+    }
+  };
+
+  const disableAllRules = async () => {
+    setBusyAction('rule-disable-all');
+    setNotice(undefined);
+    try {
+      const payload = await requestJson<RulesResponse>(
+        '/api/rules/disable-all',
+        { method: 'POST' }
+      );
+      applyRulesResponse(payload);
+      setNotice({ type: 'success', message: 'All response rules disabled.' });
+    } catch (error) {
+      setNotice({
+        type: 'error',
+        message:
+          error instanceof Error
+            ? `Could not disable rules: ${error.message}`
+            : 'Could not disable rules.',
+      });
+    } finally {
+      setBusyAction(undefined);
+    }
+  };
+
+  const testResponseRule = async (ruleId: string) => {
+    setBusyAction(`rule-test:${ruleId}`);
+    setNotice(undefined);
+    try {
+      const payload = await requestJson<RuleTestResponse>(
+        `/api/rules/${ruleId}/test`,
+        { method: 'POST' }
+      );
+      setNotice({
+        type: 'success',
+        message: `${payload.ruleName} matched ${payload.matchedCount} item${
+          payload.matchedCount === 1 ? '' : 's'
+        }.`,
+      });
+      return payload;
+    } catch (error) {
+      setNotice({
+        type: 'error',
+        message:
+          error instanceof Error
+            ? `Could not test rule: ${error.message}`
+            : 'Could not test rule.',
+      });
+      return undefined;
+    } finally {
+      setBusyAction(undefined);
+    }
+  };
+
   return {
     busyAction,
     createDemoIncident,
     data,
+    disableAllRules,
+    importRuleTemplates,
     loadState,
     notice,
     refresh,
     resetDemoIncidents,
     runAction,
     saveDashboardConfig,
+    saveResponseRule,
     selectedIncident,
     selectedPostId,
     setSelectedPostId,
+    testResponseRule,
   };
 };

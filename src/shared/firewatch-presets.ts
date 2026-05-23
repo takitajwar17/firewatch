@@ -1,9 +1,7 @@
-import type {
-  FirewatchDemoScenario,
-  FirewatchDemoScenarioId,
-} from './api';
+import type { FirewatchDemoScenario, FirewatchDemoScenarioId } from './api';
 
-export const DEFAULT_DEMO_SCENARIO_ID: FirewatchDemoScenarioId = 'heated_thread';
+export const DEFAULT_DEMO_SCENARIO_ID: FirewatchDemoScenarioId =
+  'suspicious_giveaway_escalating';
 
 const HEATED_THREAD_SCENARIO: FirewatchDemoScenario = {
   id: 'heated_thread',
@@ -13,6 +11,12 @@ const HEATED_THREAD_SCENARIO: FirewatchDemoScenario = {
 };
 
 export const FIREWATCH_DEMO_SCENARIOS: FirewatchDemoScenario[] = [
+  {
+    id: 'suspicious_giveaway_escalating',
+    label: 'Suspicious giveaway thread escalating',
+    description:
+      'A strong incident-response demo with scam links, repeated behavior, strikes, matched rules, and prepared actions.',
+  },
   HEATED_THREAD_SCENARIO,
   {
     id: 'scam_link_cleanup',

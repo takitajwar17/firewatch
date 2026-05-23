@@ -762,7 +762,15 @@ export const TrendCard = ({ incident }: { incident: Incident }) => (
   </Card>
 );
 
-export const ParticipantsCard = ({ incident }: { incident: Incident }) => (
+export const ParticipantsCard = ({
+  busyAction,
+  incident,
+  onAction,
+}: {
+  busyAction?: string | undefined;
+  incident: Incident;
+  onAction?: ActionRunner | undefined;
+}) => (
   <Card>
     <CardHeader>
       <CardTitle>Users to review</CardTitle>
@@ -775,26 +783,70 @@ export const ParticipantsCard = ({ incident }: { incident: Incident }) => (
         <EmptyText>No users have unreviewed comments.</EmptyText>
       ) : (
         <div className="flex flex-col">
-          {incident.involvedUsers.map((user, index) => (
-            <div key={user.username}>
-              {index > 0 ? <Separator /> : null}
-              <div className="flex items-center justify-between gap-3 py-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold leading-5">
-                    {formatUsername(user.username)}
-                  </p>
-                  <p className="break-words text-xs leading-5 text-muted-foreground">
-                    {pluralize(user.flagged, 'comment')} to review -{' '}
-                    {pluralize(user.signals, 'recent event')} -{' '}
-                    {pluralize(user.branchCount, 'branch', 'branches')}
-                  </p>
+          {incident.involvedUsers.map((user, index) => {
+            const strikeSummary = incident.userStrikeSummaries?.find(
+              (summary) =>
+                summary.username.toLowerCase() === user.username.toLowerCase()
+            );
+
+            return (
+              <div key={user.username}>
+                {index > 0 ? <Separator /> : null}
+                <div className="flex flex-col gap-2 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold leading-5">
+                        {formatUsername(user.username)}
+                      </p>
+                      <p className="break-words text-xs leading-5 text-muted-foreground">
+                        {pluralize(user.flagged, 'comment')} to review -{' '}
+                        {pluralize(user.signals, 'recent event')} -{' '}
+                        {pluralize(user.branchCount, 'branch', 'branches')}
+                      </p>
+                    </div>
+                    <span className="shrink-0 text-xs leading-5 text-muted-foreground">
+                      {formatTime(user.lastSeenAt)}
+                    </span>
+                  </div>
+                  {strikeSummary && strikeSummary.strikeCount > 0 ? (
+                    <div className="rounded-md bg-muted/60 p-2">
+                      <p className="text-xs font-semibold leading-5">
+                        {strikeSummary.strikeCount} Firewatch strike
+                        {strikeSummary.strikeCount === 1 ? '' : 's'} in{' '}
+                        {strikeSummary.recentWindowDays} days
+                      </p>
+                      <p className="text-xs leading-5 text-muted-foreground">
+                        {strikeSummary.removedComments} removed comments -{' '}
+                        {strikeSummary.suspiciousDomainHits} suspicious domain
+                        hits
+                        {strikeSummary.preparedAction
+                          ? ` - Prepared action: ${strikeSummary.preparedAction}`
+                          : ''}
+                      </p>
+                      {onAction ? (
+                        <button
+                          className="mt-1 text-xs font-semibold text-primary hover:underline disabled:text-muted-foreground"
+                          disabled={
+                            Boolean(busyAction) ||
+                            busyAction === `clear-strikes:${user.username}`
+                          }
+                          type="button"
+                          onClick={() =>
+                            onAction(
+                              `clear-strikes:${user.username}`,
+                              `/api/incidents/${incident.postId}/users/${user.username}/strikes/clear`
+                            )
+                          }
+                        >
+                          Clear strikes
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
-                <span className="shrink-0 text-xs leading-5 text-muted-foreground">
-                  {formatTime(user.lastSeenAt)}
-                </span>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </CardContent>
