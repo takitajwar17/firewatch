@@ -1,16 +1,13 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { MetricCard, SectionHeader } from './common';
+import { SectionHeader } from './common';
 import {
   ActionLogCard,
   LatestSignalsCard,
   SummariesCard,
 } from './incident-activity';
 import { formatUsername } from './format';
-import {
-  FlaggedCommentsCard,
-  RepeatedPhrasesCard,
-} from './incident-comments';
+import { FlaggedCommentsCard, RepeatedPhrasesCard } from './incident-comments';
 import {
   ImpactSnapshotCard,
   IncidentHero,
@@ -78,37 +75,6 @@ export const IncidentDetail = ({
     <div className="flex flex-col gap-4">
       <IncidentIntro incident={incident} />
 
-      <SectionHeader
-        title="Insights"
-        description="Reports, comments, users, and reply clusters."
-      />
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
-          description="Post and comment reports attached here."
-          icon={<RedditReportIcon />}
-          label="Reports"
-          value={String(incident.stats.reportSignals)}
-        />
-        <MetricCard
-          description="Waiting for approve, remove, or ban user."
-          icon={<RedditCommentIcon />}
-          label="Comments"
-          value={String(unresolvedComments.length)}
-        />
-        <MetricCard
-          description="Authors with comments waiting for review."
-          icon={<RedditUsersIcon />}
-          label="Users"
-          value={String(unresolvedUsers.size)}
-        />
-        <MetricCard
-          description="Dense reply chains that can heat up quickly."
-          icon={<RedditListIcon />}
-          label="Reply clusters"
-          value={String(incident.stats.branchPileOns)}
-        />
-      </div>
-
       <IncidentHero
         busyAction={busyAction}
         config={config}
@@ -116,20 +82,53 @@ export const IncidentDetail = ({
         onAction={runModAction}
       />
 
+      <div className="grid overflow-hidden rounded-lg border border-border bg-background sm:grid-cols-2 xl:grid-cols-4">
+        <InsightItem
+          description="Reports attached here"
+          icon={<RedditReportIcon />}
+          label="Reports"
+          value={String(incident.stats.reportSignals)}
+        />
+        <InsightItem
+          description="Waiting for a mod decision"
+          icon={<RedditCommentIcon />}
+          label="Comments"
+          value={String(unresolvedComments.length)}
+        />
+        <InsightItem
+          description="Authors in review"
+          icon={<RedditUsersIcon />}
+          label="Users"
+          value={String(unresolvedUsers.size)}
+        />
+        <InsightItem
+          description="Dense reply chains"
+          icon={<RedditListIcon />}
+          label="Reply clusters"
+          value={String(incident.stats.branchPileOns)}
+        />
+      </div>
+
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList
           aria-label="Incident sections"
-          className="w-full justify-start overflow-x-auto"
+          className="w-full justify-start gap-1 overflow-x-auto border-b border-border pb-2"
         >
-          <TabsTrigger value="overview">Post</TabsTrigger>
-          <TabsTrigger value="comments">
+          <TabsTrigger className="flex-none" value="overview">
+            Post
+          </TabsTrigger>
+          <TabsTrigger className="flex-none" value="comments">
             Comments
             {unresolvedComments.length > 0
               ? ` (${unresolvedComments.length})`
               : ''}
           </TabsTrigger>
-          <TabsTrigger value="signals">Activity</TabsTrigger>
-          <TabsTrigger value="reports">Mod notes</TabsTrigger>
+          <TabsTrigger className="flex-none" value="signals">
+            Activity
+          </TabsTrigger>
+          <TabsTrigger className="flex-none" value="reports">
+            Mod notes
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent
@@ -201,3 +200,32 @@ export const IncidentDetail = ({
     </div>
   );
 };
+
+const InsightItem = ({
+  description,
+  icon,
+  label,
+  value,
+}: {
+  description: string;
+  icon: ReactNode;
+  label: string;
+  value: string;
+}) => (
+  <div className="flex items-center justify-between gap-3 border-b border-border p-3 last:border-b-0 xl:border-r xl:border-b-0 xl:last:border-r-0">
+    <div className="min-w-0">
+      <p className="text-xs font-semibold leading-4 text-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-0.5 truncate text-xs leading-4 text-muted-foreground/85">
+        {description}
+      </p>
+    </div>
+    <div className="flex shrink-0 items-center gap-2 text-muted-foreground">
+      <span className="[&_svg]:size-4">{icon}</span>
+      <span className="text-base font-bold tabular-nums text-foreground">
+        {value}
+      </span>
+    </div>
+  </div>
+);

@@ -1,10 +1,13 @@
-import { RefreshCw } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { FIREWATCH_DEMO_SCENARIOS } from '../../shared/firewatch-presets';
 import type { DemoCreateHandler } from './types';
-import { RedditAddIcon, RedditReportIcon } from './reddit-icons';
+import {
+  RedditAddIcon,
+  RedditRefreshIcon,
+  RedditReportIcon,
+} from './reddit-icons';
 
 export const LoadingBoard = () => (
   <div className="flex flex-col gap-6">
@@ -38,7 +41,7 @@ export const ErrorBoard = ({
       <AlertTitle>Could not load your mod view</AlertTitle>
       <AlertDescription>{message}</AlertDescription>
       <Button className="mt-4 w-fit" variant="outline" onClick={onRefresh}>
-        <RefreshCw data-icon="inline-start" />
+        <RedditRefreshIcon data-icon="inline-start" />
         Retry
       </Button>
     </Alert>

@@ -1,20 +1,15 @@
 import type { ReactNode } from 'react';
-import { RefreshCw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import type { Incident } from '../../shared/api';
 import { PanelLabel, ScoreBadge } from './common';
-import {
-  formatStatus,
-  formatTime,
-  formatUsername,
-  pluralize,
-} from './format';
+import { formatStatus, formatTime, formatUsername, pluralize } from './format';
 import {
   RedditApproveIcon,
   RedditQueueIcon,
+  RedditRefreshIcon,
   RedditReportIcon,
   RedditSettingsIcon,
 } from './reddit-icons';
@@ -59,13 +54,12 @@ export const FirewatchShell = ({
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <WorkspaceHeader
           activeView={activeView}
-          incidentCount={incidents.length}
           onRefresh={onRefresh}
           onViewChange={onViewChange}
           subredditName={subredditName}
         />
-        <main className="flex min-h-0 flex-1 justify-center overflow-y-auto overscroll-contain bg-background px-3 py-0 sm:px-5 lg:px-6">
-          <div className="flex w-full max-w-[1180px] flex-col gap-4 py-4 lg:py-5">
+        <main className="flex min-h-0 min-w-0 flex-1 justify-center overflow-x-hidden overflow-y-auto overscroll-contain bg-background px-3 py-0 sm:px-5 lg:px-6">
+          <div className="flex min-w-0 w-full max-w-[1520px] flex-col gap-4 py-4 lg:py-5">
             {activeView === 'queue' ? (
               <MobileIncidentStrip
                 incidents={incidents}
@@ -101,7 +95,7 @@ const CommandPanel = ({
   <aside className="relative hidden h-full w-[292px] shrink-0 flex-col overflow-hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground lg:flex">
     <div className="flex min-h-0 flex-1 flex-col gap-5 px-4 py-5">
       <button
-        className="ui-feedback flex h-10 items-center gap-3 rounded-md px-2 text-left transition-colors hover:bg-sidebar-accent"
+        className="ui-feedback flex h-10 items-center gap-3 text-left text-sidebar-foreground transition-colors hover:text-sidebar-foreground/80 focus-visible:ring-2 focus-visible:ring-sidebar-ring/35 focus-visible:outline-none"
         type="button"
         onClick={() => onViewChange('queue')}
       >
@@ -115,8 +109,6 @@ const CommandPanel = ({
           </p>
         </div>
       </button>
-
-      <ModToolsNav activeView={activeView} onViewChange={onViewChange} />
 
       <div className="flex min-h-0 flex-1 flex-col gap-2">
         <div className="flex items-center justify-between gap-3">
@@ -147,34 +139,16 @@ const CommandPanel = ({
         )}
       </div>
     </div>
-    <div className="px-4 pb-4">
+    <div className="flex flex-col gap-3 px-4 pb-4">
+      <SidebarNavButton
+        active={activeView === 'settings'}
+        icon={<RedditSettingsIcon />}
+        label="Firewatch Settings"
+        onClick={() => onViewChange('settings')}
+      />
       <SidebarAccountCard username={username} />
     </div>
   </aside>
-);
-
-const ModToolsNav = ({
-  activeView,
-  onViewChange,
-}: {
-  activeView: FirewatchView;
-  onViewChange: (view: FirewatchView) => void;
-}) => (
-  <nav aria-label="Moderator tools" className="grid gap-1">
-    <PanelLabel surface="sidebar">OVERVIEW</PanelLabel>
-    <SidebarNavButton
-      active={activeView === 'queue'}
-      icon={<RedditQueueIcon />}
-      label="Queues"
-      onClick={() => onViewChange('queue')}
-    />
-    <SidebarNavButton
-      active={activeView === 'settings'}
-      icon={<RedditSettingsIcon />}
-      label="Firewatch Settings"
-      onClick={() => onViewChange('settings')}
-    />
-  </nav>
 );
 
 const SidebarNavButton = ({
@@ -239,13 +213,11 @@ const SidebarAccountCard = ({ username }: { username: string }) => {
 
 const WorkspaceHeader = ({
   activeView,
-  incidentCount,
   onRefresh,
   onViewChange,
   subredditName,
 }: {
   activeView: FirewatchView;
-  incidentCount: number;
   onRefresh: () => void;
   onViewChange: (view: FirewatchView) => void;
   subredditName: string;
@@ -272,15 +244,9 @@ const WorkspaceHeader = ({
             {isSettings ? 'Firewatch settings' : 'Queue'}
           </h1>
         </div>
-        <span className="text-xs font-semibold text-muted-foreground">
-          {isSettings
-            ? `r/${subredditName || 'subreddit'} configuration`
-            : `${pluralize(incidentCount, 'post')} in review`}
-        </span>
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
-        <Badge variant="outline">{pluralize(incidentCount, 'post')}</Badge>
         <Button
           className="lg:hidden"
           size="icon-sm"
@@ -291,7 +257,7 @@ const WorkspaceHeader = ({
           <span className="sr-only">Settings</span>
         </Button>
         <Button size="icon-sm" variant="ghost" onClick={onRefresh}>
-          <RefreshCw />
+          <RedditRefreshIcon />
           <span className="sr-only">Refresh</span>
         </Button>
       </div>
@@ -421,7 +387,9 @@ const IncidentQueueItem = ({
     <div
       className={cn(
         'mt-2 flex items-center justify-between gap-3 text-xs leading-5',
-        surface === 'dark' ? 'text-sidebar-foreground/60' : 'text-muted-foreground'
+        surface === 'dark'
+          ? 'text-sidebar-foreground/60'
+          : 'text-muted-foreground'
       )}
     >
       <span>{formatStatus(incident.status)}</span>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { navigateTo } from '@devvit/web/client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
+import { cn } from '@/lib/utils';
 import {
   DisclosurePanel,
   EmptyText,
@@ -24,7 +25,6 @@ import {
   formatUsername,
   isTerminalStatus,
   pluralize,
-  statusBadgeVariant,
 } from './format';
 import type { ActionRunner } from './types';
 import type {
@@ -35,6 +35,8 @@ import type {
 } from '../../shared/api';
 import {
   RedditApproveIcon,
+  RedditCommentIcon,
+  RedditDownvoteIcon,
   RedditHideIcon,
   RedditLinkIcon,
   RedditListIcon,
@@ -45,75 +47,113 @@ import {
   RedditShieldIcon,
   RedditSpamIcon,
   RedditTagIcon,
+  RedditUpvoteIcon,
   RedditUsersIcon,
 } from './reddit-icons';
 
-export const IncidentIntro = ({ incident }: { incident: Incident }) => (
-  <section className="overflow-hidden border-b border-border bg-background text-card-foreground">
-    <div className="grid gap-4 py-4 xl:grid-cols-[minmax(0,1fr)_168px] xl:items-start">
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
-          <img
-            alt=""
-            className="size-8 shrink-0 rounded-full"
-            src="/avatar_default_2.png"
-          />
-          <span className="text-sm font-bold text-muted-foreground">
-            {incident.recentSignals[0]?.author
-              ? `u/${incident.recentSignals[0].author}`
-              : `r/${incident.subredditName}`}
-          </span>
-          <span aria-hidden="true">·</span>
-          <span className="text-sm">{formatTime(incident.createdAt)}</span>
-          <Badge variant={statusBadgeVariant[incident.status] ?? 'outline'}>
-            {formatStatus(incident.status)}
-          </Badge>
-          {incident.demo ? <Badge variant="secondary">Demo</Badge> : null}
-          {incident.claim ? (
-            <Badge variant="outline">
-              Taken by {formatUsername(incident.claim.username)}
-            </Badge>
-          ) : null}
-        </div>
-        <h1 className="mt-3 max-w-4xl text-2xl font-bold leading-tight">
-          {incident.title}
-        </h1>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-          {incident.responseSuggestion.detail}
-        </p>
-        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-semibold text-muted-foreground">
-          <span>1 upvote</span>
-          <span aria-hidden="true">·</span>
-          <span>{pluralize(incident.flaggedComments.length, 'comment')}</span>
-          <span aria-hidden="true">·</span>
-          <span>Updated {formatTime(incident.updatedAt)}</span>
-        </div>
-      </div>
+export const IncidentIntro = ({ incident }: { incident: Incident }) => {
+  const authorLabel = incident.recentSignals[0]?.author
+    ? `u/${incident.recentSignals[0].author}`
+    : `r/${incident.subredditName}`;
 
-      <div className="rounded-lg border bg-muted/60 p-3">
-        <div className="flex items-end justify-between gap-4">
-          <span className="text-xs font-semibold leading-5 text-muted-foreground">
-            Attention
-          </span>
-          <span className="text-3xl font-bold leading-none tabular-nums">
-            {incident.score}
-          </span>
-        </div>
-        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-background">
-          <div
-            className="h-full rounded-full bg-primary"
-            style={{ width: `${clampScore(incident.score)}%` }}
-          />
-        </div>
-        <div className="mt-3 border-t border-border pt-3">
-          <p className="text-xs font-semibold leading-5 text-muted-foreground">Suggested action</p>
-          <p className="mt-0.5 text-sm font-semibold leading-5">
-            {incident.responseSuggestion.label}
+  return (
+    <section className="overflow-hidden border-b border-border bg-background text-card-foreground">
+      <div className="max-w-full py-4">
+        <article className="min-w-0 max-w-full">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+            <img
+              alt=""
+              className="size-8 shrink-0 rounded-full"
+              src="/avatar_default_2.png"
+            />
+            <span className="font-bold text-foreground">{authorLabel}</span>
+            <span aria-hidden="true" className="text-muted-foreground/70">
+              ·
+            </span>
+            <span>{formatTime(incident.createdAt)}</span>
+            <InlineState variant="review">
+              {formatStatus(incident.status)}
+            </InlineState>
+            {incident.demo ? <InlineState>Demo</InlineState> : null}
+            {incident.claim ? (
+              <InlineState variant="outline">
+                Taken by {formatUsername(incident.claim.username)}
+              </InlineState>
+            ) : null}
+          </div>
+
+          <h1 className="mt-3 w-full max-w-[calc(100vw-2rem)] break-words text-2xl font-bold leading-tight text-foreground sm:max-w-4xl">
+            {incident.title}
+          </h1>
+          <p className="mt-2 w-full max-w-[20rem] whitespace-normal break-words text-sm leading-6 text-muted-foreground sm:max-w-3xl">
+            {incident.responseSuggestion.detail}
           </p>
-        </div>
+
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <PostMetricPill
+              ariaLabel="Post score 1 upvote"
+              icon={<RedditUpvoteIcon />}
+              secondaryIcon={<RedditDownvoteIcon />}
+              value="1"
+            />
+            <PostMetricPill
+              ariaLabel={`${pluralize(incident.flaggedComments.length, 'comment')} attached`}
+              icon={<RedditCommentIcon />}
+              value={String(incident.flaggedComments.length)}
+            />
+            <span className="px-1 text-xs font-semibold leading-6 text-muted-foreground">
+              Updated {formatTime(incident.updatedAt)}
+            </span>
+          </div>
+        </article>
       </div>
-    </div>
-  </section>
+    </section>
+  );
+};
+
+const InlineState = ({
+  children,
+  variant = 'default',
+}: {
+  children: ReactNode;
+  variant?: 'default' | 'outline' | 'review';
+}) => (
+  <span
+    className={cn(
+      'inline-flex h-5 items-center rounded-full px-2 text-xs font-bold leading-none',
+      variant === 'review'
+        ? 'bg-destructive/15 text-destructive'
+        : variant === 'outline'
+          ? 'border border-border bg-transparent text-muted-foreground'
+          : 'bg-secondary text-secondary-foreground'
+    )}
+  >
+    {children}
+  </span>
+);
+
+const PostMetricPill = ({
+  ariaLabel,
+  icon,
+  secondaryIcon,
+  value,
+}: {
+  ariaLabel: string;
+  icon: ReactNode;
+  secondaryIcon?: ReactNode;
+  value: string;
+}) => (
+  <span
+    aria-label={ariaLabel}
+    className="inline-flex h-8 items-center gap-1.5 rounded-full bg-secondary px-2.5 text-sm font-semibold text-secondary-foreground [&_svg]:size-4"
+    role="img"
+  >
+    <span className="text-foreground">{icon}</span>
+    <span className="tabular-nums">{value}</span>
+    {secondaryIcon ? (
+      <span className="text-foreground">{secondaryIcon}</span>
+    ) : null}
+  </span>
 );
 
 export const IncidentHero = ({
@@ -136,22 +176,22 @@ export const IncidentHero = ({
   ).length;
 
   return (
-    <Card>
-      <CardHeader className="gap-2 border-b border-border">
-        <div className="min-w-0">
-          <CardTitle>Mod actions</CardTitle>
-          <CardDescription className="mt-1 max-w-2xl">
+    <section className="rounded-lg border border-border bg-background">
+      <div className="flex flex-col gap-3 p-3 sm:p-4">
+        <div className="flex min-w-0 flex-col gap-1">
+          <h2 className="text-base font-bold leading-5">Mod actions</h2>
+          <p className="text-xs font-semibold leading-5 text-muted-foreground">
             {incident.responseSuggestion.label}
-          </CardDescription>
+          </p>
         </div>
-      </CardHeader>
 
-      <CardContent className="flex flex-col gap-4 pt-4">
-        <div className="flex flex-col gap-2">
-          <PanelLabel>Primary actions</PanelLabel>
-          <div className="flex flex-wrap gap-2">
+        <div className="flex flex-col gap-3 border-t border-border pt-3">
+          <PanelLabel>PRIMARY ACTIONS</PanelLabel>
+          <div className="flex flex-wrap items-center gap-2">
             <PlaybookButton
-              disabled={Boolean(incident.claim) || Boolean(busyAction) || terminal}
+              disabled={
+                Boolean(incident.claim) || Boolean(busyAction) || terminal
+              }
               icon={<RedditUsersIcon data-icon="inline-start" />}
               label={incident.claim ? 'Taken' : 'Take'}
               loading={busyAction === 'claim'}
@@ -194,17 +234,22 @@ export const IncidentHero = ({
           </div>
         </div>
 
-        <div className="flex flex-col gap-2 border-t border-border pt-4">
-          <PanelLabel>Close out</PanelLabel>
-          <div className="flex flex-wrap gap-2">
+        <div className="flex flex-col gap-3 border-t border-border pt-3">
+          <PanelLabel>CLOSE OUT</PanelLabel>
+          <div className="flex flex-wrap items-center gap-2">
             <PlaybookButton
-              disabled={Boolean(busyAction) || !config.actionControls.handoffNotes}
+              disabled={
+                Boolean(busyAction) || !config.actionControls.handoffNotes
+              }
               icon={<RedditShieldIcon data-icon="inline-start" />}
               label="Handoff"
               loading={busyAction === 'escalate'}
               variant="secondary"
               onClick={() =>
-                onAction('escalate', `/api/incidents/${incident.postId}/escalate`)
+                onAction(
+                  'escalate',
+                  `/api/incidents/${incident.postId}/escalate`
+                )
               }
             />
             {permalink ? (
@@ -222,7 +267,11 @@ export const IncidentHero = ({
               }
               icon={<RedditApproveIcon data-icon="inline-start" />}
               label={
-                terminal ? 'Handled' : unresolvedCount > 0 ? 'Review comments' : 'Handled'
+                terminal
+                  ? 'Handled'
+                  : unresolvedCount > 0
+                    ? 'Review comments'
+                    : 'Handled'
               }
               loading={busyAction === 'resolve'}
               variant="ghost"
@@ -232,8 +281,8 @@ export const IncidentHero = ({
             />
           </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 };
 
@@ -293,23 +342,27 @@ export const NativePostControlsCard = ({
     action: NativePostAction,
     body: Record<string, unknown> = {}
   ) =>
-    onAction(`post:${action}`, `/api/incidents/${incident.postId}/post-action`, {
-      action,
-      reason,
-      ...body,
-    });
+    onAction(
+      `post:${action}`,
+      `/api/incidents/${incident.postId}/post-action`,
+      {
+        action,
+        reason,
+        ...body,
+      }
+    );
 
   if (!hasPrimaryActions && !hasAdvancedActions) return null;
 
   return (
-    <Card>
-      <CardHeader className="border-b border-border">
-        <CardTitle>Post tools</CardTitle>
-        <CardDescription>
+    <section className="rounded-lg border border-border bg-background">
+      <div className="border-b border-border px-3 py-3 sm:px-4">
+        <h3 className="text-base font-bold leading-5">Post tools</h3>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">
           Reddit actions for the selected post.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3 pt-4">
+        </p>
+      </div>
+      <div className="flex flex-col gap-3 p-3 sm:p-4">
         {hasRemovalActions ? (
           <FieldInput
             label="Removal reason"
@@ -366,7 +419,7 @@ export const NativePostControlsCard = ({
         {hasAdvancedActions ? (
           <DisclosurePanel
             description="Flair, report handling, labels, and Crowd Control."
-            title="More Reddit post actions"
+            title="More post actions"
           >
             <div className="flex flex-col gap-3">
               <div className="grid gap-2 sm:grid-cols-2">
@@ -493,8 +546,8 @@ export const NativePostControlsCard = ({
             </div>
           </DisclosurePanel>
         ) : null}
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 };
 
@@ -521,7 +574,10 @@ export const ResponseCard = ({ incident }: { incident: Incident }) => (
     </CardHeader>
     <CardContent className="flex flex-col gap-3">
       {incident.responseSuggestion.steps.map((step, index) => (
-        <div key={step} className="flex gap-3 rounded-lg border bg-muted/60 p-3">
+        <div
+          key={step}
+          className="flex gap-3 rounded-lg border bg-muted/60 p-3"
+        >
           <Badge variant="outline">{index + 1}</Badge>
           <p className="text-sm leading-6">{step}</p>
         </div>
@@ -585,7 +641,9 @@ export const ImpactSnapshotCard = ({ incident }: { incident: Incident }) => {
           ))}
         </div>
         <div className="flex flex-wrap gap-1.5">
-          <Badge variant="outline">Open {formatDuration(impact.timeOpenMinutes)}</Badge>
+          <Badge variant="outline">
+            Open {formatDuration(impact.timeOpenMinutes)}
+          </Badge>
           <Badge variant="outline">Peak {impact.peakAttention}/100</Badge>
           {impact.handoffSaved ? (
             <Badge variant="secondary">Handoff saved</Badge>
@@ -616,7 +674,9 @@ export const RiskReasonsCard = ({ incident }: { incident: Incident }) => (
             <div key={reason.key} className="rounded-lg border p-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold leading-5">{reason.label}</p>
+                  <p className="text-sm font-semibold leading-5">
+                    {reason.label}
+                  </p>
                   <p className="mt-1 text-sm leading-5 text-muted-foreground">
                     {reason.detail}
                   </p>

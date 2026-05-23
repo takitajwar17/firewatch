@@ -1,5 +1,4 @@
 import { useState, type ComponentProps } from 'react';
-import { RefreshCw } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import {
@@ -22,6 +21,7 @@ import type { ConfigSaveHandler, DemoCreateHandler } from './types';
 import {
   RedditAddIcon,
   RedditApproveIcon,
+  RedditRefreshIcon,
   RedditRemoveIcon,
   RedditReportIcon,
 } from './reddit-icons';
@@ -255,7 +255,10 @@ const CommunityFiltersCard = ({
           }
         >
           {busy ? (
-            <RefreshCw className="animate-spin" data-icon="inline-start" />
+            <RedditRefreshIcon
+              className="animate-spin"
+              data-icon="inline-start"
+            />
           ) : (
             <RedditApproveIcon data-icon="inline-start" />
           )}

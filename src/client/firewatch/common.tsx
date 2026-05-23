@@ -1,12 +1,16 @@
 import type { ReactNode } from 'react';
-import { RefreshCw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import type { Incident } from '../../shared/api';
 import { levelBadgeVariant } from './format';
-import { RedditMoreIcon } from './reddit-icons';
+import { RedditMoreIcon, RedditRefreshIcon } from './reddit-icons';
 
 export const PanelLabel = ({
   children,
@@ -119,9 +123,7 @@ export const FieldBlock = ({
     </label>
     {children}
     {description ? (
-      <p className="text-xs leading-5 text-muted-foreground">
-        {description}
-      </p>
+      <p className="text-xs leading-5 text-muted-foreground">{description}</p>
     ) : null}
   </div>
 );
@@ -147,7 +149,11 @@ export const PlaybookButton = ({
     variant={variant}
     onClick={onClick}
   >
-    {loading ? <RefreshCw className="animate-spin" data-icon="inline-start" /> : icon}
+    {loading ? (
+      <RedditRefreshIcon className="animate-spin" data-icon="inline-start" />
+    ) : (
+      icon
+    )}
     {loading ? 'Working' : label}
   </Button>
 );
