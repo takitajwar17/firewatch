@@ -10,7 +10,7 @@ import {
 import { cn } from '@/lib/utils';
 import type { Incident } from '../../shared/api';
 import { levelBadgeVariant } from './format';
-import { RedditMoreIcon, RedditRefreshIcon } from './reddit-icons';
+import { RedditChevronDownIcon, RedditRefreshIcon } from './reddit-icons';
 
 export const PanelLabel = ({
   children,
@@ -97,7 +97,7 @@ export const DisclosurePanel = ({
           </span>
         ) : null}
       </span>
-      <RedditMoreIcon className="size-4 shrink-0 rotate-90 text-muted-foreground transition-transform group-open:rotate-0" />
+      <RedditChevronDownIcon className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
     </summary>
     <div className="min-w-0 border-t px-3 py-3">{children}</div>
   </details>

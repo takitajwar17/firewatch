@@ -600,7 +600,7 @@ export const coolDownIncident = async (
   const incident = await getIncidentOrThrow(normalizedPostId);
   const config = await getConfig(incident.subredditName);
   if (!config.actionControls.stickyReminder) {
-    throw new Error('Sticky reminders are disabled in Firewatch settings');
+    throw new Error('Sticky reminders are disabled in Settings');
   }
   const post = await reddit.getPostById(normalizedPostId);
   const actor = await actorName();
@@ -635,7 +635,7 @@ export const lockIncident = async (postId: string) => {
   const incident = await getIncidentOrThrow(normalizedPostId);
   const config = await getConfig(incident.subredditName);
   if (!config.actionControls.lockPost) {
-    throw new Error('Post locking is disabled in Firewatch settings');
+    throw new Error('Post locking is disabled in Settings');
   }
   const post = await reddit.getPostById(normalizedPostId);
   const actor = await actorName();
@@ -736,7 +736,7 @@ export const approveFlaggedComment = async (
   if (!sourceIncident) throw new Error('Post is not in Firewatch yet');
   const config = await getConfig(sourceIncident.subredditName);
   if (!config.actionControls.approveComments) {
-    throw new Error('Comment approvals are disabled in Firewatch settings');
+    throw new Error('Comment approvals are disabled in Settings');
   }
 
   const actor = await actorName();
@@ -777,7 +777,7 @@ export const removeFlaggedComment = async (
   if (!sourceIncident) throw new Error('Post is not in Firewatch yet');
   const config = await getConfig(sourceIncident.subredditName);
   if (!config.actionControls.removeComments) {
-    throw new Error('Comment removals are disabled in Firewatch settings');
+    throw new Error('Comment removals are disabled in Settings');
   }
 
   const actor = await actorName();
@@ -827,7 +827,7 @@ export const banUserAndRemoveComments = async (
   if (!sourceIncident) throw new Error('Post is not in Firewatch yet');
   const config = await getConfig(sourceIncident.subredditName);
   if (!config.actionControls.banUsers) {
-    throw new Error('User bans are disabled in Firewatch settings');
+    throw new Error('User bans are disabled in Settings');
   }
   if (!config.actionControls.removeComments) {
     throw new Error('Comment removals are required before banning users');
@@ -922,7 +922,7 @@ const banPreparedRuleUser = async ({
   const incident = await getIncidentOrThrow(normalizedPostId);
   const config = await getConfig(incident.subredditName);
   if (!config.actionControls.banUsers) {
-    throw new Error('User bans are disabled in Firewatch settings');
+    throw new Error('User bans are disabled in Settings');
   }
 
   const actor = await actorName();
@@ -938,7 +938,7 @@ const banPreparedRuleUser = async ({
       context: contextId ?? normalizedPostId,
       duration: durationDays ?? 0,
       note: actionReason,
-      reason: 'Firewatch response rule',
+      reason: 'Firewatch automation',
       subredditName: incident.subredditName,
       username: normalizedUsername,
     });
@@ -969,7 +969,7 @@ export const applyNativePostAction = async (
   const control = postActionControl(values.action);
   if (!config.actionControls[control]) {
     throw new Error(
-      'This Reddit post action is disabled in Firewatch settings'
+      'This Reddit post action is disabled in Settings'
     );
   }
 
@@ -1082,14 +1082,14 @@ export const applyNativeCommentAction = async (
   const control = commentActionControl(values.action);
   if (!config.actionControls[control]) {
     throw new Error(
-      'This Reddit comment action is disabled in Firewatch settings'
+      'This Reddit comment action is disabled in Settings'
     );
   }
   if (
     values.action === 'remove-thread' &&
     !config.actionControls.removeComments
   ) {
-    throw new Error('Comment removals are disabled in Firewatch settings');
+    throw new Error('Comment removals are disabled in Settings');
   }
 
   const actor = await actorName();
@@ -1234,7 +1234,7 @@ export const applyNativeUserAction = async (
   const control = userActionControl(values.action);
   if (!config.actionControls[control]) {
     throw new Error(
-      'This Reddit user action is disabled in Firewatch settings'
+      'This Reddit user action is disabled in Settings'
     );
   }
 
@@ -1567,7 +1567,7 @@ export const runPreparedRuleActions = async (
       if (action.target === 'post') {
         currentIncident = await applyNativePostAction(normalizedPostId, {
           action: 'spam',
-          reason: `Marked by response rule: ${match.ruleName}`,
+          reason: `Marked by automation: ${match.ruleName}`,
         });
         executedActions.push(prepared.label);
         continue;
@@ -1581,7 +1581,7 @@ export const runPreparedRuleActions = async (
         prepared.targetId,
         {
           action: 'spam',
-          reason: `Marked by response rule: ${match.ruleName}`,
+          reason: `Marked by automation: ${match.ruleName}`,
         }
       );
       executedActions.push(prepared.label);
@@ -1732,7 +1732,7 @@ export const runPreparedRuleActions = async (
         actor,
         detail:
           action.type === 'queue_incident'
-            ? `Queued by response rule: ${action.reason}`
+            ? `Queued by automation: ${action.reason}`
             : action.message,
         targetIds: [match.targetId],
       });
@@ -1862,8 +1862,8 @@ const buildSummary = (incident: Incident) => {
     `Handled by: ${handler ? formatUserHandle(handler) : 'unclaimed'}`,
     `Users in post: ${involvedUsers || 'none detected'}`,
     `Repeated wording: ${commonPhrases || 'none detected'}`,
-    'Matched response rules:',
-    matchedRules || '- No active response rules matched',
+    'Matched automations:',
+    matchedRules || '- No active automations matched',
     'Recent actions:',
     actionLines || '- No mod actions yet',
   ].join('\n');
@@ -1907,8 +1907,8 @@ const buildEscalationSummary = (incident: Incident) => {
     topReasons || '- No active reasons recorded',
     'Comments to review:',
     topComments || '- No unresolved comments',
-    'Matched response rules:',
-    matchedRules || '- No active response rules matched',
+    'Matched automations:',
+    matchedRules || '- No active automations matched',
   ].join('\n');
 };
 
@@ -1918,7 +1918,7 @@ export const escalateIncident = async (postId: string) => {
   if (!incident) throw new Error('Post is not in Firewatch yet');
   const config = await getConfig(incident.subredditName);
   if (!config.actionControls.handoffNotes) {
-    throw new Error('Handoff notes are disabled in Firewatch settings');
+    throw new Error('Handoff notes are disabled in Settings');
   }
 
   const actor = await actorName();
@@ -1946,7 +1946,7 @@ export const resolveIncident = async (postId: string) => {
   if (!incident) throw new Error('Post is not in Firewatch yet');
   const config = await getConfig(incident.subredditName);
   if (!config.actionControls.markHandled) {
-    throw new Error('Mark handled is disabled in Firewatch settings');
+    throw new Error('Mark handled is disabled in Settings');
   }
   const unresolvedCount = incident.flaggedComments.filter(
     (comment) => !comment.removed && !comment.reviewed

@@ -90,7 +90,7 @@ menu.post('/configure', async (c) => {
       showForm: {
         name: 'firewatchConfig',
         form: {
-          title: 'Firewatch settings',
+          title: 'Settings',
           description:
             'Choose what Firewatch watches, how strongly each signal counts, and which actions mods can take from the queue.',
           acceptLabel: 'Save',
@@ -102,8 +102,8 @@ menu.post('/configure', async (c) => {
     return uiErrorResponse(
       c,
       error,
-      'Error opening Firewatch settings',
-      'Could not open Firewatch settings'
+      'Error opening settings',
+      'Could not open settings'
     );
   }
 });

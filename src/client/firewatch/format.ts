@@ -152,7 +152,7 @@ export const actionLabel = (action: string) => {
   if (action.startsWith('post:')) return 'Reddit post action';
   if (action.startsWith('comment:')) return 'Reddit comment action';
   if (action.startsWith('user:')) return 'Reddit user action';
-  if (action.startsWith('rule:')) return 'Run prepared rule actions';
+  if (action.startsWith('rule:')) return 'Run prepared automation actions';
   if (action.startsWith('clear-strikes:')) return 'Clear Firewatch strikes';
   if (action.startsWith('approve:')) return 'Approve comment';
   if (action.startsWith('remove:') || action.startsWith('t1_')) {
@@ -185,7 +185,7 @@ export const actionSuccessMessage = (action: string) => {
   if (action.startsWith('post:')) return 'Post action saved.';
   if (action.startsWith('comment:')) return 'Comment action saved.';
   if (action.startsWith('user:')) return 'User action saved.';
-  if (action.startsWith('rule:')) return 'Prepared rule actions run.';
+  if (action.startsWith('rule:')) return 'Prepared automation actions ran.';
   if (action.startsWith('clear-strikes:')) return 'Firewatch strikes cleared.';
   if (action.startsWith('approve:')) return 'Comment approved.';
   if (action.startsWith('remove:') || action.startsWith('t1_')) {

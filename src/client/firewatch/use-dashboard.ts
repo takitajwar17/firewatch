@@ -252,14 +252,14 @@ export const useDashboard = () => {
         method: 'POST',
       });
       applyRulesResponse(payload);
-      setNotice({ type: 'success', message: 'Response rule saved.' });
+      setNotice({ type: 'success', message: 'Automation saved.' });
     } catch (error) {
       setNotice({
         type: 'error',
         message:
           error instanceof Error
-            ? `Could not save response rule: ${error.message}`
-            : 'Could not save response rule.',
+            ? `Could not save automation: ${error.message}`
+            : 'Could not save automation.',
       });
     } finally {
       setBusyAction(undefined);
@@ -277,7 +277,7 @@ export const useDashboard = () => {
       applyRulesResponse(payload);
       setNotice({
         type: 'success',
-        message: 'Response rule templates loaded.',
+        message: 'Automation templates loaded.',
       });
     } catch (error) {
       setNotice({
@@ -301,14 +301,14 @@ export const useDashboard = () => {
         { method: 'POST' }
       );
       applyRulesResponse(payload);
-      setNotice({ type: 'success', message: 'All response rules disabled.' });
+      setNotice({ type: 'success', message: 'All automations disabled.' });
     } catch (error) {
       setNotice({
         type: 'error',
         message:
           error instanceof Error
-            ? `Could not disable rules: ${error.message}`
-            : 'Could not disable rules.',
+            ? `Could not disable automations: ${error.message}`
+            : 'Could not disable automations.',
       });
     } finally {
       setBusyAction(undefined);
@@ -335,8 +335,8 @@ export const useDashboard = () => {
         type: 'error',
         message:
           error instanceof Error
-            ? `Could not test rule: ${error.message}`
-            : 'Could not test rule.',
+            ? `Could not test automation: ${error.message}`
+            : 'Could not test automation.',
       });
       return undefined;
     } finally {

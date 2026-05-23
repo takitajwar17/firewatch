@@ -115,7 +115,7 @@ export const saveResponseRule = async ({
   const timestamp = currentIso();
   const nextRule: FirewatchRule = {
     id: existing?.id ?? input.id ?? makeId('rule'),
-    name: input.name.trim() || 'Untitled response rule',
+    name: input.name.trim() || 'Untitled automation',
     ...(input.description?.trim()
       ? { description: input.description.trim() }
       : {}),

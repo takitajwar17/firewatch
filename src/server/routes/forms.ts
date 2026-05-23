@@ -13,13 +13,13 @@ forms.post('/config-submit', async (c) => {
     const values = await c.req.json<FirewatchConfigFormValues>();
     await saveConfig(configUpdateFromFormValues(values));
 
-    return uiSuccessToastResponse(c, 'Firewatch settings saved');
+    return uiSuccessToastResponse(c, 'Settings saved');
   } catch (error) {
     return uiErrorResponse(
       c,
       error,
-      'Error saving Firewatch settings',
-      'Could not save Firewatch settings'
+      'Error saving settings',
+      'Could not save settings'
     );
   }
 });

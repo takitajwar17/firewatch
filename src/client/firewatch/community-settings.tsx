@@ -141,9 +141,9 @@ export const ResponseRulesCard = ({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Response Rules</CardTitle>
+        <CardTitle>Automations</CardTitle>
         <CardDescription>
-          Create custom rules that watch posts, comments, reports, user strikes,
+          Create automations that watch posts, comments, reports, user strikes,
           and incident scores. Firewatch can suggest actions, prepare actions
           for approval, or run safe actions automatically.
         </CardDescription>
@@ -152,7 +152,7 @@ export const ResponseRulesCard = ({
         <div className="flex flex-wrap gap-2">
           <PlaybookButton
             icon={<RedditAddIcon data-icon="inline-start" />}
-            label="Create rule"
+            label="Create automation"
             variant="default"
             onClick={() => {
               setCreating(true);
@@ -162,7 +162,7 @@ export const ResponseRulesCard = ({
           <PlaybookButton
             disabled={busyAction === 'rule-import'}
             icon={<RedditAddIcon data-icon="inline-start" />}
-            label="Import template"
+            label="Import templates"
             loading={busyAction === 'rule-import'}
             loadingLabel="Importing"
             variant="outline"
@@ -179,7 +179,7 @@ export const ResponseRulesCard = ({
           />
           <PlaybookButton
             icon={<RedditReportIcon data-icon="inline-start" />}
-            label="View rule log"
+            label="View log"
             variant={showLogs ? 'secondary' : 'ghost'}
             onClick={() => setShowLogs((current) => !current)}
           />
@@ -507,7 +507,7 @@ const RuleBuilder = ({
       return [
         {
           type: 'remove_comment',
-          reason: 'Response rule prepared comment removal',
+          reason: 'Automation prepared comment removal',
         },
       ];
     }
@@ -515,7 +515,7 @@ const RuleBuilder = ({
       return [
         {
           type: 'add_native_mod_note',
-          note: 'Firewatch response rule matched this user.',
+          note: 'Firewatch automation matched this user.',
         },
       ];
     }
@@ -523,7 +523,7 @@ const RuleBuilder = ({
       return [
         {
           type: 'generate_handoff',
-          template: 'Response rule matched. Review prepared actions.',
+          template: 'Automation matched. Review prepared actions.',
         },
       ];
     }
@@ -539,7 +539,7 @@ const RuleBuilder = ({
       return [
         {
           type: 'add_native_mod_note',
-          note: 'Firewatch repeat offender rule matched.',
+          note: 'Firewatch repeat offender automation matched.',
         },
         {
           type: 'prepare_temp_ban',
@@ -551,12 +551,12 @@ const RuleBuilder = ({
     return [
       {
         type: 'add_firewatch_strike',
-        reason: 'Response rule matched',
+        reason: 'Automation matched',
         weight: 1,
       },
       {
         type: 'add_native_mod_note',
-        note: 'Firewatch response rule matched this user.',
+        note: 'Firewatch automation matched this user.',
       },
     ];
   };
@@ -577,7 +577,7 @@ const RuleBuilder = ({
   return (
     <div className="rounded-lg border bg-muted/40 p-3">
       <div className="grid min-w-0 gap-3 md:grid-cols-2">
-        <FieldBlock htmlFor="fw-rule-name" label="Rule name">
+        <FieldBlock htmlFor="fw-rule-name" label="Automation name">
           <Input
             id="fw-rule-name"
             value={name}
@@ -675,7 +675,7 @@ const RuleBuilder = ({
         <PlaybookButton
           disabled={busy || !validName}
           icon={<RedditApproveIcon data-icon="inline-start" />}
-          label="Save rule"
+          label="Save automation"
           loading={busy}
           loadingLabel="Saving"
           variant="default"
@@ -683,8 +683,8 @@ const RuleBuilder = ({
         />
         <PlaybookButton
           disabled={!rule}
-          label="Test rule"
-          title={rule ? undefined : 'Save the rule before testing it'}
+          label="Test automation"
+          title={rule ? undefined : 'Save the automation before testing it'}
           variant="outline"
           onClick={() => {
             if (rule) onTestRule(rule.id);
@@ -739,7 +739,7 @@ const RuleSelect = <Value extends string>({
 const RuleTestResultCard = ({ result }: { result: RuleTestResponse }) => (
   <div className="rounded-lg border bg-card p-3">
     <p className="text-sm font-bold leading-5">
-      This rule would have matched {result.matchedCount} item
+      This automation would have matched {result.matchedCount} item
       {result.matchedCount === 1 ? '' : 's'}.
     </p>
     {result.examples.length ? (
@@ -754,7 +754,7 @@ const RuleTestResultCard = ({ result }: { result: RuleTestResponse }) => (
       </div>
     ) : (
       <p className="mt-2 text-sm leading-5 text-muted-foreground">
-        No recent examples matched this rule.
+        No recent examples matched this automation.
       </p>
     )}
     {result.preparedActions.length ? (
@@ -774,10 +774,10 @@ const RuleTestResultCard = ({ result }: { result: RuleTestResponse }) => (
 
 const RuleLogPreview = ({ logs }: { logs: RuleExecutionLog[] }) => (
   <div className="rounded-lg border bg-card p-3">
-    <p className="text-sm font-bold leading-5">Rule log</p>
+    <p className="text-sm font-bold leading-5">Automation log</p>
     {logs.length === 0 ? (
       <p className="mt-2 text-sm leading-5 text-muted-foreground">
-        No response rules have matched yet.
+        No automations have matched yet.
       </p>
     ) : (
       <div className="mt-2 flex flex-col gap-2">
@@ -1158,23 +1158,26 @@ const CommunityToolsCard = ({
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <FieldBlock htmlFor="fw-demo-scenario" label="Demo scenario">
-          <select
-            id="fw-demo-scenario"
-            className="h-9 w-full min-w-0 rounded-full border border-transparent bg-secondary px-4 text-sm outline-none hover:bg-accent focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/25"
-            value={scenarioId}
-            onChange={(event) => {
-              const nextScenario = FIREWATCH_DEMO_SCENARIOS.find(
-                (scenario) => scenario.id === event.target.value
-              );
-              if (nextScenario) setScenarioId(nextScenario.id);
-            }}
-          >
-            {FIREWATCH_DEMO_SCENARIOS.map((scenario) => (
-              <option key={scenario.id} value={scenario.id}>
-                {scenario.label}
-              </option>
-            ))}
-          </select>
+          <div className="relative min-w-0">
+            <select
+              id="fw-demo-scenario"
+              className="h-9 w-full min-w-0 appearance-none rounded-full border border-transparent bg-secondary py-0 pr-11 pl-4 text-sm outline-none hover:bg-accent focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/25"
+              value={scenarioId}
+              onChange={(event) => {
+                const nextScenario = FIREWATCH_DEMO_SCENARIOS.find(
+                  (scenario) => scenario.id === event.target.value
+                );
+                if (nextScenario) setScenarioId(nextScenario.id);
+              }}
+            >
+              {FIREWATCH_DEMO_SCENARIOS.map((scenario) => (
+                <option key={scenario.id} value={scenario.id}>
+                  {scenario.label}
+                </option>
+              ))}
+            </select>
+            <RedditChevronDownIcon className="pointer-events-none absolute top-1/2 right-4 size-4 -translate-y-1/2 text-muted-foreground" />
+          </div>
         </FieldBlock>
         <p className="rounded-lg border bg-muted/60 p-3 text-sm leading-5 text-muted-foreground">
           {selectedScenarioDescription}

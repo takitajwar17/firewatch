@@ -41,9 +41,9 @@ export const MatchedRulesCard = ({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Matched response rule</CardTitle>
+        <CardTitle>Matched automation</CardTitle>
         <CardDescription>
-          Firewatch matched incident state to prepared mod actions.
+          Firewatch matched this incident to prepared mod actions.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
@@ -153,7 +153,7 @@ const MatchedRuleItem = ({
         />
         <PlaybookButton
           icon={<RedditSettingsIcon data-icon="inline-start" />}
-          label="Edit rule"
+          label="Edit automation"
           variant="outline"
           onClick={onEditRules}
         />
@@ -164,5 +164,5 @@ const MatchedRuleItem = ({
 };
 
 export const RuleLogEmptyState = () => (
-  <EmptyText>No response rules have matched this incident yet.</EmptyText>
+  <EmptyText>No automations have matched this incident yet.</EmptyText>
 );

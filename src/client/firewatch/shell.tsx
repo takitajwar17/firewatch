@@ -106,7 +106,7 @@ const CommandPanel = ({
             r/{subredditName || 'subreddit'}
           </p>
           <p className="truncate text-xs leading-4 text-sidebar-foreground/60">
-            Firewatch mod tools
+            Mod tools
           </p>
         </div>
       </button>
@@ -150,7 +150,7 @@ const CommandPanel = ({
       <SidebarNavButton
         active={activeView === 'settings'}
         icon={<RedditSettingsIcon />}
-        label="Firewatch Settings"
+        label="Settings"
         onClick={() => onViewChange('settings')}
       />
       <SidebarAccountCard username={username} />
@@ -239,7 +239,7 @@ const WorkspaceHeader = ({
     <RedditQueueIcon />
   );
   const headerTitle = isSettings
-    ? 'Firewatch settings'
+    ? 'Settings'
     : isAutomations
       ? 'Automations'
       : 'Queue';
@@ -348,7 +348,7 @@ const NoticeToast = ({ notice }: { notice: Notice }) => (
       </span>
       <div className="min-w-0 flex-1 overflow-hidden">
         <p className="truncate text-sm font-semibold leading-5">
-          {notice.type === 'error' ? 'Needs attention' : 'Saved'}
+          {notice.type === 'error' ? 'Needs attention' : 'Done'}
         </p>
         <p className="mt-0.5 truncate text-sm leading-5 text-muted-foreground">
           {notice.message}

@@ -173,7 +173,29 @@ test('user action helpers keep native user action behavior aligned', () => {
   );
 });
 
-test('response rule templates default to approval-first incident workflow', () => {
+test('runtime copy keeps automation and settings naming consistent', () => {
+  const runtimeFiles = [
+    'src/client/firewatch/automations.tsx',
+    'src/client/firewatch/community-settings.tsx',
+    'src/client/firewatch/format.ts',
+    'src/client/firewatch/incident-rules.tsx',
+    'src/client/firewatch/shell.tsx',
+    'src/client/firewatch/use-dashboard.ts',
+    'src/server/core/firewatch-rules.ts',
+    'src/server/core/firewatch.ts',
+    'src/server/routes/forms.ts',
+    'src/server/routes/menu.ts',
+    'src/shared/firewatch-presets.ts',
+  ];
+  const staleCopy =
+    /Response Rules|response rules|response rule|Rule log|rule log|Create rule|Save rule|Test rule|Edit rule|View rule|dry runs|Firewatch Settings|Firewatch settings|matched rules|Firewatch mod tools/;
+
+  for (const file of runtimeFiles) {
+    assert.doesNotMatch(readFileSync(file, 'utf8'), staleCopy, file);
+  }
+});
+
+test('automation templates default to approval-first incident workflow', () => {
   const rules = defaultRuleTemplates({
     createdAt: '2026-05-23T00:00:00.000Z',
     createdBy: 'firewatch',
@@ -200,7 +222,7 @@ test('response rule templates default to approval-first incident workflow', () =
   );
 });
 
-test('response rule labels describe moderator-facing prepared actions', () => {
+test('automation labels describe moderator-facing prepared actions', () => {
   const rules = defaultRuleTemplates({
     createdAt: '2026-05-23T00:00:00.000Z',
     createdBy: 'firewatch',
@@ -225,7 +247,7 @@ test('response rule labels describe moderator-facing prepared actions', () => {
   assert.match(summarizeRule(scamRule), /prepare/i);
 });
 
-test('response rule templates keep risky actions approval-first', () => {
+test('automation templates keep risky actions approval-first', () => {
   const rules = defaultRuleTemplates({
     createdAt: '2026-05-23T00:00:00.000Z',
     createdBy: 'firewatch',
@@ -266,7 +288,7 @@ test('rule template imports preserve editable behavior without cloning identity'
   assert.equal(Object.hasOwn(input, 'id'), false);
 });
 
-test('prepared rule actions classify safety and preserve targets', () => {
+test('prepared automation actions classify safety and preserve targets', () => {
   const safe = preparedRuleAction({
     action: {
       type: 'add_firewatch_strike',
@@ -333,7 +355,7 @@ test('auto-run safe mode is limited to Firewatch-internal actions', () => {
   assert.equal(firewatchLog.risk, 'safe');
 });
 
-test('matched rule log copy handles prepared action counts', () => {
+test('matched automation log copy handles prepared action counts', () => {
   assert.equal(
     formatMatchedRuleLogLine({
       id: 'single',
@@ -384,7 +406,7 @@ test('matched rule log copy handles prepared action counts', () => {
   );
 });
 
-test('all response rule actions have explicit run disposition', () => {
+test('all automation actions have explicit run disposition', () => {
   const executableActions = [
     { type: 'queue_incident', reason: 'queue' },
     { type: 'add_firewatch_strike', reason: 'strike' },
@@ -422,7 +444,7 @@ test('all response rule actions have explicit run disposition', () => {
   }
 });
 
-test('prepared action runner explicitly handles every response rule action', () => {
+test('prepared action runner explicitly handles every automation action', () => {
   const source = readFileSync('src/server/core/firewatch.ts', 'utf8');
   const runnerStart = source.indexOf('export const runPreparedRuleActions');
   const runnerEnd = source.indexOf('const buildSummary', runnerStart);
@@ -451,10 +473,10 @@ test('prepared action runner uses documented native APIs for sticky and ban acti
   assert.match(stickySource, /source: 'firewatch_notice'/);
   assert.match(banSource, /await reddit\.banUser\(\{/);
   assert.match(banSource, /duration: durationDays \?\? 0/);
-  assert.match(banSource, /reason: 'Firewatch response rule'/);
+  assert.match(banSource, /reason: 'Firewatch automation'/);
 });
 
-test('mute rule actions do not promise unsupported native durations', () => {
+test('mute automation actions do not promise unsupported native durations', () => {
   const source = readFileSync('src/server/core/firewatch.ts', 'utf8');
   const runnerStart = source.indexOf('export const runPreparedRuleActions');
   const runnerEnd = source.indexOf('const buildSummary', runnerStart);
@@ -468,7 +490,7 @@ test('mute rule actions do not promise unsupported native durations', () => {
   );
 });
 
-test('auto-run safe rule actions mutate Firewatch state and avoid double execution', () => {
+test('auto-run safe automation actions mutate Firewatch state and avoid double execution', () => {
   const source = readFileSync('src/server/core/firewatch.ts', 'utf8');
   const autoRunStart = source.indexOf('const runAutoSafeRuleActions');
   const autoRunEnd = source.indexOf('export const runPreparedRuleActions', autoRunStart);
