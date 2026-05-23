@@ -23,9 +23,9 @@
 ## Reddit Developer App Listing
 
 - Display name: `Firewatch`
-- Description: use the text in `docs/hackathon-submission.md`
-- Privacy policy: public hosted `PRIVACY.md` URL
-- Terms: public hosted `TERMS.md` URL
+- Description: `Incident command for Reddit mods: detect escalating posts, explain review signals, coordinate ownership, approve/remove comments, ban users, lock posts, and save handoff notes.`
+- Privacy policy: `https://raw.githubusercontent.com/takitajwar17/firewatch/main/PRIVACY.md`
+- Terms: `https://raw.githubusercontent.com/takitajwar17/firewatch/main/TERMS.md`
 - NSFW: off
 - Upload latest private version.
 - Install in `r/firewatch17_dev`.

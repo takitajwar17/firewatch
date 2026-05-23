@@ -7,9 +7,12 @@
   "scripts": {
     "build": "vite build",
     "deploy": "npm run type-check && npm run lint && devvit upload",
+    "deploy:edge": "npm run type-check && npm run lint && NODE_OPTIONS=--require=./scripts/reddit-network-patch.cjs devvit upload",
     "dev": "devvit playtest",
     "dev:edge": "NODE_OPTIONS=--require=./scripts/reddit-network-patch.cjs devvit playtest",
     "launch": "npm run deploy && devvit publish",
+    "launch:public": "npm run deploy && devvit publish --public",
+    "launch:public:edge": "npm run deploy:edge && NODE_OPTIONS=--require=./scripts/reddit-network-patch.cjs devvit publish --public",
     "lint": "eslint 'src/**/*.{ts,tsx}'",
     "login": "devvit login",
     "prettier": "prettier --write .",

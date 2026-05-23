@@ -19,13 +19,14 @@ Firewatch
 Description:
 
 ```text
-Incident command for Reddit mods: detect escalating posts, review explainable signals, measure cleanup impact, coordinate ownership, approve/remove comments, ban users, lock posts, and save handoff notes.
+Incident command for Reddit mods: detect escalating posts, explain review signals, coordinate ownership, approve/remove comments, ban users, lock posts, and save handoff notes.
 ```
 
 Terms and privacy:
 
 ```text
-Use public hosted URLs for TERMS.md and PRIVACY.md before submitting. GitHub raw URLs, a published docs page, or another stable public URL will work.
+Terms: https://raw.githubusercontent.com/takitajwar17/firewatch/main/TERMS.md
+Privacy: https://raw.githubusercontent.com/takitajwar17/firewatch/main/PRIVACY.md
 ```
 
 ## Reddit Usernames
