@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { navigateTo } from '@devvit/web/client';
-import { ExternalLink, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,6 +17,17 @@ import { DisclosurePanel, EmptyText, FieldBlock } from './common';
 import { formatUsername } from './format';
 import type { ActionRunner } from './types';
 import type { FirewatchConfig, Incident } from '../../shared/api';
+import {
+  RedditApproveIcon,
+  RedditBanIcon,
+  RedditHideIcon,
+  RedditLinkIcon,
+  RedditLockIcon,
+  RedditRemoveIcon,
+  RedditReportIcon,
+  RedditSpamIcon,
+  RedditUsersIcon,
+} from './reddit-icons';
 
 export const FlaggedCommentsCard = ({
   busyAction,
@@ -99,11 +110,16 @@ export const FlaggedCommentsCard = ({
                     controls.removeUserContent;
 
                   return (
-                    <div key={comment.id} className="rounded-md border p-3">
+                    <div key={comment.id} className="rounded-lg border bg-card p-3">
                       <div className="flex flex-col gap-3">
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
-                            <p className="text-sm font-semibold leading-5">
+                            <img
+                              alt=""
+                              className="size-7 shrink-0 rounded-full"
+                              src="/avatar_default_2.png"
+                            />
+                            <p className="text-sm font-bold leading-5">
                               {authorLabel}
                             </p>
                             <Badge variant="outline">attention {comment.score}</Badge>
@@ -127,7 +143,7 @@ export const FlaggedCommentsCard = ({
                               variant="outline"
                               onClick={() => navigateTo(permalink)}
                             >
-                              <ExternalLink data-icon="inline-start" />
+                              <RedditLinkIcon data-icon="inline-start" />
                               Open
                             </Button>
                           ) : null}
@@ -148,7 +164,9 @@ export const FlaggedCommentsCard = ({
                                   className="animate-spin"
                                   data-icon="inline-start"
                                 />
-                              ) : null}
+                              ) : (
+                                <RedditApproveIcon data-icon="inline-start" />
+                              )}
                               {busyAction === approveAction ? 'Working' : 'Approve'}
                             </Button>
                           ) : null}
@@ -170,7 +188,9 @@ export const FlaggedCommentsCard = ({
                                   className="animate-spin"
                                   data-icon="inline-start"
                                 />
-                              ) : null}
+                              ) : (
+                                <RedditRemoveIcon data-icon="inline-start" />
+                              )}
                               {busyAction === removeAction ? 'Working' : 'Remove'}
                             </Button>
                           ) : null}
@@ -193,7 +213,9 @@ export const FlaggedCommentsCard = ({
                                   className="animate-spin"
                                   data-icon="inline-start"
                                 />
-                              ) : null}
+                              ) : (
+                                <RedditBanIcon data-icon="inline-start" />
+                              )}
                               {busyAction === banAction ? 'Working' : 'Ban user'}
                             </Button>
                           ) : null}
@@ -211,6 +233,7 @@ export const FlaggedCommentsCard = ({
                                     <NativeActionButton
                                       action={spamAction}
                                       busyAction={busyAction}
+                                      icon={<RedditSpamIcon data-icon="inline-start" />}
                                       label="Spam"
                                       variant="destructive"
                                       onClick={() =>
@@ -230,6 +253,7 @@ export const FlaggedCommentsCard = ({
                                     <NativeActionButton
                                       action={threadAction}
                                       busyAction={busyAction}
+                                      icon={<RedditRemoveIcon data-icon="inline-start" />}
                                       label="Remove thread"
                                       variant="destructive"
                                       onClick={() =>
@@ -249,6 +273,7 @@ export const FlaggedCommentsCard = ({
                                       <NativeActionButton
                                         action={lockAction}
                                         busyAction={busyAction}
+                                        icon={<RedditLockIcon data-icon="inline-start" />}
                                         label="Lock"
                                         onClick={() =>
                                           onAction(
@@ -261,6 +286,7 @@ export const FlaggedCommentsCard = ({
                                       <NativeActionButton
                                         action={unlockAction}
                                         busyAction={busyAction}
+                                        icon={<RedditLockIcon data-icon="inline-start" />}
                                         label="Unlock"
                                         variant="ghost"
                                         onClick={() =>
@@ -278,6 +304,7 @@ export const FlaggedCommentsCard = ({
                                       <NativeActionButton
                                         action={ignoreReportsAction}
                                         busyAction={busyAction}
+                                        icon={<RedditReportIcon data-icon="inline-start" />}
                                         label="Ignore reports"
                                         onClick={() =>
                                           onAction(
@@ -290,6 +317,7 @@ export const FlaggedCommentsCard = ({
                                       <NativeActionButton
                                         action={watchReportsAction}
                                         busyAction={busyAction}
+                                        icon={<RedditReportIcon data-icon="inline-start" />}
                                         label="Watch reports"
                                         variant="ghost"
                                         onClick={() =>
@@ -306,6 +334,7 @@ export const FlaggedCommentsCard = ({
                                     <NativeActionButton
                                       action={showAction}
                                       busyAction={busyAction}
+                                      icon={<RedditHideIcon data-icon="inline-start" />}
                                       label="Show"
                                       onClick={() =>
                                         onAction(
@@ -326,6 +355,7 @@ export const FlaggedCommentsCard = ({
                                       action={approveUserAction}
                                       busyAction={busyAction}
                                       disabled={!canBanAuthor}
+                                      icon={<RedditUsersIcon data-icon="inline-start" />}
                                       label="Approve user"
                                       onClick={() =>
                                         onAction(
@@ -341,6 +371,7 @@ export const FlaggedCommentsCard = ({
                                       action={muteUserAction}
                                       busyAction={busyAction}
                                       disabled={!canBanAuthor}
+                                      icon={<RedditUsersIcon data-icon="inline-start" />}
                                       label="Mute"
                                       onClick={() =>
                                         onAction(
@@ -356,6 +387,7 @@ export const FlaggedCommentsCard = ({
                                       action={modNoteAction}
                                       busyAction={busyAction}
                                       disabled={!canBanAuthor}
+                                      icon={<RedditReportIcon data-icon="inline-start" />}
                                       label="Add mod note"
                                       onClick={() =>
                                         onAction(
@@ -374,6 +406,7 @@ export const FlaggedCommentsCard = ({
                                       action={removeContentAction}
                                       busyAction={busyAction}
                                       disabled={!canBanAuthor}
+                                      icon={<RedditBanIcon data-icon="inline-start" />}
                                       label="Remove recent content"
                                       variant="destructive"
                                       onClick={() =>
@@ -417,7 +450,7 @@ export const FlaggedCommentsCard = ({
                 const permalink = comment.permalink;
 
                 return (
-                  <div key={comment.id} className="rounded-md border bg-secondary p-3">
+                  <div key={comment.id} className="rounded-lg border bg-muted/60 p-3">
                     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                       <div className="min-w-0">
                         <p className="text-sm font-semibold leading-5">
@@ -442,7 +475,7 @@ export const FlaggedCommentsCard = ({
                           variant="outline"
                           onClick={() => navigateTo(permalink)}
                         >
-                          <ExternalLink data-icon="inline-start" />
+                          <RedditLinkIcon data-icon="inline-start" />
                           Open
                         </Button>
                       ) : null}
@@ -462,6 +495,7 @@ const NativeActionButton = ({
   action,
   busyAction,
   disabled,
+  icon,
   label,
   onClick,
   variant = 'outline',
@@ -469,6 +503,7 @@ const NativeActionButton = ({
   action: string;
   busyAction: string | undefined;
   disabled?: boolean;
+  icon?: ReactNode;
   label: string;
   onClick: () => void;
   variant?: 'outline' | 'destructive' | 'ghost';
@@ -481,7 +516,9 @@ const NativeActionButton = ({
   >
     {busyAction === action ? (
       <RefreshCw className="animate-spin" data-icon="inline-start" />
-    ) : null}
+    ) : (
+      icon
+    )}
     {busyAction === action ? 'Working' : label}
   </Button>
 );
@@ -515,7 +552,7 @@ export const RepeatedPhrasesCard = ({ incident }: { incident: Incident }) => (
       ) : (
         <div className="flex flex-col gap-3">
           {incident.repeatedPhrases.map((phrase) => (
-            <div key={phrase.phrase} className="rounded-md border p-3">
+            <div key={phrase.phrase} className="rounded-lg border p-3">
               <p className="text-sm font-semibold leading-5">{phrase.phrase}</p>
               <p className="mt-1 text-xs leading-5 text-muted-foreground">
                 {phrase.count} matches

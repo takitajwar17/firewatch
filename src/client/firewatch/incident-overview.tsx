@@ -1,20 +1,5 @@
 import { useState } from 'react';
 import { navigateTo } from '@devvit/web/client';
-import {
-  Ban,
-  CheckCircle2,
-  EyeOff,
-  ExternalLink,
-  Gauge,
-  Lock,
-  RadioTower,
-  ShieldAlert,
-  ShieldCheck,
-  Tag,
-  Trash2,
-  Unlock,
-  UserCheck,
-} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -48,16 +33,32 @@ import type {
   Incident,
   NativePostAction,
 } from '../../shared/api';
+import {
+  RedditApproveIcon,
+  RedditHideIcon,
+  RedditLinkIcon,
+  RedditListIcon,
+  RedditLockIcon,
+  RedditPinIcon,
+  RedditRemoveIcon,
+  RedditReportIcon,
+  RedditShieldIcon,
+  RedditSpamIcon,
+  RedditTagIcon,
+  RedditUsersIcon,
+} from './reddit-icons';
 
 export const IncidentIntro = ({ incident }: { incident: Incident }) => (
   <section className="overflow-hidden border-b border-border bg-background text-card-foreground">
-    <div className="grid gap-4 py-4 xl:grid-cols-[minmax(0,1fr)_180px] xl:items-start">
+    <div className="grid gap-4 py-4 xl:grid-cols-[minmax(0,1fr)_168px] xl:items-start">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
-          <span className="flex size-8 items-center justify-center rounded-full bg-[#d7bd3a] text-xs font-black text-[#2d2a10]">
-            u/
-          </span>
-          <span className="text-sm font-semibold text-muted-foreground">
+          <img
+            alt=""
+            className="size-8 shrink-0 rounded-full"
+            src="/avatar_default_2.png"
+          />
+          <span className="text-sm font-bold text-muted-foreground">
             {incident.recentSignals[0]?.author
               ? `u/${incident.recentSignals[0].author}`
               : `r/${incident.subredditName}`}
@@ -74,7 +75,7 @@ export const IncidentIntro = ({ incident }: { incident: Incident }) => (
             </Badge>
           ) : null}
         </div>
-        <h1 className="mt-3 max-w-4xl text-xl font-semibold leading-tight">
+        <h1 className="mt-3 max-w-4xl text-2xl font-bold leading-tight">
           {incident.title}
         </h1>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
@@ -89,22 +90,22 @@ export const IncidentIntro = ({ incident }: { incident: Incident }) => (
         </div>
       </div>
 
-      <div className="rounded-md border bg-secondary p-3">
+      <div className="rounded-lg border bg-muted/60 p-3">
         <div className="flex items-end justify-between gap-4">
           <span className="text-xs font-semibold leading-5 text-muted-foreground">
             Attention
           </span>
-          <span className="text-3xl font-semibold leading-none tabular-nums">
+          <span className="text-3xl font-bold leading-none tabular-nums">
             {incident.score}
           </span>
         </div>
-        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
+        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-background">
           <div
             className="h-full rounded-full bg-primary"
             style={{ width: `${clampScore(incident.score)}%` }}
           />
         </div>
-        <div className="mt-3 border-t pt-3">
+        <div className="mt-3 border-t border-border pt-3">
           <p className="text-xs font-semibold leading-5 text-muted-foreground">Suggested action</p>
           <p className="mt-0.5 text-sm font-semibold leading-5">
             {incident.responseSuggestion.label}
@@ -136,23 +137,22 @@ export const IncidentHero = ({
 
   return (
     <Card>
-      <CardHeader className="gap-2">
+      <CardHeader className="gap-2 border-b border-border">
         <div className="min-w-0">
           <CardTitle>Mod actions</CardTitle>
           <CardDescription className="mt-1 max-w-2xl">
-            {incident.responseSuggestion.detail} Actions stay manual so mods
-            keep control.
+            {incident.responseSuggestion.label}
           </CardDescription>
         </div>
       </CardHeader>
 
-      <CardContent className="flex flex-col gap-4">
+      <CardContent className="flex flex-col gap-4 pt-4">
         <div className="flex flex-col gap-2">
           <PanelLabel>Primary actions</PanelLabel>
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="flex flex-wrap gap-2">
             <PlaybookButton
               disabled={Boolean(incident.claim) || Boolean(busyAction) || terminal}
-              icon={<UserCheck data-icon="inline-start" />}
+              icon={<RedditUsersIcon data-icon="inline-start" />}
               label={incident.claim ? 'Taken' : 'Take'}
               loading={busyAction === 'claim'}
               onClick={() =>
@@ -167,7 +167,7 @@ export const IncidentHero = ({
                   postLocked ||
                   reminderAlreadyPosted
                 }
-                icon={<RadioTower data-icon="inline-start" />}
+                icon={<RedditPinIcon data-icon="inline-start" />}
                 label={reminderAlreadyPosted ? 'Reminder added' : 'Sticky'}
                 loading={busyAction === 'cool-down'}
                 variant="secondary"
@@ -182,7 +182,7 @@ export const IncidentHero = ({
             {config.actionControls.lockPost ? (
               <PlaybookButton
                 disabled={Boolean(busyAction) || terminal || postLocked}
-                icon={<Lock data-icon="inline-start" />}
+                icon={<RedditLockIcon data-icon="inline-start" />}
                 label={postLocked ? 'Locked' : 'Lock'}
                 loading={busyAction === 'lock'}
                 variant="destructive"
@@ -194,12 +194,12 @@ export const IncidentHero = ({
           </div>
         </div>
 
-        <div className="flex flex-col gap-2 border-t pt-4">
+        <div className="flex flex-col gap-2 border-t border-border pt-4">
           <PanelLabel>Close out</PanelLabel>
           <div className="flex flex-wrap gap-2">
             <PlaybookButton
               disabled={Boolean(busyAction) || !config.actionControls.handoffNotes}
-              icon={<ShieldAlert data-icon="inline-start" />}
+              icon={<RedditShieldIcon data-icon="inline-start" />}
               label="Handoff"
               loading={busyAction === 'escalate'}
               variant="secondary"
@@ -209,7 +209,7 @@ export const IncidentHero = ({
             />
             {permalink ? (
               <Button variant="ghost" onClick={() => navigateTo(permalink)}>
-                <ExternalLink data-icon="inline-start" />
+                <RedditLinkIcon data-icon="inline-start" />
                 Open post
               </Button>
             ) : null}
@@ -220,7 +220,7 @@ export const IncidentHero = ({
                 unresolvedCount > 0 ||
                 !config.actionControls.markHandled
               }
-              icon={<CheckCircle2 data-icon="inline-start" />}
+              icon={<RedditApproveIcon data-icon="inline-start" />}
               label={
                 terminal ? 'Handled' : unresolvedCount > 0 ? 'Review comments' : 'Handled'
               }
@@ -303,13 +303,13 @@ export const NativePostControlsCard = ({
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="border-b border-border">
         <CardTitle>Post tools</CardTitle>
         <CardDescription>
           Reddit actions for the selected post.
         </CardDescription>
       </CardHeader>
-      <CardContent className="flex flex-col gap-3">
+      <CardContent className="flex flex-col gap-3 pt-4">
         {hasRemovalActions ? (
           <FieldInput
             label="Removal reason"
@@ -323,7 +323,7 @@ export const NativePostControlsCard = ({
             {controls.approvePosts ? (
               <PlaybookButton
                 disabled={disabled}
-                icon={<ShieldCheck data-icon="inline-start" />}
+                icon={<RedditApproveIcon data-icon="inline-start" />}
                 label="Approve"
                 loading={busyAction === 'post:approve'}
                 variant="secondary"
@@ -333,7 +333,7 @@ export const NativePostControlsCard = ({
             {controls.removePosts ? (
               <PlaybookButton
                 disabled={disabled}
-                icon={<Trash2 data-icon="inline-start" />}
+                icon={<RedditRemoveIcon data-icon="inline-start" />}
                 label="Remove"
                 loading={busyAction === 'post:remove'}
                 variant="destructive"
@@ -343,7 +343,7 @@ export const NativePostControlsCard = ({
             {controls.markPostSpam ? (
               <PlaybookButton
                 disabled={disabled}
-                icon={<Ban data-icon="inline-start" />}
+                icon={<RedditSpamIcon data-icon="inline-start" />}
                 label="Spam post"
                 loading={busyAction === 'post:spam'}
                 variant="destructive"
@@ -353,7 +353,7 @@ export const NativePostControlsCard = ({
             {controls.unlockPost && postLocked ? (
               <PlaybookButton
                 disabled={disabled}
-                icon={<Unlock data-icon="inline-start" />}
+                icon={<RedditLockIcon data-icon="inline-start" />}
                 label="Unlock post"
                 loading={busyAction === 'post:unlock'}
                 variant="outline"
@@ -374,7 +374,7 @@ export const NativePostControlsCard = ({
                   <>
                     <PlaybookButton
                       disabled={disabled}
-                      icon={<EyeOff data-icon="inline-start" />}
+                      icon={<RedditHideIcon data-icon="inline-start" />}
                       label="Mark NSFW"
                       loading={busyAction === 'post:mark-nsfw'}
                       variant="outline"
@@ -382,7 +382,7 @@ export const NativePostControlsCard = ({
                     />
                     <PlaybookButton
                       disabled={disabled}
-                      icon={<EyeOff data-icon="inline-start" />}
+                      icon={<RedditHideIcon data-icon="inline-start" />}
                       label="Clear NSFW"
                       loading={busyAction === 'post:unmark-nsfw'}
                       variant="ghost"
@@ -394,7 +394,7 @@ export const NativePostControlsCard = ({
                   <>
                     <PlaybookButton
                       disabled={disabled}
-                      icon={<ShieldAlert data-icon="inline-start" />}
+                      icon={<RedditReportIcon data-icon="inline-start" />}
                       label="Mark spoiler"
                       loading={busyAction === 'post:mark-spoiler'}
                       variant="outline"
@@ -402,7 +402,7 @@ export const NativePostControlsCard = ({
                     />
                     <PlaybookButton
                       disabled={disabled}
-                      icon={<ShieldAlert data-icon="inline-start" />}
+                      icon={<RedditReportIcon data-icon="inline-start" />}
                       label="Clear spoiler"
                       loading={busyAction === 'post:unmark-spoiler'}
                       variant="ghost"
@@ -414,7 +414,7 @@ export const NativePostControlsCard = ({
                   <>
                     <PlaybookButton
                       disabled={disabled}
-                      icon={<ShieldAlert data-icon="inline-start" />}
+                      icon={<RedditReportIcon data-icon="inline-start" />}
                       label="Ignore reports"
                       loading={busyAction === 'post:ignore-reports'}
                       variant="outline"
@@ -422,7 +422,7 @@ export const NativePostControlsCard = ({
                     />
                     <PlaybookButton
                       disabled={disabled}
-                      icon={<ShieldAlert data-icon="inline-start" />}
+                      icon={<RedditReportIcon data-icon="inline-start" />}
                       label="Watch reports"
                       loading={busyAction === 'post:unignore-reports'}
                       variant="ghost"
@@ -442,7 +442,7 @@ export const NativePostControlsCard = ({
                   <div className="flex items-end">
                     <PlaybookButton
                       disabled={disabled}
-                      icon={<Tag data-icon="inline-start" />}
+                      icon={<RedditTagIcon data-icon="inline-start" />}
                       label="Set flair"
                       loading={busyAction === 'post:set-flair'}
                       variant="outline"
@@ -453,7 +453,7 @@ export const NativePostControlsCard = ({
               ) : null}
 
               {controls.crowdControl ? (
-                <div className="flex flex-col gap-2 rounded-md border bg-card p-3">
+                <div className="flex flex-col gap-2 rounded-lg border bg-card p-3">
                   <label
                     className="text-[13px] font-semibold leading-none"
                     htmlFor="fw-crowd-control"
@@ -463,7 +463,7 @@ export const NativePostControlsCard = ({
                   <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_120px]">
                     <select
                       id="fw-crowd-control"
-                      className="h-9 w-full rounded-full border border-input bg-secondary px-4 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/15"
+                      className="h-9 w-full rounded-full border border-transparent bg-secondary px-4 text-sm outline-none hover:bg-accent focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/25"
                       value={crowdControlLevel}
                       onChange={(event) =>
                         setCrowdControlLevel(
@@ -479,7 +479,7 @@ export const NativePostControlsCard = ({
                     </select>
                     <PlaybookButton
                       disabled={disabled}
-                      icon={<Gauge data-icon="inline-start" />}
+                      icon={<RedditListIcon data-icon="inline-start" />}
                       label="Apply"
                       loading={busyAction === 'post:crowd-control'}
                       variant="outline"
@@ -521,7 +521,7 @@ export const ResponseCard = ({ incident }: { incident: Incident }) => (
     </CardHeader>
     <CardContent className="flex flex-col gap-3">
       {incident.responseSuggestion.steps.map((step, index) => (
-        <div key={step} className="flex gap-3 rounded-md border bg-secondary p-3">
+        <div key={step} className="flex gap-3 rounded-lg border bg-muted/60 p-3">
           <Badge variant="outline">{index + 1}</Badge>
           <p className="text-sm leading-6">{step}</p>
         </div>
@@ -566,7 +566,7 @@ export const ImpactSnapshotCard = ({ incident }: { incident: Incident }) => {
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
-        <div className="rounded-md border bg-secondary">
+        <div className="rounded-lg border bg-muted/60">
           {rows.map((row) => (
             <div
               key={row.label}
@@ -578,7 +578,7 @@ export const ImpactSnapshotCard = ({ incident }: { incident: Incident }) => {
                   {row.detail}
                 </p>
               </div>
-              <span className="shrink-0 text-xl font-semibold leading-none tabular-nums">
+              <span className="shrink-0 text-xl font-bold leading-none tabular-nums">
                 {row.value}
               </span>
             </div>
@@ -613,7 +613,7 @@ export const RiskReasonsCard = ({ incident }: { incident: Incident }) => (
       ) : (
         <div className="flex flex-col gap-3">
           {incident.reasons.map((reason) => (
-            <div key={reason.key} className="rounded-md border p-3">
+            <div key={reason.key} className="rounded-lg border p-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-sm font-semibold leading-5">{reason.label}</p>
@@ -648,7 +648,7 @@ export const TrendCard = ({ incident }: { incident: Incident }) => (
       {incident.trend.length === 0 ? (
         <EmptyText>No recent activity yet.</EmptyText>
       ) : (
-        <div className="flex h-40 items-stretch gap-2 rounded-md border bg-secondary p-3">
+        <div className="flex h-40 items-stretch gap-2 rounded-lg border bg-muted/60 p-3">
           {incident.trend.map((point) => (
             <div
               key={point.timestamp}

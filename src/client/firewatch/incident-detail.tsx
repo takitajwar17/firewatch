@@ -1,10 +1,4 @@
 import { useState } from 'react';
-import {
-  ClipboardList,
-  Gauge,
-  ShieldAlert,
-  Users,
-} from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MetricCard, SectionHeader } from './common';
 import {
@@ -29,6 +23,12 @@ import {
 } from './incident-overview';
 import type { ActionRunner } from './types';
 import type { FirewatchConfig, Incident } from '../../shared/api';
+import {
+  RedditCommentIcon,
+  RedditListIcon,
+  RedditReportIcon,
+  RedditUsersIcon,
+} from './reddit-icons';
 
 export const IncidentDetail = ({
   busyAction,
@@ -75,35 +75,35 @@ export const IncidentDetail = ({
   };
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-4">
       <IncidentIntro incident={incident} />
 
       <SectionHeader
-        title="What needs attention"
-        description="Reports, comments, users, and reply clusters for this post."
+        title="Insights"
+        description="Reports, comments, users, and reply clusters."
       />
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           description="Post and comment reports attached here."
-          icon={<ShieldAlert />}
+          icon={<RedditReportIcon />}
           label="Reports"
           value={String(incident.stats.reportSignals)}
         />
         <MetricCard
           description="Waiting for approve, remove, or ban user."
-          icon={<ClipboardList />}
+          icon={<RedditCommentIcon />}
           label="Comments"
           value={String(unresolvedComments.length)}
         />
         <MetricCard
           description="Authors with comments waiting for review."
-          icon={<Users />}
+          icon={<RedditUsersIcon />}
           label="Users"
           value={String(unresolvedUsers.size)}
         />
         <MetricCard
           description="Dense reply chains that can heat up quickly."
-          icon={<Gauge />}
+          icon={<RedditListIcon />}
           label="Reply clusters"
           value={String(incident.stats.branchPileOns)}
         />
@@ -139,7 +139,7 @@ export const IncidentDetail = ({
           <SectionHeader
             className="xl:col-span-full"
             title="Post review"
-            description="Signals, post tools, impact, and users still attached to review work."
+            description="Signals, post tools, impact, and users."
           />
           <div className="flex flex-col gap-4">
             <RiskReasonsCard incident={incident} />
@@ -165,7 +165,7 @@ export const IncidentDetail = ({
           <SectionHeader
             className="xl:col-span-full"
             title="Comment review"
-            description="Review flagged comments and use user actions when needed."
+            description="Flagged comments and user actions."
           />
           <FlaggedCommentsCard
             busyAction={busyAction}

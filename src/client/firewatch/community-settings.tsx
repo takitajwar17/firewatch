@@ -1,11 +1,5 @@
 import { useState, type ComponentProps } from 'react';
-import {
-  AlertTriangle,
-  RefreshCw,
-  Save,
-  Sparkles,
-  Trash2,
-} from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import {
@@ -25,6 +19,12 @@ import { DisclosurePanel, FieldBlock, SectionHeader } from './common';
 import { splitList } from './format';
 import type { FirewatchConfig } from '../../shared/api';
 import type { ConfigSaveHandler, DemoCreateHandler } from './types';
+import {
+  RedditAddIcon,
+  RedditApproveIcon,
+  RedditRemoveIcon,
+  RedditReportIcon,
+} from './reddit-icons';
 
 export const CommunitySettingsPage = ({
   busyAction,
@@ -44,7 +44,7 @@ export const CommunitySettingsPage = ({
   <div className="flex flex-col gap-5">
     <SectionHeader
       title="Settings"
-      description="Subreddit-wide settings for watched terms, thresholds, and available mod actions."
+      description="Watched terms, thresholds, and mod actions."
     />
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
       <CommunityFiltersCard
@@ -229,7 +229,7 @@ const CommunityFiltersCard = ({
 
         {invalidThresholds ? (
           <Alert variant="destructive">
-            <AlertTriangle />
+            <RedditReportIcon />
             <AlertTitle>Scores need ordering</AlertTitle>
             <AlertDescription>
               Use numbers from 1 to 100 where Review is below Act and Act is
@@ -257,7 +257,7 @@ const CommunityFiltersCard = ({
           {busy ? (
             <RefreshCw className="animate-spin" data-icon="inline-start" />
           ) : (
-            <Save data-icon="inline-start" />
+            <RedditApproveIcon data-icon="inline-start" />
           )}
           {busy ? 'Saving' : 'Save settings'}
         </Button>
@@ -406,7 +406,7 @@ const ActionToggleGroup = ({
       {fields.map((field) => (
         <label
           key={field.id}
-          className="group flex min-h-11 cursor-pointer items-center justify-between gap-3 rounded-md border bg-card px-3 py-2 text-sm font-semibold transition-colors hover:bg-accent"
+          className="group flex min-h-11 cursor-pointer items-center justify-between gap-3 rounded-lg border bg-card px-3 py-2 text-sm font-semibold transition-colors hover:bg-accent"
         >
           <span className="min-w-0 truncate">{field.label}</span>
           <span className="relative inline-flex h-6 w-10 shrink-0 items-center">
@@ -436,7 +436,7 @@ const SettingsTextarea = ({
 }: ComponentProps<'textarea'>) => (
   <textarea
     className={cn(
-      'min-h-24 w-full resize-y rounded-md border border-input bg-card px-4 py-3 text-sm leading-6 outline-none transition-colors placeholder:text-muted-foreground hover:border-border focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/15 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-50',
+      'min-h-24 w-full resize-y rounded-lg border border-transparent bg-secondary px-4 py-3 text-sm leading-6 outline-none transition-colors placeholder:text-muted-foreground hover:bg-accent focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/25 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-50',
       className
     )}
     {...props}
@@ -500,7 +500,7 @@ const CommunityToolsCard = ({
         <FieldBlock htmlFor="fw-demo-scenario" label="Demo scenario">
           <select
             id="fw-demo-scenario"
-            className="h-9 rounded-full border border-input bg-secondary px-4 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/15"
+            className="h-9 rounded-full border border-transparent bg-secondary px-4 text-sm outline-none hover:bg-accent focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/25"
             value={scenarioId}
             onChange={(event) => {
               const nextScenario = FIREWATCH_DEMO_SCENARIOS.find(
@@ -516,7 +516,7 @@ const CommunityToolsCard = ({
             ))}
           </select>
         </FieldBlock>
-        <p className="rounded-md border bg-secondary p-3 text-sm leading-5 text-muted-foreground">
+        <p className="rounded-lg border bg-muted/60 p-3 text-sm leading-5 text-muted-foreground">
           {selectedScenarioDescription}
         </p>
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
@@ -525,7 +525,7 @@ const CommunityToolsCard = ({
             variant="outline"
             onClick={() => onCreateDemo(scenarioId)}
           >
-            <Sparkles data-icon="inline-start" />
+            <RedditAddIcon data-icon="inline-start" />
             {busyAction === 'demo' ? 'Creating' : 'Create demo'}
           </Button>
           <Button
@@ -533,7 +533,7 @@ const CommunityToolsCard = ({
             variant="ghost"
             onClick={onResetDemos}
           >
-            <Trash2 data-icon="inline-start" />
+            <RedditRemoveIcon data-icon="inline-start" />
             {busyAction === 'reset-demo' ? 'Clearing' : 'Reset demos'}
           </Button>
         </div>

@@ -2,7 +2,7 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:is(.dark *, .theme-dark *));
 
 * {
   box-sizing: border-box;
@@ -23,7 +23,7 @@ body {
   text-rendering: optimizeLegibility;
   font-feature-settings: normal;
   font-size: 0.875rem;
-  line-height: 1.4;
+  line-height: 1.4285;
 }
 
 button {
@@ -67,15 +67,14 @@ p {
 
 .ui-feedback {
   transition:
-    transform 0.2s ease,
-    box-shadow 0.2s ease,
-    background-color 0.2s ease,
-    border-color 0.2s ease,
-    color 0.2s ease;
+    background-color 0.12s ease,
+    border-color 0.12s ease,
+    color 0.12s ease,
+    opacity 0.12s ease;
 }
 
 .ui-feedback:active {
-  transform: translateY(1px) scale(0.995);
+  opacity: 0.86;
 }
 
 .line-clamp-2 {
@@ -100,7 +99,7 @@ p {
   --text-xs: 0.75rem;
   --text-xs--line-height: 1.45;
   --text-sm: 0.875rem;
-  --text-sm--line-height: 1.4;
+  --text-sm--line-height: 1.4285;
   --text-base: 1rem;
   --text-base--line-height: 1.35;
   --text-lg: 1.25rem;
@@ -179,32 +178,33 @@ p {
   --color-destructive-foreground: var(--destructive-foreground);
 }
 
-:root {
+:root,
+.theme-light {
   --font-reddit-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", sans-serif;
-  --background: #0b0f10;
-  --foreground: #eef2f4;
+  --background: #ffffff;
+  --foreground: #181c1f;
   --card: #ffffff;
   --card-foreground: #181c1f;
   --popover: #ffffff;
   --popover-foreground: #181c1f;
-  --primary: #ff4500;
+  --primary: #d93900;
   --primary-foreground: #ffffff;
-  --secondary: #f6f8f9;
+  --secondary: #e5ebee;
   --secondary-foreground: #181c1f;
   --muted: #f6f8f9;
   --muted-foreground: #5c6c74;
-  --accent: #eef1f3;
+  --accent: #dbe4e9;
   --accent-foreground: #181c1f;
-  --destructive: #ea0027;
+  --destructive: #eb001f;
   --border: #00000019;
   --input: #00000033;
   --ring: #007fae;
-  --chart-1: #ff4500;
+  --chart-1: #d93900;
   --chart-2: #008a10;
   --chart-3: #0a449b;
   --chart-4: #b78800;
   --chart-5: #7a3fb1;
-  --radius: 0.875rem;
+  --radius: 1rem;
   --sidebar: #ffffff;
   --sidebar-foreground: #181c1f;
   --sidebar-primary: #ff4500;
@@ -237,40 +237,42 @@ p {
   color-scheme: light;
 }
 
+.theme-dark,
+:root.theme-dark,
 .dark {
-  --background: #0b0f10;
-  --foreground: #eef2f4;
-  --card: #101617;
-  --card-foreground: #eef2f4;
-  --popover: #101617;
-  --popover-foreground: #eef2f4;
-  --primary: #ff4500;
+  --background: #0e1113;
+  --foreground: #eef1f3;
+  --card: #0e1113;
+  --card-foreground: #eef1f3;
+  --popover: #181c1f;
+  --popover-foreground: #eef1f3;
+  --primary: #d93900;
   --primary-foreground: #ffffff;
-  --secondary: #1a2225;
-  --secondary-foreground: #eef2f4;
-  --muted: #1a2225;
-  --muted-foreground: #8fa1aa;
-  --accent: #2b3337;
-  --accent-foreground: #eef2f4;
-  --destructive: #ff585b;
-  --border: #ffffff1f;
-  --input: #ffffff3d;
-  --ring: #46d5ff;
-  --chart-1: #ff4500;
+  --secondary: #2a3236;
+  --secondary-foreground: #ffffff;
+  --muted: #181c1f;
+  --muted-foreground: #8ba2ad;
+  --accent: #333d42;
+  --accent-foreground: #ffffff;
+  --destructive: #eb001f;
+  --border: #ffffff19;
+  --input: #ffffff33;
+  --ring: #007fae;
+  --chart-1: #d93900;
   --chart-2: #46d160;
   --chart-3: #8cbcff;
   --chart-4: #ffd15c;
   --chart-5: #d6a7ff;
-  --sidebar: #0b0f10;
-  --sidebar-foreground: #eef2f4;
-  --sidebar-primary: #ff4500;
+  --sidebar: #0e1113;
+  --sidebar-foreground: #eef1f3;
+  --sidebar-primary: #d93900;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #2b3337;
-  --sidebar-accent-foreground: #eef2f4;
-  --sidebar-border: #ffffff1f;
-  --sidebar-ring: #46d5ff;
+  --sidebar-accent: #333d42;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #ffffff19;
+  --sidebar-ring: #007fae;
   --destructive-foreground: #ffffff;
-  --radius: 0.875rem;
+  --radius: 1rem;
   --font-sans: var(--font-reddit-sans);
   --font-serif: Georgia, Cambria, "Times New Roman", Times, serif;
   --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
@@ -295,37 +297,37 @@ p {
 
 @media (prefers-color-scheme: dark) {
   :root:not(.theme-light) {
-    --background: #0b0f10;
-    --foreground: #eef2f4;
-    --card: #101617;
-    --card-foreground: #eef2f4;
-    --popover: #101617;
-    --popover-foreground: #eef2f4;
-    --primary: #ff4500;
+    --background: #0e1113;
+    --foreground: #eef1f3;
+    --card: #0e1113;
+    --card-foreground: #eef1f3;
+    --popover: #181c1f;
+    --popover-foreground: #eef1f3;
+    --primary: #d93900;
     --primary-foreground: #ffffff;
-    --secondary: #1a2225;
-    --secondary-foreground: #eef2f4;
-    --muted: #1a2225;
+    --secondary: #2a3236;
+    --secondary-foreground: #ffffff;
+    --muted: #181c1f;
     --muted-foreground: #8ba2ad;
-    --accent: #2b3337;
-    --accent-foreground: #eef2f4;
-    --destructive: #ff585b;
-    --border: #ffffff1f;
+    --accent: #333d42;
+    --accent-foreground: #ffffff;
+    --destructive: #eb001f;
+    --border: #ffffff19;
     --input: #ffffff33;
-    --ring: #46d5ff;
-    --chart-1: #ff4500;
+    --ring: #007fae;
+    --chart-1: #d93900;
     --chart-2: #46d160;
     --chart-3: #8cbcff;
     --chart-4: #ffd15c;
     --chart-5: #d6a7ff;
-    --sidebar: #0b0f10;
-    --sidebar-foreground: #eef2f4;
-    --sidebar-primary: #ff4500;
+    --sidebar: #0e1113;
+    --sidebar-foreground: #eef1f3;
+    --sidebar-primary: #d93900;
     --sidebar-primary-foreground: #ffffff;
-    --sidebar-accent: #2b3337;
-    --sidebar-accent-foreground: #eef2f4;
-    --sidebar-border: #ffffff1f;
-    --sidebar-ring: #46d5ff;
+    --sidebar-accent: #333d42;
+    --sidebar-accent-foreground: #ffffff;
+    --sidebar-border: #ffffff19;
+    --sidebar-ring: #007fae;
     --destructive-foreground: #ffffff;
     --shadow-color: #000000;
     --shadow-opacity: 0.1;

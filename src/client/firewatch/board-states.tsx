@@ -1,9 +1,10 @@
-import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { FIREWATCH_DEMO_SCENARIOS } from '../../shared/firewatch-presets';
 import type { DemoCreateHandler } from './types';
+import { RedditAddIcon, RedditReportIcon } from './reddit-icons';
 
 export const LoadingBoard = () => (
   <div className="flex flex-col gap-6">
@@ -12,14 +13,14 @@ export const LoadingBoard = () => (
       <Skeleton className="h-5 w-96 max-w-full" />
     </div>
     <div className="grid gap-3 md:grid-cols-4">
-      <Skeleton className="h-20 rounded-md" />
-      <Skeleton className="h-20 rounded-md" />
-      <Skeleton className="h-20 rounded-md" />
-      <Skeleton className="h-20 rounded-md" />
+      <Skeleton className="h-20 rounded-lg" />
+      <Skeleton className="h-20 rounded-lg" />
+      <Skeleton className="h-20 rounded-lg" />
+      <Skeleton className="h-20 rounded-lg" />
     </div>
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-      <Skeleton className="h-[520px] rounded-md" />
-      <Skeleton className="h-[520px] rounded-md" />
+      <Skeleton className="h-[520px] rounded-lg" />
+      <Skeleton className="h-[520px] rounded-lg" />
     </div>
   </div>
 );
@@ -33,7 +34,7 @@ export const ErrorBoard = ({
 }) => (
   <div className="flex min-h-[60vh] items-center justify-center">
     <Alert variant="destructive" className="max-w-md">
-      <AlertTriangle />
+      <RedditReportIcon />
       <AlertTitle>Could not load your mod view</AlertTitle>
       <AlertDescription>{message}</AlertDescription>
       <Button className="mt-4 w-fit" variant="outline" onClick={onRefresh}>
@@ -71,6 +72,7 @@ export const EmptyBoard = ({
           variant="outline"
           onClick={() => onCreateDemo(scenario.id)}
         >
+          <RedditAddIcon className="size-4 shrink-0" data-icon="inline-start" />
           <span className="flex min-w-0 flex-col gap-0.5">
             <span>{busy ? 'Creating demo post' : scenario.label}</span>
             <span className="text-xs font-normal leading-5 text-muted-foreground">

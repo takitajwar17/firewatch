@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Copy } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -21,6 +20,7 @@ import {
   formatUsername,
 } from './format';
 import type { Incident } from '../../shared/api';
+import { RedditLinkIcon } from './reddit-icons';
 
 export const LatestSignalsCard = ({ incident }: { incident: Incident }) => {
   const visibleSignals = incident.recentSignals;
@@ -118,15 +118,15 @@ const SummaryBlock = ({ label, value }: { label: string; value: string }) => {
   };
 
   return (
-    <div className="rounded-md border bg-secondary p-3">
+    <div className="rounded-lg border bg-muted/60 p-3">
       <div className="flex items-center justify-between gap-3">
         <Badge variant="outline">{label}</Badge>
         <Button size="sm" variant="outline" onClick={onCopy}>
-          <Copy data-icon="inline-start" />
+          <RedditLinkIcon data-icon="inline-start" />
           {copied ? 'Copied' : 'Copy'}
         </Button>
       </div>
-      <pre className="mt-3 max-h-72 overflow-auto rounded-md border bg-card p-3 text-xs leading-6 text-foreground">
+      <pre className="mt-3 max-h-72 overflow-auto rounded-lg border bg-card p-3 text-xs leading-6 text-foreground">
         {value}
       </pre>
     </div>

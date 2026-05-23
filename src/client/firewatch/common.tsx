@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react';
-import { ChevronDown, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import type { Incident } from '../../shared/api';
 import { levelBadgeVariant } from './format';
+import { RedditMoreIcon } from './reddit-icons';
 
 export const PanelLabel = ({
   children,
@@ -16,9 +17,9 @@ export const PanelLabel = ({
 }) => (
   <p
     className={cn(
-      'text-xs font-semibold leading-5 tracking-[0.08em]',
+      'text-xs font-semibold leading-4 tracking-[0.08em]',
       surface === 'sidebar'
-        ? 'text-sidebar-foreground/55'
+        ? 'text-sidebar-foreground/60'
         : 'text-muted-foreground'
     )}
   >
@@ -39,12 +40,12 @@ export const SectionHeader = ({
 }) => (
   <div
     className={cn(
-      'flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between',
+      'flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between',
       className
     )}
   >
     <div className="min-w-0">
-      <h2 className="text-sm font-semibold leading-5 text-foreground">{title}</h2>
+      <h2 className="text-base font-bold leading-5 text-foreground">{title}</h2>
       <p className="mt-1 max-w-3xl text-xs leading-5 text-muted-foreground">
         {description}
       </p>
@@ -80,10 +81,10 @@ export const DisclosurePanel = ({
   title: string;
 }) => (
   <details
-    className="group rounded-md border bg-secondary open:bg-secondary"
+    className="group rounded-lg border border-border bg-muted/45 open:bg-muted/70"
     open={defaultOpen}
   >
-    <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 [&::-webkit-details-marker]:hidden">
+    <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 hover:bg-accent/60 [&::-webkit-details-marker]:hidden">
       <span className="min-w-0">
         <span className="block text-sm font-semibold leading-5">{title}</span>
         {description ? (
@@ -92,7 +93,7 @@ export const DisclosurePanel = ({
           </span>
         ) : null}
       </span>
-      <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+      <RedditMoreIcon className="size-4 shrink-0 rotate-90 text-muted-foreground transition-transform group-open:rotate-0" />
     </summary>
     <div className="border-t px-3 py-3">{children}</div>
   </details>
@@ -111,7 +112,7 @@ export const FieldBlock = ({
 }) => (
   <div className="flex flex-col gap-2">
     <label
-      className="text-[13px] font-semibold leading-none text-foreground/90"
+      className="text-xs font-semibold leading-none text-foreground/90"
       htmlFor={htmlFor}
     >
       {label}
@@ -162,7 +163,7 @@ export const MetricCard = ({
   label: string;
   value: string;
 }) => (
-  <Card className="min-h-0" size="sm">
+  <Card className="min-h-0 bg-muted/35" size="sm">
     <CardHeader className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
       <div className="min-w-0">
         <CardDescription className="text-xs font-semibold leading-4">
@@ -174,7 +175,7 @@ export const MetricCard = ({
       </div>
       <div className="flex items-center gap-2">
         <span className="text-muted-foreground [&_svg]:size-4">{icon}</span>
-        <CardTitle className="text-xl font-semibold tabular-nums">
+        <CardTitle className="text-xl font-bold tabular-nums">
           {value}
         </CardTitle>
       </div>
