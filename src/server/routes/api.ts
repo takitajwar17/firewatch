@@ -7,13 +7,14 @@ import type {
   CrowdControlLevel,
   DashboardInitResponse,
   DemoResetResponse,
-  ErrorResponse,
   FirewatchDemoScenarioId,
   Incident,
   NativeCommentAction,
   NativePostAction,
   NativeUserAction,
 } from '../../shared/api';
+import type { FirewatchConfigUpdate } from '../../shared/firewatch-config';
+import { errorResponse } from './responses';
 import {
   applyNativeCommentAction,
   applyNativePostAction,
@@ -69,19 +70,19 @@ const loadDashboardData = async (): Promise<DashboardInitResponse> => {
   };
 };
 
+const readOptionalJson = async <Body extends object>(
+  c: HonoContext
+): Promise<Partial<Body>> => c.req.json<Partial<Body>>().catch(() => ({}));
+
 api.get('/init', async (c) => {
   try {
     return c.json<DashboardInitResponse>(await loadDashboardData());
   } catch (error) {
-    console.error('API Init Error:', error);
-    let errorMessage = 'Unknown error during initialization';
-    if (error instanceof Error) {
-      errorMessage = `Initialization failed: ${error.message}`;
-    }
-    return c.json<ErrorResponse>(
-      { status: 'error', message: errorMessage },
-      400
-    );
+    return errorResponse(c, error, {
+      fallbackMessage: 'Unknown error during initialization',
+      logMessage: 'API Init Error:',
+      messagePrefix: 'Initialization failed: ',
+    });
   }
 });
 
@@ -119,9 +120,9 @@ api.post('/incidents/:postId/resolve', async (c) => {
 
 api.post('/demo/incident', async (c) => {
   return incidentAction(c, async () => {
-    const body: { scenarioId?: FirewatchDemoScenarioId } = await c.req
-      .json<{ scenarioId?: FirewatchDemoScenarioId }>()
-      .catch(() => ({}));
+    const body = await readOptionalJson<{
+      scenarioId: FirewatchDemoScenarioId;
+    }>(c);
     return createDemoIncident(body.scenarioId);
   });
 });
@@ -138,16 +139,7 @@ api.post('/demo/reset', async (c) => {
 
 api.post('/config', async (c) => {
   try {
-    const values = await c.req.json<{
-      keywords?: string;
-      suspiciousDomains?: string;
-      heatThreshold?: number;
-      fireThreshold?: number;
-      wildfireThreshold?: number;
-      reminderText?: string;
-      actionControls?: Parameters<typeof saveConfig>[0]['actionControls'];
-      signalWeights?: Parameters<typeof saveConfig>[0]['signalWeights'];
-    }>();
+    const values = await c.req.json<FirewatchConfigUpdate>();
     const config = await saveConfig(values);
     return c.json<ConfigResponse>({ type: 'config', config });
   } catch (error) {
@@ -157,9 +149,7 @@ api.post('/config', async (c) => {
 
 api.post('/incidents/:postId/comments/:commentId/remove', async (c) => {
   return incidentAction(c, async () => {
-    const body: { reason?: string } = await c.req
-      .json<{ reason?: string }>()
-      .catch(() => ({}));
+    const body = await readOptionalJson<{ reason: string }>(c);
     return removeFlaggedComment(
       c.req.param('postId'),
       c.req.param('commentId'),
@@ -188,9 +178,7 @@ api.post('/incidents/:postId/comments/:commentId/native-action', async (c) => {
 
 api.post('/incidents/:postId/users/:username/ban', async (c) => {
   return incidentAction(c, async () => {
-    const body: { reason?: string } = await c.req
-      .json<{ reason?: string }>()
-      .catch(() => ({}));
+    const body = await readOptionalJson<{ reason: string }>(c);
     return banUserAndRemoveComments(
       c.req.param('postId'),
       c.req.param('username'),
@@ -211,10 +199,7 @@ api.post('/incidents/:postId/users/:username/native-action', async (c) => {
   });
 });
 
-const incidentAction = async (
-  c: HonoContext,
-  run: () => Promise<Incident>
-) => {
+const incidentAction = async (c: HonoContext, run: () => Promise<Incident>) => {
   try {
     const incident = await run();
     return c.json<ActionResponse>({ type: 'action', incident });
@@ -223,16 +208,8 @@ const incidentAction = async (
   }
 };
 
-const incidentActionError = (
-  c: HonoContext,
-  error: unknown
-) => {
-  console.error('Firewatch action failed:', error);
-  return c.json<ErrorResponse>(
-    {
-      status: 'error',
-      message: error instanceof Error ? error.message : 'Action failed',
-    },
-    400
-  );
-};
+const incidentActionError = (c: HonoContext, error: unknown) =>
+  errorResponse(c, error, {
+    fallbackMessage: 'Action failed',
+    logMessage: 'Firewatch action failed:',
+  });

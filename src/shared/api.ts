@@ -62,6 +62,39 @@ export type NativeUserAction =
   | 'add-mod-note'
   | 'remove-recent-content';
 
+export type IncidentActionType =
+  | 'claimed'
+  | 'cool_down'
+  | 'cleanup'
+  | 'comment_approved'
+  | 'comment_removed'
+  | 'comment_spammed'
+  | 'comment_locked'
+  | 'comment_unlocked'
+  | 'comment_reports_ignored'
+  | 'comment_reports_unignored'
+  | 'comment_thread_removed'
+  | 'comment_shown'
+  | 'user_banned'
+  | 'user_approved'
+  | 'user_muted'
+  | 'user_content_removed'
+  | 'mod_note_added'
+  | 'post_approved'
+  | 'post_removed'
+  | 'post_spammed'
+  | 'post_unlocked'
+  | 'post_nsfw'
+  | 'post_spoiler'
+  | 'post_reports_ignored'
+  | 'post_reports_unignored'
+  | 'post_crowd_control'
+  | 'post_flaired'
+  | 'locked'
+  | 'escalated'
+  | 'resolved'
+  | 'demo_seeded';
+
 export type FirewatchConfig = {
   keywords: string[];
   suspiciousDomains: string[];
@@ -135,38 +168,7 @@ export type FlaggedComment = {
 
 export type IncidentAction = {
   id: string;
-  type:
-    | 'claimed'
-    | 'cool_down'
-    | 'cleanup'
-    | 'comment_approved'
-    | 'comment_removed'
-    | 'comment_spammed'
-    | 'comment_locked'
-    | 'comment_unlocked'
-    | 'comment_reports_ignored'
-    | 'comment_reports_unignored'
-    | 'comment_thread_removed'
-    | 'comment_shown'
-    | 'user_banned'
-    | 'user_approved'
-    | 'user_muted'
-    | 'user_content_removed'
-    | 'mod_note_added'
-    | 'post_approved'
-    | 'post_removed'
-    | 'post_spammed'
-    | 'post_unlocked'
-    | 'post_nsfw'
-    | 'post_spoiler'
-    | 'post_reports_ignored'
-    | 'post_reports_unignored'
-    | 'post_crowd_control'
-    | 'post_flaired'
-    | 'locked'
-    | 'escalated'
-    | 'resolved'
-    | 'demo_seeded';
+  type: IncidentActionType;
   actor: string;
   createdAt: number;
   detail: string;

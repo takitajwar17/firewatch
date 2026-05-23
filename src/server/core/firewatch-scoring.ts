@@ -3,6 +3,7 @@ import type {
   FlaggedComment,
   Incident,
   IncidentImpactSnapshot,
+  IncidentActionType,
   IncidentLevel,
   IncidentParticipant,
   IncidentStats,
@@ -411,7 +412,7 @@ const buildTrend = (
 
 const countActionTargets = (
   actions: Incident['actions'],
-  type: Incident['actions'][number]['type']
+  type: IncidentActionType
 ) =>
   actions.reduce(
     (total, action) =>
@@ -419,9 +420,7 @@ const countActionTargets = (
     0
   );
 
-const COMMENT_REMOVAL_ACTION_TYPES = new Set<
-  Incident['actions'][number]['type']
->([
+const COMMENT_REMOVAL_ACTION_TYPES = new Set<IncidentActionType>([
   'cleanup',
   'comment_removed',
   'comment_spammed',
@@ -430,7 +429,7 @@ const COMMENT_REMOVAL_ACTION_TYPES = new Set<
   'user_content_removed',
 ]);
 
-const REMOVAL_ACTION_TYPES = new Set<Incident['actions'][number]['type']>([
+const REMOVAL_ACTION_TYPES = new Set<IncidentActionType>([
   'cleanup',
   'comment_removed',
   'comment_spammed',

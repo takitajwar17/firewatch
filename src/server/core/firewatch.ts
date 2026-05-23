@@ -1,6 +1,5 @@
 import { context, redis, reddit } from '@devvit/web/server';
 import type {
-  CrowdControlLevel,
   FirewatchConfig,
   FirewatchDemoScenarioId,
   Incident,
@@ -12,9 +11,25 @@ import type {
   SignalSource,
 } from '../../shared/api';
 import {
+  commentActionControl,
+  commentActionDetail,
+  nativeCommentActionType,
+  nativePostActionType,
+  nativeUserActionType,
+  parseCrowdControlLevel,
+  postActionControl,
+  postActionDetail,
+  userActionControl,
+  userActionDetail,
+} from '../../shared/reddit-actions';
+import {
   DEFAULT_DEMO_SCENARIO_ID,
   getDemoScenario,
 } from '../../shared/firewatch-presets';
+import type {
+  FirewatchConfigFormDefaults,
+  FirewatchConfigUpdate,
+} from '../../shared/firewatch-config';
 import { sortIncidentsByPriority } from '../../shared/incidents';
 import {
   DEFAULT_CONFIG,
@@ -28,6 +43,7 @@ import {
   getResponseSuggestion,
   makeEmptyStats,
 } from './firewatch-scoring';
+import { externalModActionDetail, externalModActionType } from './mod-actions';
 import {
   boardPostKey,
   claimKey,
@@ -119,16 +135,7 @@ export const getConfig = async (
   }
 };
 
-export const saveConfig = async (values: {
-  keywords?: string;
-  suspiciousDomains?: string;
-  heatThreshold?: number;
-  fireThreshold?: number;
-  wildfireThreshold?: number;
-  reminderText?: string;
-  actionControls?: Partial<FirewatchConfig['actionControls']>;
-  signalWeights?: Partial<FirewatchConfig['signalWeights']>;
-}) => {
+export const saveConfig = async (values: FirewatchConfigUpdate) => {
   const current = await getConfig();
   const nextConfig = normalizeConfig({
     keywords: parseCsv(values.keywords, current.keywords),
@@ -154,20 +161,21 @@ export const saveConfig = async (values: {
   return nextConfig;
 };
 
-export const getConfigFormDefaults = async () => {
-  const config = await getConfig();
+export const getConfigFormDefaults =
+  async (): Promise<FirewatchConfigFormDefaults> => {
+    const config = await getConfig();
 
-  return {
-    keywords: config.keywords.join(', '),
-    suspiciousDomains: config.suspiciousDomains.join(', '),
-    heatThreshold: config.heatThreshold,
-    fireThreshold: config.fireThreshold,
-    wildfireThreshold: config.wildfireThreshold,
-    reminderText: config.reminderText,
-    actionControls: config.actionControls,
-    signalWeights: config.signalWeights,
+    return {
+      keywords: config.keywords.join(', '),
+      suspiciousDomains: config.suspiciousDomains.join(', '),
+      heatThreshold: config.heatThreshold,
+      fireThreshold: config.fireThreshold,
+      wildfireThreshold: config.wildfireThreshold,
+      reminderText: config.reminderText,
+      actionControls: config.actionControls,
+      signalWeights: config.signalWeights,
+    };
   };
-};
 
 const getIndex = async () => {
   const stored = await redis.get(INDEX_KEY);
@@ -596,97 +604,6 @@ export const lockIncident = async (postId: string) => {
   });
 };
 
-const externalModActionType = ({
-  action,
-  targetKind,
-}: {
-  action: string;
-  targetKind: 'comment' | 'post';
-}): IncidentAction['type'] | undefined => {
-  if (targetKind === 'comment') {
-    switch (action) {
-      case 'approvecomment':
-        return 'comment_approved';
-      case 'removecomment':
-        return 'comment_removed';
-      case 'spamcomment':
-        return 'comment_spammed';
-      case 'lock':
-        return 'comment_locked';
-      case 'unlock':
-        return 'comment_unlocked';
-      case 'ignorereports':
-        return 'comment_reports_ignored';
-      case 'unignorereports':
-        return 'comment_reports_unignored';
-      case 'showcomment':
-        return 'comment_shown';
-      default:
-        return undefined;
-    }
-  }
-
-  switch (action) {
-    case 'approvelink':
-      return 'post_approved';
-    case 'removelink':
-      return 'post_removed';
-    case 'spamlink':
-      return 'post_spammed';
-    case 'lock':
-      return 'locked';
-    case 'unlock':
-      return 'post_unlocked';
-    case 'marknsfw':
-    case 'unmarknsfw':
-      return 'post_nsfw';
-    case 'spoiler':
-    case 'unspoiler':
-      return 'post_spoiler';
-    case 'ignorereports':
-      return 'post_reports_ignored';
-    case 'unignorereports':
-      return 'post_reports_unignored';
-    case 'adjust_post_crowd_control_level':
-      return 'post_crowd_control';
-    default:
-      return undefined;
-  }
-};
-
-const externalModActionDetail = ({
-  action,
-  moderatorName,
-  targetKind,
-}: {
-  action: string;
-  moderatorName?: string;
-  targetKind: 'comment' | 'post';
-}) => {
-  const actor = moderatorName ? formatUserHandle(moderatorName) : 'a mod';
-  const target = targetKind === 'comment' ? 'comment' : 'post';
-  const labels: Record<string, string> = {
-    adjust_post_crowd_control_level: `Adjusted Crowd Control on ${target}`,
-    approvecomment: 'Approved comment',
-    approvelink: 'Approved post',
-    ignorereports: `Ignored reports on ${target}`,
-    lock: `Locked ${target}`,
-    marknsfw: 'Marked post NSFW',
-    removecomment: 'Removed comment',
-    removelink: 'Removed post',
-    showcomment: 'Marked comment as shown',
-    spamcomment: 'Removed comment as spam',
-    spamlink: 'Removed post as spam',
-    spoiler: 'Marked post spoiler',
-    unignorereports: `Stopped ignoring reports on ${target}`,
-    unlock: `Unlocked ${target}`,
-    unmarknsfw: 'Removed NSFW tag',
-    unspoiler: 'Removed spoiler tag',
-  };
-
-  return `${labels[action] ?? `Recorded ${action}`} outside Firewatch by ${actor}`;
-};
-
 export const recordExternalModAction = async ({
   action,
   moderatorName,
@@ -935,116 +852,6 @@ export const banUserAndRemoveComments = async (
   return refreshedIncident;
 };
 
-const postActionControl = (
-  action: NativePostAction
-): keyof FirewatchConfig['actionControls'] => {
-  switch (action) {
-    case 'approve':
-      return 'approvePosts';
-    case 'remove':
-      return 'removePosts';
-    case 'spam':
-      return 'markPostSpam';
-    case 'unlock':
-      return 'unlockPost';
-    case 'mark-nsfw':
-    case 'unmark-nsfw':
-      return 'markPostNsfw';
-    case 'mark-spoiler':
-    case 'unmark-spoiler':
-      return 'markPostSpoiler';
-    case 'ignore-reports':
-    case 'unignore-reports':
-      return 'ignoreReports';
-    case 'crowd-control':
-      return 'crowdControl';
-    case 'set-flair':
-      return 'setPostFlair';
-  }
-};
-
-const nativePostActionType = (
-  action: NativePostAction
-): IncidentAction['type'] => {
-  switch (action) {
-    case 'approve':
-      return 'post_approved';
-    case 'remove':
-      return 'post_removed';
-    case 'spam':
-      return 'post_spammed';
-    case 'unlock':
-      return 'post_unlocked';
-    case 'mark-nsfw':
-    case 'unmark-nsfw':
-      return 'post_nsfw';
-    case 'mark-spoiler':
-    case 'unmark-spoiler':
-      return 'post_spoiler';
-    case 'ignore-reports':
-      return 'post_reports_ignored';
-    case 'unignore-reports':
-      return 'post_reports_unignored';
-    case 'crowd-control':
-      return 'post_crowd_control';
-    case 'set-flair':
-      return 'post_flaired';
-  }
-};
-
-const postActionDetail = ({
-  action,
-  crowdControlLevel,
-  flairText,
-  reason,
-}: {
-  action: NativePostAction;
-  crowdControlLevel?: CrowdControlLevel;
-  flairText?: string;
-  reason?: string;
-}) => {
-  switch (action) {
-    case 'approve':
-      return 'Approved post';
-    case 'remove':
-      return `Removed post${reason ? `: ${reason}` : ''}`;
-    case 'spam':
-      return `Removed post as spam${reason ? `: ${reason}` : ''}`;
-    case 'unlock':
-      return 'Unlocked post';
-    case 'mark-nsfw':
-      return 'Marked post NSFW';
-    case 'unmark-nsfw':
-      return 'Removed NSFW tag';
-    case 'mark-spoiler':
-      return 'Marked post spoiler';
-    case 'unmark-spoiler':
-      return 'Removed spoiler tag';
-    case 'ignore-reports':
-      return 'Ignored future reports on post';
-    case 'unignore-reports':
-      return 'Stopped ignoring post reports';
-    case 'crowd-control':
-      return `Set crowd control to ${crowdControlLevel ?? 'MEDIUM'}`;
-    case 'set-flair':
-      return flairText ? `Set post flair to "${flairText}"` : 'Set post flair';
-  }
-};
-
-const validateCrowdControlLevel = (
-  level: string | undefined
-): CrowdControlLevel => {
-  if (
-    level === 'OFF' ||
-    level === 'LENIENT' ||
-    level === 'MEDIUM' ||
-    level === 'STRICT'
-  ) {
-    return level;
-  }
-  return 'MEDIUM';
-};
-
 export const applyNativePostAction = async (
   postId: string,
   values: {
@@ -1069,7 +876,7 @@ export const applyNativePostAction = async (
   const reason = values.reason?.trim();
   const removalNote = trimRemovalNote(reason);
   const flairText = values.flairText?.trim().slice(0, 64);
-  const crowdControlLevel = validateCrowdControlLevel(values.crowdControlLevel);
+  const crowdControlLevel = parseCrowdControlLevel(values.crowdControlLevel);
 
   switch (values.action) {
     case 'approve':
@@ -1132,75 +939,6 @@ export const applyNativePostAction = async (
     }),
     targetIds: [normalizedPostId],
   });
-};
-
-const commentActionControl = (
-  action: NativeCommentAction
-): keyof FirewatchConfig['actionControls'] => {
-  switch (action) {
-    case 'spam':
-      return 'markCommentSpam';
-    case 'lock':
-    case 'unlock':
-      return 'lockComments';
-    case 'ignore-reports':
-    case 'unignore-reports':
-      return 'ignoreReports';
-    case 'remove-thread':
-      return 'removeCommentThreads';
-    case 'show-comment':
-      return 'showComments';
-  }
-};
-
-const nativeCommentActionType = (
-  action: NativeCommentAction
-): IncidentAction['type'] => {
-  switch (action) {
-    case 'spam':
-      return 'comment_spammed';
-    case 'lock':
-      return 'comment_locked';
-    case 'unlock':
-      return 'comment_unlocked';
-    case 'ignore-reports':
-      return 'comment_reports_ignored';
-    case 'unignore-reports':
-      return 'comment_reports_unignored';
-    case 'remove-thread':
-      return 'comment_thread_removed';
-    case 'show-comment':
-      return 'comment_shown';
-  }
-};
-
-const commentActionDetail = ({
-  action,
-  count,
-  reason,
-}: {
-  action: NativeCommentAction;
-  count: number;
-  reason?: string;
-}) => {
-  switch (action) {
-    case 'spam':
-      return `Removed comment as spam${reason ? `: ${reason}` : ''}`;
-    case 'lock':
-      return 'Locked comment';
-    case 'unlock':
-      return 'Unlocked comment';
-    case 'ignore-reports':
-      return 'Ignored future reports on comment';
-    case 'unignore-reports':
-      return 'Stopped ignoring comment reports';
-    case 'remove-thread':
-      return `Removed comment thread (${count} comment${count === 1 ? '' : 's'})${
-        reason ? `: ${reason}` : ''
-      }`;
-    case 'show-comment':
-      return 'Marked comment as shown';
-  }
 };
 
 const collectThreadCommentIds = async (
@@ -1301,59 +1039,6 @@ export const applyNativeCommentAction = async (
 
   await saveIncident(refreshedIncident);
   return refreshedIncident;
-};
-
-const userActionControl = (
-  action: NativeUserAction
-): keyof FirewatchConfig['actionControls'] => {
-  switch (action) {
-    case 'approve':
-      return 'approveUsers';
-    case 'mute':
-      return 'muteUsers';
-    case 'add-mod-note':
-      return 'addModNotes';
-    case 'remove-recent-content':
-      return 'removeUserContent';
-  }
-};
-
-const nativeUserActionType = (
-  action: NativeUserAction
-): IncidentAction['type'] => {
-  switch (action) {
-    case 'approve':
-      return 'user_approved';
-    case 'mute':
-      return 'user_muted';
-    case 'add-mod-note':
-      return 'mod_note_added';
-    case 'remove-recent-content':
-      return 'user_content_removed';
-  }
-};
-
-const userActionDetail = ({
-  action,
-  count,
-  note,
-  username,
-}: {
-  action: NativeUserAction;
-  count: number;
-  note?: string;
-  username: string;
-}) => {
-  switch (action) {
-    case 'approve':
-      return `Approved u/${username} in this subreddit`;
-    case 'mute':
-      return `Muted u/${username} from modmail${note ? `: ${note}` : ''}`;
-    case 'add-mod-note':
-      return `Added native mod note for u/${username}${note ? `: ${note}` : ''}`;
-    case 'remove-recent-content':
-      return `Removed ${count} recent item${count === 1 ? '' : 's'} from u/${username}`;
-  }
 };
 
 const trackedCommentIdsByUser = (incident: Incident, username: string) =>

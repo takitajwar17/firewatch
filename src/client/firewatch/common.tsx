@@ -128,24 +128,36 @@ export const FieldBlock = ({
   </div>
 );
 
-export const PlaybookButton = ({
-  disabled,
-  icon,
-  label,
-  loading,
-  onClick,
-  variant = 'secondary',
-}: {
+type PlaybookButtonProps = {
+  className?: string;
   disabled?: boolean;
   icon?: ReactNode;
   label: string;
   loading?: boolean;
+  loadingLabel?: string;
   onClick: () => void;
+  title?: string;
   variant?: 'default' | 'outline' | 'secondary' | 'destructive' | 'ghost';
-}) => (
+};
+
+export const PlaybookButton = ({
+  className,
+  disabled,
+  icon,
+  label,
+  loading,
+  loadingLabel = 'Working',
+  onClick,
+  title,
+  variant = 'secondary',
+}: PlaybookButtonProps) => (
   <Button
-    className="h-8 max-w-full justify-center text-sm font-semibold"
+    className={cn(
+      'h-8 max-w-full justify-center text-sm font-semibold',
+      className
+    )}
     disabled={disabled}
+    title={title}
     variant={variant}
     onClick={onClick}
   >
@@ -154,8 +166,25 @@ export const PlaybookButton = ({
     ) : (
       icon
     )}
-    {loading ? 'Working' : label}
+    {loading ? loadingLabel : label}
   </Button>
+);
+
+export const RedditActionButton = ({
+  action,
+  busyAction,
+  disabled,
+  ...props
+}: {
+  action: string;
+  busyAction: string | undefined;
+  disabled?: boolean;
+} & Omit<PlaybookButtonProps, 'disabled' | 'loading'>) => (
+  <PlaybookButton
+    {...props}
+    disabled={Boolean(busyAction) || Boolean(disabled)}
+    loading={busyAction === action}
+  />
 );
 
 export const MetricCard = ({

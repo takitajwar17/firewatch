@@ -11,7 +11,12 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import { DisclosurePanel, EmptyText, PanelLabel } from './common';
+import {
+  DisclosurePanel,
+  EmptyText,
+  PanelLabel,
+  RedditActionButton,
+} from './common';
 import { formatUsername } from './format';
 import type { ActionRunner } from './types';
 import type { FirewatchConfig, Incident } from '../../shared/api';
@@ -21,7 +26,6 @@ import {
   RedditHideIcon,
   RedditLinkIcon,
   RedditLockIcon,
-  RedditRefreshIcon,
   RedditRemoveIcon,
   RedditReportIcon,
   RedditSpamIcon,
@@ -168,7 +172,7 @@ export const FlaggedCommentsCard = ({
                             </Button>
                           ) : null}
                           {controls.approveComments ? (
-                            <NativeActionButton
+                            <RedditActionButton
                               action={approveAction}
                               busyAction={busyAction}
                               icon={
@@ -185,7 +189,7 @@ export const FlaggedCommentsCard = ({
                             />
                           ) : null}
                           {controls.removeComments ? (
-                            <NativeActionButton
+                            <RedditActionButton
                               action={removeAction}
                               busyAction={busyAction}
                               icon={
@@ -203,7 +207,7 @@ export const FlaggedCommentsCard = ({
                             />
                           ) : null}
                           {controls.banUsers && controls.removeComments ? (
-                            <NativeActionButton
+                            <RedditActionButton
                               action={banAction}
                               busyAction={busyAction}
                               disabled={!canBanAuthor}
@@ -232,7 +236,7 @@ export const FlaggedCommentsCard = ({
                                 {hasAdvancedCommentActions ? (
                                   <ActionGroup label="Comment">
                                     {controls.markCommentSpam ? (
-                                      <NativeActionButton
+                                      <RedditActionButton
                                         action={spamAction}
                                         busyAction={busyAction}
                                         icon={
@@ -254,7 +258,7 @@ export const FlaggedCommentsCard = ({
                                     ) : null}
                                     {controls.removeCommentThreads &&
                                     controls.removeComments ? (
-                                      <NativeActionButton
+                                      <RedditActionButton
                                         action={threadAction}
                                         busyAction={busyAction}
                                         icon={
@@ -276,7 +280,7 @@ export const FlaggedCommentsCard = ({
                                     ) : null}
                                     {controls.lockComments ? (
                                       <>
-                                        <NativeActionButton
+                                        <RedditActionButton
                                           action={lockAction}
                                           busyAction={busyAction}
                                           icon={
@@ -291,7 +295,7 @@ export const FlaggedCommentsCard = ({
                                             )
                                           }
                                         />
-                                        <NativeActionButton
+                                        <RedditActionButton
                                           action={unlockAction}
                                           busyAction={busyAction}
                                           icon={
@@ -311,7 +315,7 @@ export const FlaggedCommentsCard = ({
                                     ) : null}
                                     {controls.ignoreReports ? (
                                       <>
-                                        <NativeActionButton
+                                        <RedditActionButton
                                           action={ignoreReportsAction}
                                           busyAction={busyAction}
                                           icon={
@@ -326,7 +330,7 @@ export const FlaggedCommentsCard = ({
                                             )
                                           }
                                         />
-                                        <NativeActionButton
+                                        <RedditActionButton
                                           action={watchReportsAction}
                                           busyAction={busyAction}
                                           icon={
@@ -345,7 +349,7 @@ export const FlaggedCommentsCard = ({
                                       </>
                                     ) : null}
                                     {controls.showComments ? (
-                                      <NativeActionButton
+                                      <RedditActionButton
                                         action={showAction}
                                         busyAction={busyAction}
                                         icon={
@@ -367,7 +371,7 @@ export const FlaggedCommentsCard = ({
                                 {hasAdvancedUserActions ? (
                                   <ActionGroup label="User">
                                     {controls.approveUsers ? (
-                                      <NativeActionButton
+                                      <RedditActionButton
                                         action={approveUserAction}
                                         busyAction={busyAction}
                                         disabled={!canBanAuthor}
@@ -385,7 +389,7 @@ export const FlaggedCommentsCard = ({
                                       />
                                     ) : null}
                                     {controls.muteUsers ? (
-                                      <NativeActionButton
+                                      <RedditActionButton
                                         action={muteUserAction}
                                         busyAction={busyAction}
                                         disabled={!canBanAuthor}
@@ -406,7 +410,7 @@ export const FlaggedCommentsCard = ({
                                       />
                                     ) : null}
                                     {controls.addModNotes ? (
-                                      <NativeActionButton
+                                      <RedditActionButton
                                         action={modNoteAction}
                                         busyAction={busyAction}
                                         disabled={!canBanAuthor}
@@ -427,7 +431,7 @@ export const FlaggedCommentsCard = ({
                                       />
                                     ) : null}
                                     {controls.removeUserContent ? (
-                                      <NativeActionButton
+                                      <RedditActionButton
                                         action={removeContentAction}
                                         busyAction={busyAction}
                                         disabled={!canBanAuthor}
@@ -525,42 +529,6 @@ export const FlaggedCommentsCard = ({
     </section>
   );
 };
-
-const NativeActionButton = ({
-  action,
-  busyAction,
-  disabled,
-  icon,
-  label,
-  onClick,
-  title,
-  variant = 'outline',
-}: {
-  action: string;
-  busyAction: string | undefined;
-  disabled?: boolean;
-  icon?: ReactNode;
-  label: string;
-  onClick: () => void;
-  title?: string;
-  variant?: 'outline' | 'secondary' | 'destructive' | 'ghost';
-}) => (
-  <Button
-    className="max-w-full"
-    disabled={Boolean(busyAction) || disabled}
-    size="sm"
-    title={title}
-    variant={variant}
-    onClick={onClick}
-  >
-    {busyAction === action ? (
-      <RedditRefreshIcon className="animate-spin" data-icon="inline-start" />
-    ) : (
-      icon
-    )}
-    {busyAction === action ? 'Working' : label}
-  </Button>
-);
 
 const ActionGroup = ({
   children,

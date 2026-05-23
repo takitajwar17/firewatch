@@ -34,6 +34,10 @@ import type {
   NativePostAction,
 } from '../../shared/api';
 import {
+  CROWD_CONTROL_OPTIONS,
+  parseCrowdControlLevel,
+} from '../../shared/reddit-actions';
+import {
   RedditApproveIcon,
   RedditCommentIcon,
   RedditDownvoteIcon,
@@ -332,28 +336,6 @@ export const IncidentHero = ({
       </div>
     </section>
   );
-};
-
-const CROWD_CONTROL_OPTIONS: {
-  label: string;
-  value: CrowdControlLevel;
-}[] = [
-  { label: 'Off', value: 'OFF' },
-  { label: 'Lenient', value: 'LENIENT' },
-  { label: 'Medium', value: 'MEDIUM' },
-  { label: 'Strict', value: 'STRICT' },
-];
-
-const parseCrowdControlLevel = (value: string): CrowdControlLevel => {
-  if (
-    value === 'OFF' ||
-    value === 'LENIENT' ||
-    value === 'MEDIUM' ||
-    value === 'STRICT'
-  ) {
-    return value;
-  }
-  return 'MEDIUM';
 };
 
 export const NativePostControlsCard = ({

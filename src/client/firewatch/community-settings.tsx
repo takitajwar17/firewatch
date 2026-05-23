@@ -1,6 +1,5 @@
 import { useState, type ComponentProps } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
@@ -14,14 +13,24 @@ import {
   DEFAULT_DEMO_SCENARIO_ID,
   FIREWATCH_DEMO_SCENARIOS,
 } from '../../shared/firewatch-presets';
-import { DisclosurePanel, FieldBlock, SectionHeader } from './common';
+import {
+  CONFIG_ACTION_CONTROL_GROUPS,
+  CONFIG_CORE_ACTION_FIELDS,
+  CONFIG_SIGNAL_WEIGHT_FIELDS,
+  type ConfigActionControlField,
+} from '../../shared/firewatch-config';
+import {
+  DisclosurePanel,
+  FieldBlock,
+  PlaybookButton,
+  SectionHeader,
+} from './common';
 import { splitList } from './format';
 import type { FirewatchConfig } from '../../shared/api';
 import type { ConfigSaveHandler, DemoCreateHandler } from './types';
 import {
   RedditAddIcon,
   RedditApproveIcon,
-  RedditRefreshIcon,
   RedditRemoveIcon,
   RedditReportIcon,
 } from './reddit-icons';
@@ -187,7 +196,7 @@ const CommunityFiltersCard = ({
                 Firewatch raise attention faster.
               </p>
               <div className="grid min-w-0 gap-3 md:grid-cols-2">
-                {SIGNAL_WEIGHT_FIELDS.map((field) => (
+                {CONFIG_SIGNAL_WEIGHT_FIELDS.map((field) => (
                   <ThresholdInput
                     key={field.id}
                     id={`weight-${field.id}`}
@@ -238,9 +247,14 @@ const CommunityFiltersCard = ({
           </Alert>
         ) : null}
 
-        <Button
-          className="h-8 w-full text-sm font-semibold sm:w-fit"
+        <PlaybookButton
+          className="w-full sm:w-fit"
           disabled={busy || invalidThresholds}
+          icon={<RedditApproveIcon data-icon="inline-start" />}
+          label="Save settings"
+          loading={busy}
+          loadingLabel="Saving"
+          variant="default"
           onClick={() =>
             onSave({
               keywords,
@@ -253,76 +267,11 @@ const CommunityFiltersCard = ({
               signalWeights,
             })
           }
-        >
-          {busy ? (
-            <RedditRefreshIcon
-              className="animate-spin"
-              data-icon="inline-start"
-            />
-          ) : (
-            <RedditApproveIcon data-icon="inline-start" />
-          )}
-          {busy ? 'Saving' : 'Save settings'}
-        </Button>
+        />
       </CardContent>
     </Card>
   );
 };
-
-const SIGNAL_WEIGHT_FIELDS: {
-  id: keyof FirewatchConfig['signalWeights'];
-  label: string;
-}[] = [
-  { id: 'commentVelocity', label: 'New comments weight' },
-  { id: 'reports', label: 'Reports weight' },
-  { id: 'watchedWords', label: 'Watched words weight' },
-  { id: 'watchedDomains', label: 'Watched domains weight' },
-  { id: 'replyPileOns', label: 'Reply clusters weight' },
-  { id: 'repeatedWording', label: 'Repeated wording weight' },
-  { id: 'recentRemovals', label: 'Recent removals weight' },
-  { id: 'manualSend', label: 'Manual send weight' },
-];
-
-type ActionControlField = {
-  id: keyof FirewatchConfig['actionControls'];
-  label: string;
-};
-
-const CORE_ACTION_FIELDS: ActionControlField[] = [
-  { id: 'approveComments', label: 'Approve comments' },
-  { id: 'removeComments', label: 'Remove comments' },
-  { id: 'banUsers', label: 'Ban users' },
-  { id: 'stickyReminder', label: 'Sticky reminders' },
-  { id: 'lockPost', label: 'Lock posts' },
-  { id: 'handoffNotes', label: 'Handoff notes' },
-  { id: 'markHandled', label: 'Mark handled' },
-];
-
-const POST_ACTION_FIELDS: ActionControlField[] = [
-  { id: 'approvePosts', label: 'Approve posts' },
-  { id: 'removePosts', label: 'Remove posts' },
-  { id: 'markPostSpam', label: 'Spam posts' },
-  { id: 'unlockPost', label: 'Unlock posts' },
-  { id: 'markPostNsfw', label: 'Mark posts NSFW' },
-  { id: 'markPostSpoiler', label: 'Mark posts spoiler' },
-  { id: 'ignoreReports', label: 'Ignore reports' },
-  { id: 'crowdControl', label: 'Crowd Control' },
-  { id: 'setPostFlair', label: 'Set post flair' },
-];
-
-const COMMENT_ACTION_FIELDS: ActionControlField[] = [
-  { id: 'markCommentSpam', label: 'Spam comments' },
-  { id: 'lockComments', label: 'Lock comments' },
-  { id: 'removeCommentThreads', label: 'Remove comment threads' },
-  { id: 'showComments', label: 'Show comments' },
-];
-
-const USER_ACTION_FIELDS: ActionControlField[] = [
-  { id: 'approveUsers', label: 'Approve users' },
-  { id: 'muteUsers', label: 'Mute users' },
-  { id: 'addModNotes', label: 'Add mod notes' },
-  { id: 'removeUserContent', label: 'Remove user content' },
-];
 
 const ActionPermissionsControl = ({
   actionControls,
@@ -352,7 +301,7 @@ const ActionPermissionsControl = ({
 
       <ActionToggleGroup
         actionControls={actionControls}
-        fields={CORE_ACTION_FIELDS}
+        fields={CONFIG_CORE_ACTION_FIELDS}
         onChange={toggleAction}
       />
 
@@ -361,24 +310,17 @@ const ActionPermissionsControl = ({
         title="Advanced Reddit permissions"
       >
         <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
-          <ActionToggleGroup
-            actionControls={actionControls}
-            fields={POST_ACTION_FIELDS}
-            title="Post"
-            onChange={toggleAction}
-          />
-          <ActionToggleGroup
-            actionControls={actionControls}
-            fields={COMMENT_ACTION_FIELDS}
-            title="Comment"
-            onChange={toggleAction}
-          />
-          <ActionToggleGroup
-            actionControls={actionControls}
-            fields={USER_ACTION_FIELDS}
-            title="User"
-            onChange={toggleAction}
-          />
+          {CONFIG_ACTION_CONTROL_GROUPS.slice(1).map((group) => (
+            <ActionToggleGroup
+              key={
+                group.title ?? group.fields.map((field) => field.id).join(':')
+              }
+              actionControls={actionControls}
+              fields={group.fields}
+              title={group.title ?? ''}
+              onChange={toggleAction}
+            />
+          ))}
         </div>
       </DisclosurePanel>
     </div>
@@ -392,7 +334,7 @@ const ActionToggleGroup = ({
   title,
 }: {
   actionControls: FirewatchConfig['actionControls'];
-  fields: ActionControlField[];
+  fields: ConfigActionControlField[];
   onChange: (
     id: keyof FirewatchConfig['actionControls'],
     checked: boolean
@@ -523,22 +465,24 @@ const CommunityToolsCard = ({
           {selectedScenarioDescription}
         </p>
         <div className="grid min-w-0 gap-2 sm:grid-cols-2 xl:grid-cols-1">
-          <Button
+          <PlaybookButton
             disabled={busyAction === 'demo'}
+            icon={<RedditAddIcon data-icon="inline-start" />}
+            label="Create demo"
+            loading={busyAction === 'demo'}
+            loadingLabel="Creating"
             variant="outline"
             onClick={() => onCreateDemo(scenarioId)}
-          >
-            <RedditAddIcon data-icon="inline-start" />
-            {busyAction === 'demo' ? 'Creating' : 'Create demo'}
-          </Button>
-          <Button
+          />
+          <PlaybookButton
             disabled={!hasDemoIncidents || busyAction === 'reset-demo'}
+            icon={<RedditRemoveIcon data-icon="inline-start" />}
+            label="Reset demos"
+            loading={busyAction === 'reset-demo'}
+            loadingLabel="Clearing"
             variant="ghost"
             onClick={onResetDemos}
-          >
-            <RedditRemoveIcon data-icon="inline-start" />
-            {busyAction === 'reset-demo' ? 'Clearing' : 'Reset demos'}
-          </Button>
+          />
         </div>
       </CardContent>
     </Card>

@@ -3,6 +3,7 @@ import type {
   IncidentLevel,
   IncidentSignal,
 } from '../../shared/api';
+import { EMPTY_CONFIG } from '../../shared/firewatch-config';
 
 export const statusBadgeVariant: Record<
   string,
@@ -28,65 +29,25 @@ export const levelBadgeVariant: Record<
   wildfire: 'destructive',
 };
 
-export const emptyConfig: FirewatchConfig = {
-  keywords: [],
-  suspiciousDomains: [],
-  heatThreshold: 35,
-  fireThreshold: 65,
-  wildfireThreshold: 85,
-  reminderText:
-    'Mod note: Please keep this discussion civil, stay on topic, and follow the community rules. Rule-breaking comments may be removed.',
-  actionControls: {
-    approveComments: true,
-    removeComments: true,
-    banUsers: true,
-    stickyReminder: true,
-    lockPost: true,
-    unlockPost: true,
-    approvePosts: true,
-    removePosts: true,
-    markPostSpam: true,
-    markPostNsfw: true,
-    markPostSpoiler: true,
-    ignoreReports: true,
-    crowdControl: true,
-    setPostFlair: true,
-    lockComments: true,
-    markCommentSpam: true,
-    removeCommentThreads: true,
-    showComments: true,
-    approveUsers: true,
-    muteUsers: true,
-    addModNotes: true,
-    removeUserContent: true,
-    handoffNotes: true,
-    markHandled: true,
-  },
-  signalWeights: {
-    commentVelocity: 6,
-    reports: 15,
-    watchedWords: 8,
-    watchedDomains: 10,
-    replyPileOns: 15,
-    repeatedWording: 5,
-    recentRemovals: 8,
-    manualSend: 25,
-  },
-};
+export const emptyConfig: FirewatchConfig = EMPTY_CONFIG;
+
+const timeFormatter = new Intl.DateTimeFormat(undefined, {
+  hour: 'numeric',
+  minute: '2-digit',
+});
+
+const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
+  month: 'short',
+  day: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+});
 
 export const formatTime = (timestamp: number) =>
-  new Intl.DateTimeFormat(undefined, {
-    hour: 'numeric',
-    minute: '2-digit',
-  }).format(new Date(timestamp));
+  timeFormatter.format(new Date(timestamp));
 
 export const formatDateTime = (timestamp: number) =>
-  new Intl.DateTimeFormat(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  }).format(new Date(timestamp));
+  dateTimeFormatter.format(new Date(timestamp));
 
 export const formatStatus = (status: string) => {
   const labels: Record<string, string> = {
@@ -107,7 +68,11 @@ export const formatStatus = (status: string) => {
 
 export const formatUsername = (username: string | undefined) => {
   const normalized = username?.trim().replace(/^u\//i, '');
-  if (!normalized || normalized.startsWith('t2_') || normalized === 'unknown user') {
+  if (
+    !normalized ||
+    normalized.startsWith('t2_') ||
+    normalized === 'unknown user'
+  ) {
     return 'unknown user';
   }
   return `u/${normalized}`;
