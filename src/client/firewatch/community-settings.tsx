@@ -52,6 +52,7 @@ import type {
 import {
   RedditAddIcon,
   RedditApproveIcon,
+  RedditChevronDownIcon,
   RedditRemoveIcon,
   RedditReportIcon,
 } from './reddit-icons';
@@ -712,23 +713,26 @@ const RuleSelect = <Value extends string>({
   value: Value;
 }) => (
   <FieldBlock htmlFor={id} label={label}>
-    <select
-      id={id}
-      className="h-9 w-full min-w-0 rounded-full border border-transparent bg-secondary px-4 text-sm outline-none hover:bg-accent focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/25"
-      value={value}
-      onChange={(event) => {
-        const option = options.find(
-          (item) => item.value === event.target.value
-        );
-        if (option) onChange(option.value);
-      }}
-    >
-      {options.map((option) => (
-        <option key={option.value} value={option.value}>
-          {option.label}
-        </option>
-      ))}
-    </select>
+    <div className="relative min-w-0">
+      <select
+        id={id}
+        className="h-9 w-full min-w-0 appearance-none rounded-full border border-transparent bg-secondary py-0 pr-11 pl-4 text-sm outline-none hover:bg-accent focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/25"
+        value={value}
+        onChange={(event) => {
+          const option = options.find(
+            (item) => item.value === event.target.value
+          );
+          if (option) onChange(option.value);
+        }}
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      <RedditChevronDownIcon className="pointer-events-none absolute top-1/2 right-4 size-4 -translate-y-1/2 text-muted-foreground" />
+    </div>
   </FieldBlock>
 );
 

@@ -76,6 +76,12 @@ export const RedditDownvoteIcon = (props: RedditIconProps) => (
   </RedditIcon>
 );
 
+export const RedditChevronDownIcon = (props: RedditIconProps) => (
+  <RedditIcon {...props}>
+    <path d="M10 13.2a.9.9 0 01-.637-.264l-5.1-5.1a.9.9 0 111.274-1.272L10 11.027l4.463-4.463a.9.9 0 111.273 1.272l-5.1 5.1A.9.9 0 0110 13.2z" />
+  </RedditIcon>
+);
+
 export const RedditMoreIcon = (props: RedditIconProps) => (
   <RedditIcon {...props}>
     <path d="M16 11.75a1.75 1.75 0 11.001-3.501A1.75 1.75 0 0116 11.75zM11.75 10a1.75 1.75 0 10-3.501.001A1.75 1.75 0 0011.75 10zm-6 0a1.75 1.75 0 10-3.501.001A1.75 1.75 0 005.75 10z" />
