@@ -41,12 +41,12 @@ export const CommunitySettingsPage = ({
   onResetDemos: () => void;
   onSaveConfig: ConfigSaveHandler;
 }) => (
-  <div className="flex flex-col gap-5">
+  <div className="flex min-w-0 flex-col gap-4 sm:gap-5">
     <SectionHeader
       title="Settings"
       description="Watched terms, thresholds, and mod actions."
     />
-    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 sm:gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
       <CommunityFiltersCard
         key={[
           config.keywords.join('|'),
@@ -158,7 +158,7 @@ const CommunityFiltersCard = ({
                 Firewatch uses these scores to label posts for review, action,
                 and lockdown-level attention.
               </p>
-              <div className="grid gap-3 md:grid-cols-3">
+              <div className="grid min-w-0 gap-3 md:grid-cols-3">
                 <ThresholdInput
                   id="review"
                   label="Review at"
@@ -186,7 +186,7 @@ const CommunityFiltersCard = ({
                 Set a weight to 0 to ignore that signal. Higher weights make
                 Firewatch raise attention faster.
               </p>
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className="grid min-w-0 gap-3 md:grid-cols-2">
                 {SIGNAL_WEIGHT_FIELDS.map((field) => (
                   <ThresholdInput
                     key={field.id}
@@ -239,7 +239,7 @@ const CommunityFiltersCard = ({
         ) : null}
 
         <Button
-          className="h-8 w-fit text-sm font-semibold"
+          className="h-8 w-full text-sm font-semibold sm:w-fit"
           disabled={busy || invalidThresholds}
           onClick={() =>
             onSave({
@@ -360,7 +360,7 @@ const ActionPermissionsControl = ({
         description="Post, comment, and user tools shown in contextual action menus."
         title="Advanced Reddit permissions"
       >
-        <div className="grid gap-4">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
           <ActionToggleGroup
             actionControls={actionControls}
             fields={POST_ACTION_FIELDS}
@@ -405,7 +405,7 @@ const ActionToggleGroup = ({
         {title}
       </p>
     ) : null}
-    <div className="grid gap-2 md:grid-cols-2">
+    <div className="grid min-w-0 gap-2 md:grid-cols-2">
       {fields.map((field) => (
         <label
           key={field.id}
@@ -439,7 +439,7 @@ const SettingsTextarea = ({
 }: ComponentProps<'textarea'>) => (
   <textarea
     className={cn(
-      'min-h-24 w-full resize-y rounded-lg border border-transparent bg-secondary px-4 py-3 text-sm leading-6 outline-none transition-colors placeholder:text-muted-foreground hover:bg-accent focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/25 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-50',
+      'min-h-24 w-full min-w-0 resize-y rounded-lg border border-transparent bg-secondary px-4 py-3 text-sm leading-6 outline-none transition-colors placeholder:text-muted-foreground hover:bg-accent focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/25 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-50',
       className
     )}
     {...props}
@@ -503,7 +503,7 @@ const CommunityToolsCard = ({
         <FieldBlock htmlFor="fw-demo-scenario" label="Demo scenario">
           <select
             id="fw-demo-scenario"
-            className="h-9 rounded-full border border-transparent bg-secondary px-4 text-sm outline-none hover:bg-accent focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/25"
+            className="h-9 w-full min-w-0 rounded-full border border-transparent bg-secondary px-4 text-sm outline-none hover:bg-accent focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/25"
             value={scenarioId}
             onChange={(event) => {
               const nextScenario = FIREWATCH_DEMO_SCENARIOS.find(
@@ -522,7 +522,7 @@ const CommunityToolsCard = ({
         <p className="rounded-lg border bg-muted/60 p-3 text-sm leading-5 text-muted-foreground">
           {selectedScenarioDescription}
         </p>
-        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+        <div className="grid min-w-0 gap-2 sm:grid-cols-2 xl:grid-cols-1">
           <Button
             disabled={busyAction === 'demo'}
             variant="outline"

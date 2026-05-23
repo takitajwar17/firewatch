@@ -58,8 +58,8 @@ export const FirewatchShell = ({
           onViewChange={onViewChange}
           subredditName={subredditName}
         />
-        <main className="flex min-h-0 min-w-0 flex-1 justify-center overflow-x-hidden overflow-y-auto overscroll-contain bg-background px-3 py-0 sm:px-5 lg:px-6">
-          <div className="flex min-w-0 w-full max-w-[1520px] flex-col gap-4 py-4 lg:py-5">
+        <main className="flex min-h-0 min-w-0 flex-1 justify-center overflow-x-hidden overflow-y-auto overscroll-contain bg-background px-2 py-0 sm:px-5 lg:px-6">
+          <div className="flex min-w-0 w-full max-w-[1520px] flex-col gap-3 py-3 sm:gap-4 sm:py-4 lg:py-5">
             {activeView === 'queue' ? (
               <MobileIncidentStrip
                 incidents={incidents}
@@ -248,9 +248,9 @@ const WorkspaceHeader = ({
   };
 
   return (
-    <header className="flex min-h-14 items-center justify-between gap-4 border-b border-border bg-background px-4 py-2 sm:px-5 lg:px-6">
+    <header className="flex min-h-14 items-center justify-between gap-3 border-b border-border bg-background px-3 py-2 sm:gap-4 sm:px-5 lg:px-6">
       <div className="flex min-w-0 items-center gap-3 lg:hidden">
-        <SubredditAvatar />
+        <SubredditAvatar size="sm" />
         <div className="min-w-0">
           <p className="truncate text-base font-bold">Firewatch</p>
           <p className="truncate text-xs leading-5 text-muted-foreground">
@@ -329,8 +329,13 @@ const NoticeToast = ({ notice }: { notice: Notice }) => (
   </div>
 );
 
-const SubredditAvatar = () => (
-  <span className="flex size-9 shrink-0 items-center justify-center rounded-full border border-border bg-[#eef1f3] text-xl font-black leading-none text-[#0e1113]">
+const SubredditAvatar = ({ size = 'default' }: { size?: 'default' | 'sm' }) => (
+  <span
+    className={cn(
+      'flex shrink-0 items-center justify-center rounded-full border border-border bg-[#eef1f3] font-black leading-none text-[#0e1113]',
+      size === 'sm' ? 'size-8 text-lg' : 'size-9 text-xl'
+    )}
+  >
     r/
   </span>
 );
@@ -355,8 +360,8 @@ const MobileIncidentStrip = ({
       <Badge variant="outline">{incidents.length}</Badge>
     </div>
     {incidents.length ? (
-      <div className="-mx-3 overflow-x-auto px-3 pb-2 sm:-mx-5 sm:px-5">
-        <div className="flex w-max gap-2">
+      <div className="no-scrollbar -mx-2 overflow-x-auto overscroll-x-contain px-2 pb-2 sm:-mx-5 sm:px-5">
+        <div className="flex w-max max-w-none snap-x snap-mandatory gap-2">
           {incidents.map((incident) => (
             <IncidentQueueItem
               key={incident.postId}
@@ -390,7 +395,7 @@ const IncidentQueueItem = ({
       'ui-feedback w-full rounded-md border p-3 text-left transition-colors focus-visible:ring-2 focus-visible:ring-ring/35 focus-visible:outline-none',
       surface === 'dark'
         ? 'border-transparent bg-transparent hover:bg-sidebar-accent'
-        : 'w-[280px] border-border bg-card hover:bg-accent',
+        : 'w-[min(17.5rem,calc(100vw-1rem))] snap-start border-border bg-card hover:bg-accent',
       selected &&
         (surface === 'dark'
           ? 'border-sidebar-border bg-sidebar-accent'

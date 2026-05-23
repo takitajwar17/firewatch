@@ -52,7 +52,7 @@ export const FlaggedCommentsCard = ({
   const controls = config.actionControls;
 
   return (
-    <section className="rounded-lg border border-border bg-background">
+    <section className="min-w-0 rounded-lg border border-border bg-background">
       <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border px-3 py-3 sm:px-4">
         <div className="min-w-0">
           <h3 className="text-base font-bold leading-5">Needs review</h3>
@@ -119,7 +119,7 @@ export const FlaggedCommentsCard = ({
                 return (
                   <article
                     key={comment.id}
-                    className="border-b border-border px-3 py-3 last:border-b-0 sm:px-4"
+                    className="min-w-0 overflow-hidden border-b border-border px-3 py-3 last:border-b-0 sm:px-4"
                   >
                     <div className="flex gap-3">
                       <img
@@ -142,7 +142,11 @@ export const FlaggedCommentsCard = ({
                             attention {comment.score}
                           </span>
                           {comment.reasons.map((reason) => (
-                            <Badge key={reason} variant="secondary">
+                            <Badge
+                              key={reason}
+                              className="max-w-full"
+                              variant="secondary"
+                            >
                               {reason}
                             </Badge>
                           ))}
@@ -151,9 +155,10 @@ export const FlaggedCommentsCard = ({
                           {comment.body}
                         </p>
 
-                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <div className="mt-3 flex flex-wrap items-center gap-1.5 sm:gap-2">
                           {permalink ? (
                             <Button
+                              className="max-w-full"
                               size="sm"
                               variant="ghost"
                               onClick={() => navigateTo(permalink)}
@@ -164,6 +169,7 @@ export const FlaggedCommentsCard = ({
                           ) : null}
                           {controls.approveComments ? (
                             <Button
+                              className="max-w-full"
                               disabled={Boolean(busyAction)}
                               size="sm"
                               variant="secondary"
@@ -189,6 +195,7 @@ export const FlaggedCommentsCard = ({
                           ) : null}
                           {controls.removeComments ? (
                             <Button
+                              className="max-w-full"
                               disabled={Boolean(busyAction)}
                               size="sm"
                               variant="secondary"
@@ -215,6 +222,7 @@ export const FlaggedCommentsCard = ({
                           ) : null}
                           {controls.banUsers && controls.removeComments ? (
                             <Button
+                              className="max-w-full"
                               disabled={Boolean(busyAction) || !canBanAuthor}
                               size="sm"
                               title="Remove this user's recent subreddit content, then ban them from the subreddit."
@@ -508,12 +516,16 @@ export const FlaggedCommentsCard = ({
                           {formatUsername(comment.author)} -{' '}
                           {comment.removed ? 'removed' : 'approved'}
                         </p>
-                        <p className="mt-2 line-clamp-2 text-sm leading-5 text-muted-foreground">
+                        <p className="mt-2 line-clamp-2 break-words text-sm leading-5 text-muted-foreground">
                           {comment.body}
                         </p>
                         <div className="mt-2 flex flex-wrap gap-1.5">
                           {comment.reasons.map((reason) => (
-                            <Badge key={reason} variant="secondary">
+                            <Badge
+                              key={reason}
+                              className="max-w-full"
+                              variant="secondary"
+                            >
                               {reason}
                             </Badge>
                           ))}
@@ -560,6 +572,7 @@ const NativeActionButton = ({
   variant?: 'outline' | 'destructive' | 'ghost';
 }) => (
   <Button
+    className="max-w-full"
     disabled={Boolean(busyAction) || disabled}
     size="sm"
     variant={variant}
@@ -585,7 +598,7 @@ const ActionGroup = ({
     <p className="text-xs font-semibold leading-5 text-muted-foreground">
       {label}
     </p>
-    <div className="flex flex-wrap gap-2">{children}</div>
+    <div className="flex min-w-0 flex-wrap gap-2">{children}</div>
   </div>
 );
 
@@ -603,9 +616,11 @@ export const RepeatedPhrasesCard = ({ incident }: { incident: Incident }) => (
       ) : (
         <div className="flex flex-col gap-3">
           {incident.repeatedPhrases.map((phrase) => (
-            <div key={phrase.phrase} className="rounded-lg border p-3">
-              <p className="text-sm font-semibold leading-5">{phrase.phrase}</p>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            <div key={phrase.phrase} className="min-w-0 rounded-lg border p-3">
+              <p className="break-words text-sm font-semibold leading-5">
+                {phrase.phrase}
+              </p>
+              <p className="mt-1 break-words text-xs leading-5 text-muted-foreground">
                 {phrase.count} matches
                 {phrase.authors.length
                   ? ` - ${phrase.authors.map(formatUsername).join(', ')}`

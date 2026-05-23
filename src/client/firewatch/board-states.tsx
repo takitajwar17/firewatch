@@ -15,15 +15,15 @@ export const LoadingBoard = () => (
       <Skeleton className="h-8 w-64" />
       <Skeleton className="h-5 w-96 max-w-full" />
     </div>
-    <div className="grid gap-3 md:grid-cols-4">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-3 sm:grid-cols-2 md:grid-cols-4">
       <Skeleton className="h-20 rounded-lg" />
       <Skeleton className="h-20 rounded-lg" />
       <Skeleton className="h-20 rounded-lg" />
       <Skeleton className="h-20 rounded-lg" />
     </div>
-    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-      <Skeleton className="h-[520px] rounded-lg" />
-      <Skeleton className="h-[520px] rounded-lg" />
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-3 sm:gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <Skeleton className="h-[360px] rounded-lg sm:h-[520px]" />
+      <Skeleton className="h-[320px] rounded-lg sm:h-[520px]" />
     </div>
   </div>
 );
@@ -55,7 +55,7 @@ export const EmptyBoard = ({
   busy: boolean;
   onCreateDemo: DemoCreateHandler;
 }) => (
-  <div className="mx-auto flex w-full max-w-md flex-col gap-4 py-8">
+  <div className="mx-auto flex w-full max-w-md flex-col gap-4 py-6 sm:py-8">
     <div className="flex flex-col gap-2.5">
       <h1 className="text-xl font-semibold leading-tight">
         No posts need review

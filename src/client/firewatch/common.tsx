@@ -85,7 +85,7 @@ export const DisclosurePanel = ({
   title: string;
 }) => (
   <details
-    className="group rounded-lg border border-border bg-muted/45 open:bg-muted/70"
+    className="group overflow-hidden rounded-lg border border-border bg-muted/45 open:bg-muted/70"
     open={defaultOpen}
   >
     <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 hover:bg-accent/60 [&::-webkit-details-marker]:hidden">
@@ -99,7 +99,7 @@ export const DisclosurePanel = ({
       </span>
       <RedditMoreIcon className="size-4 shrink-0 rotate-90 text-muted-foreground transition-transform group-open:rotate-0" />
     </summary>
-    <div className="border-t px-3 py-3">{children}</div>
+    <div className="min-w-0 border-t px-3 py-3">{children}</div>
   </details>
 );
 
@@ -144,7 +144,7 @@ export const PlaybookButton = ({
   variant?: 'default' | 'outline' | 'secondary' | 'destructive' | 'ghost';
 }) => (
   <Button
-    className="h-8 justify-center text-sm font-semibold"
+    className="h-8 max-w-full justify-center text-sm font-semibold"
     disabled={disabled}
     variant={variant}
     onClick={onClick}

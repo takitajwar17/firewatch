@@ -58,7 +58,7 @@ export const IncidentIntro = ({ incident }: { incident: Incident }) => {
 
   return (
     <section className="overflow-hidden border-b border-border bg-background text-card-foreground">
-      <div className="grid max-w-full gap-4 py-4 xl:grid-cols-[minmax(0,1fr)_220px] xl:items-start">
+      <div className="grid max-w-full grid-cols-[minmax(0,1fr)] gap-4 py-4 xl:grid-cols-[minmax(0,1fr)_220px] xl:items-start">
         <article className="min-w-0 max-w-full">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
             <img
@@ -82,10 +82,10 @@ export const IncidentIntro = ({ incident }: { incident: Incident }) => {
             ) : null}
           </div>
 
-          <h1 className="mt-3 w-full max-w-[calc(100vw-2rem)] break-words text-2xl font-bold leading-tight text-foreground sm:max-w-4xl">
+          <h1 className="mt-3 w-full max-w-full break-words text-xl font-bold leading-tight text-foreground sm:text-2xl">
             {incident.title}
           </h1>
-          <p className="mt-2 w-full max-w-[20rem] whitespace-normal break-words text-sm leading-6 text-muted-foreground sm:max-w-3xl">
+          <p className="mt-2 w-full max-w-full whitespace-normal break-words text-sm leading-6 text-muted-foreground sm:max-w-3xl">
             {incident.responseSuggestion.detail}
           </p>
 
@@ -124,7 +124,7 @@ const AttentionScoreRail = ({ incident }: { incident: Incident }) => {
   return (
     <aside
       aria-label={`Attention score ${incident.score}`}
-      className="rounded-2xl border border-border bg-muted/30 px-3 py-3 text-sm"
+      className="max-w-full rounded-lg border border-border bg-muted/30 px-3 py-3 text-sm"
     >
       <div className="flex items-center justify-between gap-3">
         <span className="text-xs font-semibold leading-4 text-muted-foreground">
@@ -193,7 +193,7 @@ const PostMetricPill = ({
 }) => (
   <span
     aria-label={ariaLabel}
-    className="inline-flex h-8 items-center gap-1.5 rounded-full bg-secondary px-2.5 text-sm font-semibold text-secondary-foreground [&_svg]:size-4"
+    className="inline-flex h-7 items-center gap-1.5 rounded-full bg-secondary px-2.5 text-xs font-semibold text-secondary-foreground sm:h-8 sm:text-sm [&_svg]:size-4"
     role="img"
   >
     <span className="text-foreground">{icon}</span>
@@ -470,7 +470,7 @@ export const NativePostControlsCard = ({
             title="More post actions"
           >
             <div className="flex flex-col gap-3">
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid min-w-0 gap-2 sm:grid-cols-2">
                 {controls.markPostNsfw ? (
                   <>
                     <PlaybookButton
@@ -534,7 +534,7 @@ export const NativePostControlsCard = ({
               </div>
 
               {controls.setPostFlair ? (
-                <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_140px]">
+                <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_140px]">
                   <FieldInput
                     label="Post flair"
                     value={flairText}
@@ -561,10 +561,10 @@ export const NativePostControlsCard = ({
                   >
                     Crowd Control
                   </label>
-                  <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_120px]">
+                  <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_120px]">
                     <select
                       id="fw-crowd-control"
-                      className="h-9 w-full rounded-full border border-transparent bg-secondary px-4 text-sm outline-none hover:bg-accent focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/25"
+                      className="h-9 w-full min-w-0 rounded-full border border-transparent bg-secondary px-4 text-sm outline-none hover:bg-accent focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/25"
                       value={crowdControlLevel}
                       onChange={(event) =>
                         setCrowdControlLevel(
@@ -608,7 +608,7 @@ const FieldInput = ({
   onChange: (value: string) => void;
   value: string;
 }) => (
-  <label className="flex flex-col gap-2">
+  <label className="flex min-w-0 flex-col gap-2">
     <span className="text-[13px] font-semibold leading-none">{label}</span>
     <Input value={value} onChange={(event) => onChange(event.target.value)} />
   </label>
@@ -729,7 +729,7 @@ export const RiskReasonsCard = ({ incident }: { incident: Incident }) => (
                     {reason.detail}
                   </p>
                   {reason.evidence?.length ? (
-                    <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">
+                    <p className="mt-2 line-clamp-2 break-words text-xs leading-5 text-muted-foreground">
                       {reason.evidence.join(', ')}
                     </p>
                   ) : null}
@@ -801,7 +801,7 @@ export const ParticipantsCard = ({ incident }: { incident: Incident }) => (
                   <p className="truncate text-sm font-semibold leading-5">
                     {formatUsername(user.username)}
                   </p>
-                  <p className="text-xs leading-5 text-muted-foreground">
+                  <p className="break-words text-xs leading-5 text-muted-foreground">
                     {pluralize(user.flagged, 'comment')} to review -{' '}
                     {pluralize(user.signals, 'recent event')} -{' '}
                     {pluralize(user.branchCount, 'branch', 'branches')}

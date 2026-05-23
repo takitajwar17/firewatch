@@ -10,19 +10,19 @@ export const Splash = () => {
 
   return (
     <div className="min-h-dvh bg-background text-foreground">
-      <main className="mx-auto flex min-h-dvh max-w-[640px] flex-col justify-center gap-4 px-5 py-8">
+      <main className="mx-auto flex min-h-dvh max-w-[640px] flex-col justify-center gap-4 px-4 py-8 sm:px-5">
         <div className="flex items-center gap-3">
           <span className="flex size-10 items-center justify-center rounded-full border border-border bg-[#eef1f3] text-lg font-black text-[#0e1113]">
             r/
           </span>
-          <div>
+          <div className="min-w-0">
             <h1 className="text-xl font-bold leading-tight">Firewatch</h1>
-            <p className="text-sm font-semibold text-muted-foreground">
+            <p className="break-words text-sm font-semibold text-muted-foreground">
               Mod queue for r/{subredditName}
             </p>
           </div>
         </div>
-        <p className="max-w-[560px] text-sm leading-5 text-muted-foreground">
+        <p className="max-w-[560px] break-words text-sm leading-5 text-muted-foreground">
           Review posts that are picking up reports, watched words, watched
           links, repeated user comments, or post-menu sends.
         </p>

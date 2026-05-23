@@ -37,14 +37,14 @@ export const LatestSignalsCard = ({ incident }: { incident: Incident }) => {
         {visibleSignals.length === 0 ? (
           <EmptyText>No recent activity yet.</EmptyText>
         ) : (
-          <ScrollArea className="max-h-[460px] pr-3">
+          <ScrollArea className="pr-0 sm:max-h-[460px] sm:pr-3">
             <div className="flex flex-col">
               {visibleSignals.slice(0, 16).map((signal, index) => (
                 <div key={signal.id}>
                   {index > 0 ? <Separator /> : null}
-                  <div className="flex items-start justify-between gap-3 py-3">
+                  <div className="flex flex-col gap-1 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold capitalize leading-5">
+                      <p className="break-words text-sm font-semibold capitalize leading-5">
                         {formatSignalType(signal)}
                         {signal.author
                           ? ` - ${formatUsername(signal.author)}`
@@ -150,15 +150,20 @@ export const ActionLogCard = ({
         <EmptyText>No mod actions yet.</EmptyText>
       ) : (
         <ScrollArea
-          className={cn(compact ? 'max-h-[360px]' : 'max-h-[460px]', 'pr-3')}
+          className={cn(
+            compact ? 'sm:max-h-[360px]' : 'sm:max-h-[460px]',
+            'pr-0 sm:pr-3'
+          )}
         >
           <div className="flex flex-col">
             {incident.actions.map((action, index) => (
               <div key={action.id}>
                 {index > 0 ? <Separator /> : null}
-                <div className="flex items-start justify-between gap-3 py-3">
+                <div className="flex flex-col gap-1 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold leading-5">{action.detail}</p>
+                    <p className="break-words text-sm font-semibold leading-5">
+                      {action.detail}
+                    </p>
                     <p className="mt-1 text-xs leading-5 text-muted-foreground">
                       {formatUsername(action.actor)}
                     </p>

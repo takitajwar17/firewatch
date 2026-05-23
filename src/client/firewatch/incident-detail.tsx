@@ -72,7 +72,7 @@ export const IncidentDetail = ({
   };
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex min-w-0 flex-col gap-3 sm:gap-4">
       <IncidentIntro incident={incident} />
 
       <IncidentHero
@@ -112,7 +112,7 @@ export const IncidentDetail = ({
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList
           aria-label="Incident sections"
-          className="w-full justify-start gap-1 overflow-x-auto border-b border-border pb-2"
+          className="no-scrollbar w-full max-w-full justify-start gap-1 overflow-x-auto overscroll-x-contain border-b border-border pb-2"
         >
           <TabsTrigger className="flex-none" value="overview">
             Post
@@ -132,7 +132,7 @@ export const IncidentDetail = ({
         </TabsList>
 
         <TabsContent
-          className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]"
+          className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 sm:gap-4 xl:grid-cols-[minmax(0,1fr)_360px]"
           value="overview"
         >
           <SectionHeader
@@ -158,7 +158,7 @@ export const IncidentDetail = ({
         </TabsContent>
 
         <TabsContent
-          className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]"
+          className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 sm:gap-4 xl:grid-cols-[minmax(0,1fr)_360px]"
           value="comments"
         >
           <SectionHeader
@@ -177,7 +177,10 @@ export const IncidentDetail = ({
           <RepeatedPhrasesCard incident={incident} />
         </TabsContent>
 
-        <TabsContent className="grid gap-4 xl:grid-cols-2" value="signals">
+        <TabsContent
+          className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 sm:gap-4 xl:grid-cols-2"
+          value="signals"
+        >
           <SectionHeader
             className="xl:col-span-full"
             title="Activity"
@@ -187,7 +190,10 @@ export const IncidentDetail = ({
           <ActionLogCard incident={incident} />
         </TabsContent>
 
-        <TabsContent className="grid gap-4 xl:grid-cols-2" value="reports">
+        <TabsContent
+          className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 sm:gap-4 xl:grid-cols-2"
+          value="reports"
+        >
           <SectionHeader
             className="xl:col-span-full"
             title="Mod notes"
@@ -212,7 +218,7 @@ const InsightItem = ({
   label: string;
   value: string;
 }) => (
-  <div className="flex items-center justify-between gap-3 border-b border-border p-3 last:border-b-0 xl:border-r xl:border-b-0 xl:last:border-r-0">
+  <div className="flex min-w-0 items-center justify-between gap-3 border-b border-border p-3 last:border-b-0 xl:border-r xl:border-b-0 xl:last:border-r-0">
     <div className="min-w-0">
       <p className="text-xs font-semibold leading-4 text-muted-foreground">
         {label}
