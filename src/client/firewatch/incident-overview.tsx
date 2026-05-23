@@ -58,7 +58,7 @@ export const IncidentIntro = ({ incident }: { incident: Incident }) => {
 
   return (
     <section className="overflow-hidden border-b border-border bg-background text-card-foreground">
-      <div className="max-w-full py-4">
+      <div className="grid max-w-full gap-4 py-4 xl:grid-cols-[minmax(0,1fr)_220px] xl:items-start">
         <article className="min-w-0 max-w-full">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
             <img
@@ -106,8 +106,56 @@ export const IncidentIntro = ({ incident }: { incident: Incident }) => {
             </span>
           </div>
         </article>
+        <AttentionScoreRail incident={incident} />
       </div>
     </section>
+  );
+};
+
+const AttentionScoreRail = ({ incident }: { incident: Incident }) => {
+  const score = clampScore(incident.score);
+  const attentionTone =
+    incident.level === 'watch'
+      ? 'bg-primary/70'
+      : incident.level === 'heat'
+        ? 'bg-orange-500'
+        : 'bg-destructive';
+
+  return (
+    <aside
+      aria-label={`Attention score ${incident.score}`}
+      className="rounded-2xl border border-border bg-muted/30 px-3 py-3 text-sm"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-xs font-semibold leading-4 text-muted-foreground">
+          Attention
+        </span>
+        <Badge
+          className="h-6 rounded-full px-2.5 text-xs font-bold tabular-nums"
+          variant="secondary"
+        >
+          {incident.score}
+        </Badge>
+      </div>
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-secondary">
+        <div
+          className={cn('h-full rounded-full', attentionTone)}
+          style={{ width: `${score}%` }}
+        />
+      </div>
+      <div className="mt-3 flex items-center gap-2 font-bold leading-5 text-foreground">
+        <RedditCommentIcon className="size-4 shrink-0 text-muted-foreground" />
+        <span className="truncate">{incident.responseSuggestion.label}</span>
+      </div>
+      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs leading-5 text-muted-foreground">
+        <span className="inline-flex items-center gap-1">
+          <RedditReportIcon className="size-3.5" />
+          {pluralize(incident.stats.reportSignals, 'report')}
+        </span>
+        <span aria-hidden="true">·</span>
+        <span>{pluralize(incident.stats.keywordHits, 'keyword hit')}</span>
+      </div>
+    </aside>
   );
 };
 

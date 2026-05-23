@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -223,6 +223,29 @@ const WorkspaceHeader = ({
   subredditName: string;
 }) => {
   const isSettings = activeView === 'settings';
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshTimerRef = useRef<number | undefined>(undefined);
+
+  useEffect(
+    () => () => {
+      if (refreshTimerRef.current !== undefined) {
+        window.clearTimeout(refreshTimerRef.current);
+      }
+    },
+    []
+  );
+
+  const handleRefresh = () => {
+    if (refreshTimerRef.current !== undefined) {
+      window.clearTimeout(refreshTimerRef.current);
+    }
+    setRefreshing(true);
+    onRefresh();
+    refreshTimerRef.current = window.setTimeout(() => {
+      setRefreshing(false);
+      refreshTimerRef.current = undefined;
+    }, 700);
+  };
 
   return (
     <header className="flex min-h-14 items-center justify-between gap-4 border-b border-border bg-background px-4 py-2 sm:px-5 lg:px-6">
@@ -236,11 +259,11 @@ const WorkspaceHeader = ({
         </div>
       </div>
       <div className="hidden min-w-0 items-center gap-3 lg:flex">
-        <div className="flex items-center gap-2">
-          <span className="text-muted-foreground [&_svg]:size-4">
+        <div className="flex items-center gap-2.5">
+          <span className="text-muted-foreground [&_svg]:size-5">
             {isSettings ? <RedditSettingsIcon /> : <RedditQueueIcon />}
           </span>
-          <h1 className="text-2xl font-bold leading-tight tracking-normal">
+          <h1 className="text-xl font-bold leading-7 tracking-normal">
             {isSettings ? 'Firewatch settings' : 'Queue'}
           </h1>
         </div>
@@ -256,8 +279,10 @@ const WorkspaceHeader = ({
           <RedditSettingsIcon />
           <span className="sr-only">Settings</span>
         </Button>
-        <Button size="icon-sm" variant="ghost" onClick={onRefresh}>
-          <RedditRefreshIcon />
+        <Button size="icon-sm" variant="ghost" onClick={handleRefresh}>
+          <RedditRefreshIcon
+            className={refreshing ? 'animate-spin' : undefined}
+          />
           <span className="sr-only">Refresh</span>
         </Button>
       </div>
