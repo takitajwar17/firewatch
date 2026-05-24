@@ -1,12 +1,6 @@
 import type { ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import type { Incident } from '../../shared/api';
 import { levelBadgeVariant } from './format';
@@ -39,7 +33,7 @@ export const SectionHeader = ({
 }: {
   action?: ReactNode;
   className?: string;
-  description: string;
+  description?: string;
   title: string;
 }) => (
   <div
@@ -50,9 +44,11 @@ export const SectionHeader = ({
   >
     <div className="min-w-0">
       <h2 className="text-base font-bold leading-5 text-foreground">{title}</h2>
-      <p className="mt-1 max-w-3xl text-xs leading-5 text-muted-foreground">
-        {description}
-      </p>
+      {description ? (
+        <p className="mt-1 max-w-3xl text-xs leading-5 text-muted-foreground">
+          {description}
+        </p>
+      ) : null}
     </div>
     {action ? <div className="shrink-0">{action}</div> : null}
   </div>
@@ -185,35 +181,4 @@ export const RedditActionButton = ({
     disabled={Boolean(busyAction) || Boolean(disabled)}
     loading={busyAction === action}
   />
-);
-
-export const MetricCard = ({
-  description,
-  icon,
-  label,
-  value,
-}: {
-  description: string;
-  icon: ReactNode;
-  label: string;
-  value: string;
-}) => (
-  <Card className="min-h-0 bg-muted/35" size="sm">
-    <CardHeader className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
-      <div className="min-w-0">
-        <CardDescription className="text-xs font-semibold leading-4">
-          {label}
-        </CardDescription>
-        <p className="mt-1 line-clamp-2 text-xs leading-4 text-muted-foreground">
-          {description}
-        </p>
-      </div>
-      <div className="flex items-center gap-2">
-        <span className="text-muted-foreground [&_svg]:size-4">{icon}</span>
-        <CardTitle className="text-xl font-bold tabular-nums">
-          {value}
-        </CardTitle>
-      </div>
-    </CardHeader>
-  </Card>
 );

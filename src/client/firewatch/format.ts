@@ -108,10 +108,10 @@ export const formatSignalType = (signal: IncidentSignal) => {
 
 export const formatSignalDetail = (signal: IncidentSignal) => {
   if (isFirewatchNotice(signal)) {
-    return 'Firewatch posted a distinguished sticky reminder.';
+    return 'Sticky comment.';
   }
 
-  return signal.reason ?? signal.body ?? 'No details from Reddit';
+  return signal.reason ?? signal.body ?? 'No details';
 };
 
 export const clampScore = (score: number) => Math.max(0, Math.min(100, score));
@@ -180,13 +180,13 @@ export const actionLabel = (action: string) => {
 
 export const actionSuccessMessage = (action: string) => {
   if (action.startsWith('ban:')) {
-    return 'User banned after their review comments were removed.';
+    return 'User banned.';
   }
-  if (action.startsWith('post:')) return 'Post action saved.';
-  if (action.startsWith('comment:')) return 'Comment action saved.';
-  if (action.startsWith('user:')) return 'User action saved.';
-  if (action.startsWith('rule:')) return 'Prepared automation actions ran.';
-  if (action.startsWith('clear-strikes:')) return 'Firewatch strikes cleared.';
+  if (action.startsWith('post:')) return 'Saved.';
+  if (action.startsWith('comment:')) return 'Saved.';
+  if (action.startsWith('user:')) return 'Saved.';
+  if (action.startsWith('rule:')) return 'Done.';
+  if (action.startsWith('clear-strikes:')) return 'Strikes cleared.';
   if (action.startsWith('approve:')) return 'Comment approved.';
   if (action.startsWith('remove:') || action.startsWith('t1_')) {
     return 'Comment removed.';
@@ -196,10 +196,10 @@ export const actionSuccessMessage = (action: string) => {
     claim: 'Post taken.',
     'cool-down': 'Sticky comment posted.',
     lock: 'Post locked.',
-    escalate: 'Handoff note saved in Mod notes.',
-    resolve: 'Post marked handled. Final note saved.',
+    escalate: 'Handoff saved.',
+    resolve: 'Handled.',
     demo: 'Demo post created.',
-    config: 'Settings saved.',
+    config: 'Saved.',
   };
 
   return messages[action] ?? `${actionLabel(action)} done.`;

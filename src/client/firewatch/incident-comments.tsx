@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
@@ -63,6 +62,52 @@ const parseBanDuration = (value: string) => {
   return Number.isFinite(duration) && duration > 0 ? duration : 0;
 };
 
+const latestCommentAction = (
+  incident: Incident,
+  commentId: string,
+  types: string[]
+) =>
+  incident.actions.find(
+    (action) =>
+      action.targetIds?.includes(commentId) && types.includes(action.type)
+  )?.type;
+
+const getCommentActionState = (
+  incident: Incident,
+  comment: FlaggedComment
+) => {
+  const latestLockAction = latestCommentAction(incident, comment.id, [
+    'comment_locked',
+    'comment_unlocked',
+  ]);
+  const latestReportAction = latestCommentAction(incident, comment.id, [
+    'comment_reports_ignored',
+    'comment_reports_unignored',
+  ]);
+  const latestResolutionAction = latestCommentAction(incident, comment.id, [
+    'comment_approved',
+    'comment_removed',
+    'comment_spammed',
+    'comment_thread_removed',
+  ]);
+  const removedByAction =
+    latestResolutionAction === 'comment_removed' ||
+    latestResolutionAction === 'comment_spammed' ||
+    latestResolutionAction === 'comment_thread_removed';
+
+  return {
+    locked: latestLockAction === 'comment_locked',
+    removed: Boolean(comment.removed) || removedByAction,
+    reportsIgnored: latestReportAction === 'comment_reports_ignored',
+    reviewed:
+      Boolean(comment.reviewed) || latestResolutionAction === 'comment_approved',
+    shown:
+      latestCommentAction(incident, comment.id, ['comment_shown']) ===
+      'comment_shown',
+    spammed: latestResolutionAction === 'comment_spammed',
+  };
+};
+
 export const FlaggedCommentsCard = ({
   busyAction,
   config,
@@ -91,9 +136,6 @@ export const FlaggedCommentsCard = ({
       <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border px-3 py-3 sm:px-4">
         <div className="min-w-0">
           <h3 className="text-base font-bold leading-5">Needs review</h3>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Flagged by reports, watched words, or watched domains.
-          </p>
         </div>
         <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-bold text-secondary-foreground">
           {needsReview.length} open
@@ -102,7 +144,7 @@ export const FlaggedCommentsCard = ({
       <div className="flex flex-col gap-0">
         {needsReview.length === 0 ? (
           <div className="p-3 sm:p-4">
-            <EmptyText>No comments need mod review.</EmptyText>
+            <EmptyText>No comments.</EmptyText>
           </div>
         ) : (
           <>
@@ -111,13 +153,18 @@ export const FlaggedCommentsCard = ({
                 const authorLabel = formatUsername(comment.author);
                 const permalink = comment.permalink;
                 const canBanAuthor = authorLabel !== 'unknown user';
+                const commentState = getCommentActionState(incident, comment);
+                const commentOpen =
+                  !commentState.removed && !commentState.reviewed;
                 const approveAction = `approve:${comment.id}`;
                 const removeAction = `remove:${comment.id}`;
                 const spamAction = `comment:${comment.id}:spam`;
-                const lockAction = `comment:${comment.id}:lock`;
-                const unlockAction = `comment:${comment.id}:unlock`;
-                const ignoreReportsAction = `comment:${comment.id}:ignore`;
-                const watchReportsAction = `comment:${comment.id}:watch`;
+                const lockToggle = commentState.locked ? 'unlock' : 'lock';
+                const lockAction = `comment:${comment.id}:${lockToggle}`;
+                const reportsToggle = commentState.reportsIgnored
+                  ? 'unignore-reports'
+                  : 'ignore-reports';
+                const reportsAction = `comment:${comment.id}:${reportsToggle}`;
                 const threadAction = `comment:${comment.id}:thread`;
                 const showAction = `comment:${comment.id}:show`;
                 const approveUserAction = `user:${comment.author}:approve`;
@@ -171,6 +218,21 @@ export const FlaggedCommentsCard = ({
                               {reason}
                             </Badge>
                           ))}
+                          {commentState.locked ? (
+                            <Badge className="max-w-full" variant="outline">
+                              Locked
+                            </Badge>
+                          ) : null}
+                          {commentState.reportsIgnored ? (
+                            <Badge className="max-w-full" variant="outline">
+                              Reports ignored
+                            </Badge>
+                          ) : null}
+                          {commentState.shown ? (
+                            <Badge className="max-w-full" variant="outline">
+                              Shown
+                            </Badge>
+                          ) : null}
                         </div>
                         <p className="mt-1.5 line-clamp-3 text-sm leading-5 text-foreground/90">
                           {comment.body}
@@ -192,10 +254,13 @@ export const FlaggedCommentsCard = ({
                             <RedditActionButton
                               action={approveAction}
                               busyAction={busyAction}
+                              disabled={!commentOpen}
                               icon={
                                 <RedditApproveIcon data-icon="inline-start" />
                               }
-                              label="Approve"
+                              label={
+                                commentState.reviewed ? 'Approved' : 'Approve'
+                              }
                               variant="secondary"
                               onClick={() =>
                                 onAction(
@@ -209,10 +274,13 @@ export const FlaggedCommentsCard = ({
                             <RedditActionButton
                               action={removeAction}
                               busyAction={busyAction}
+                              disabled={!commentOpen}
                               icon={
                                 <RedditRemoveIcon data-icon="inline-start" />
                               }
-                              label="Remove"
+                              label={
+                                commentState.removed ? 'Removed' : 'Remove'
+                              }
                               variant="secondary"
                               onClick={() =>
                                 setActivePrep({
@@ -226,10 +294,9 @@ export const FlaggedCommentsCard = ({
                             <RedditActionButton
                               action={banAction}
                               busyAction={busyAction}
-                              disabled={!canBanAuthor}
+                              disabled={!canBanAuthor || !commentOpen}
                               icon={<RedditBanIcon data-icon="inline-start" />}
                               label="Ban user"
-                              title="Remove this user's recent content here, then ban them."
                               variant="destructive"
                               onClick={() =>
                                 setActivePrep({
@@ -244,7 +311,6 @@ export const FlaggedCommentsCard = ({
                         {hasAdvancedCommentActions || hasAdvancedUserActions ? (
                           <div className="mt-4">
                             <DisclosurePanel
-                              description="Spam, thread removal, locks, reports, and user actions."
                               title="More actions"
                             >
                               <div className="flex flex-col gap-3">
@@ -254,10 +320,15 @@ export const FlaggedCommentsCard = ({
                                       <RedditActionButton
                                         action={spamAction}
                                         busyAction={busyAction}
+                                        disabled={!commentOpen}
                                         icon={
                                           <RedditSpamIcon data-icon="inline-start" />
                                         }
-                                        label="Spam"
+                                        label={
+                                          commentState.spammed
+                                            ? 'Spam'
+                                            : 'Spam comment'
+                                        }
                                         variant="destructive"
                                         onClick={() =>
                                           setActivePrep({
@@ -272,6 +343,7 @@ export const FlaggedCommentsCard = ({
                                       <RedditActionButton
                                         action={threadAction}
                                         busyAction={busyAction}
+                                        disabled={!commentOpen}
                                         icon={
                                           <RedditRemoveIcon data-icon="inline-start" />
                                         }
@@ -286,83 +358,70 @@ export const FlaggedCommentsCard = ({
                                       />
                                     ) : null}
                                     {controls.lockComments ? (
-                                      <>
-                                        <RedditActionButton
-                                          action={lockAction}
-                                          busyAction={busyAction}
-                                          icon={
-                                            <RedditLockIcon data-icon="inline-start" />
-                                          }
-                                          label="Lock"
-                                          onClick={() =>
-                                            onAction(
-                                              lockAction,
-                                              `/api/incidents/${incident.postId}/comments/${comment.id}/native-action`,
-                                              { action: 'lock' }
-                                            )
-                                          }
-                                        />
-                                        <RedditActionButton
-                                          action={unlockAction}
-                                          busyAction={busyAction}
-                                          icon={
-                                            <RedditLockIcon data-icon="inline-start" />
-                                          }
-                                          label="Unlock"
-                                          variant="ghost"
-                                          onClick={() =>
-                                            onAction(
-                                              unlockAction,
-                                              `/api/incidents/${incident.postId}/comments/${comment.id}/native-action`,
-                                              { action: 'unlock' }
-                                            )
-                                          }
-                                        />
-                                      </>
+                                      <RedditActionButton
+                                        action={lockAction}
+                                        busyAction={busyAction}
+                                        disabled={!commentOpen}
+                                        icon={
+                                          <RedditLockIcon data-icon="inline-start" />
+                                        }
+                                        label={
+                                          commentState.locked
+                                            ? 'Unlock'
+                                            : 'Lock'
+                                        }
+                                        variant={
+                                          commentState.locked
+                                            ? 'outline'
+                                            : 'secondary'
+                                        }
+                                        onClick={() =>
+                                          onAction(
+                                            lockAction,
+                                            `/api/incidents/${incident.postId}/comments/${comment.id}/native-action`,
+                                            { action: lockToggle }
+                                          )
+                                        }
+                                      />
                                     ) : null}
                                     {controls.ignoreReports ? (
-                                      <>
-                                        <RedditActionButton
-                                          action={ignoreReportsAction}
-                                          busyAction={busyAction}
-                                          icon={
-                                            <RedditReportIcon data-icon="inline-start" />
-                                          }
-                                          label="Ignore reports"
-                                          onClick={() =>
-                                            onAction(
-                                              ignoreReportsAction,
-                                              `/api/incidents/${incident.postId}/comments/${comment.id}/native-action`,
-                                              { action: 'ignore-reports' }
-                                            )
-                                          }
-                                        />
-                                        <RedditActionButton
-                                          action={watchReportsAction}
-                                          busyAction={busyAction}
-                                          icon={
-                                            <RedditReportIcon data-icon="inline-start" />
-                                          }
-                                          label="Unignore reports"
-                                          variant="ghost"
-                                          onClick={() =>
-                                            onAction(
-                                              watchReportsAction,
-                                              `/api/incidents/${incident.postId}/comments/${comment.id}/native-action`,
-                                              { action: 'unignore-reports' }
-                                            )
-                                          }
-                                        />
-                                      </>
+                                      <RedditActionButton
+                                        action={reportsAction}
+                                        busyAction={busyAction}
+                                        disabled={!commentOpen}
+                                        icon={
+                                          <RedditReportIcon data-icon="inline-start" />
+                                        }
+                                        label={
+                                          commentState.reportsIgnored
+                                            ? 'Unignore reports'
+                                            : 'Ignore reports'
+                                        }
+                                        variant={
+                                          commentState.reportsIgnored
+                                            ? 'outline'
+                                            : 'secondary'
+                                        }
+                                        onClick={() =>
+                                          onAction(
+                                            reportsAction,
+                                            `/api/incidents/${incident.postId}/comments/${comment.id}/native-action`,
+                                            { action: reportsToggle }
+                                          )
+                                        }
+                                      />
                                     ) : null}
                                     {controls.showComments ? (
                                       <RedditActionButton
                                         action={showAction}
                                         busyAction={busyAction}
+                                        disabled={
+                                          !commentOpen || commentState.shown
+                                        }
                                         icon={
                                           <RedditHideIcon data-icon="inline-start" />
                                         }
-                                        label="Show"
+                                        label={commentState.shown ? 'Shown' : 'Show'}
                                         onClick={() =>
                                           onAction(
                                             showAction,
@@ -482,10 +541,7 @@ export const FlaggedCommentsCard = ({
           <>
             <Separator className="my-0" />
             <div className="px-3 py-3 sm:px-4">
-              <PanelLabel>ALREADY ACTIONED</PanelLabel>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                These stay in the record and no longer count as open review.
-              </p>
+              <PanelLabel>ACTIONED</PanelLabel>
             </div>
             <div className="flex flex-col">
               {alreadyActioned.map((comment) => {
@@ -597,7 +653,6 @@ const CommentActionPrepPanel = ({
     return (
       <ActionPrepPanel
         busy={busyAction === removeAction}
-        description="Add a removal reason before removing."
         primaryIcon={<RedditRemoveIcon data-icon="inline-start" />}
         primaryLabel="Remove"
         title="Remove comment"
@@ -612,7 +667,6 @@ const CommentActionPrepPanel = ({
         }
       >
         <ActionTextArea
-          description="Saved as a removal note when Reddit accepts one."
           id={`fw-remove-reason-${comment.id}`}
           label="Removal reason"
           value={reason}
@@ -626,7 +680,6 @@ const CommentActionPrepPanel = ({
     return (
       <ActionPrepPanel
         busy={busyAction === banAction}
-        description="Removes this user's unreviewed comments first, then bans them."
         primaryIcon={<RedditBanIcon data-icon="inline-start" />}
         primaryLabel="Remove and ban"
         title={`Ban ${formatUsername(comment.author)}`}
@@ -652,7 +705,6 @@ const CommentActionPrepPanel = ({
           ))}
         </ActionSelect>
         <ActionTextArea
-          description="Used for the ban note and removals."
           id={`fw-ban-reason-${comment.id}`}
           label="Reason"
           value={reason}
@@ -669,11 +721,6 @@ const CommentActionPrepPanel = ({
     return (
       <ActionPrepPanel
         busy={busyAction === commentAction}
-        description={
-          activePrep === 'spam'
-            ? 'Mark this comment as spam and add an optional removal note.'
-            : 'Remove this comment and the replies Reddit returns under it.'
-        }
         primaryIcon={
           activePrep === 'spam' ? (
             <RedditSpamIcon data-icon="inline-start" />
@@ -697,7 +744,6 @@ const CommentActionPrepPanel = ({
         }
       >
         <ActionTextArea
-          description="Saved as the removal note when Reddit accepts one."
           id={`fw-comment-native-reason-${comment.id}`}
           label="Reason"
           value={reason}
@@ -713,11 +759,6 @@ const CommentActionPrepPanel = ({
     return (
       <ActionPrepPanel
         busy={busyAction === userAction}
-        description={
-          activePrep === 'mute'
-            ? 'Mute this user from modmail and save the note.'
-            : 'Add a Reddit mod note for this user.'
-        }
         primaryIcon={<RedditUsersIcon data-icon="inline-start" />}
         primaryLabel={activePrep === 'mute' ? 'Mute' : 'Add note'}
         title={
@@ -739,7 +780,6 @@ const CommentActionPrepPanel = ({
         }
       >
         <ActionTextArea
-          description="Saved with the Reddit action."
           id={`fw-user-note-${comment.id}`}
           label="Note"
           value={userNote}
@@ -752,7 +792,6 @@ const CommentActionPrepPanel = ({
   return (
     <ActionPrepPanel
       busy={busyAction === userAction}
-      description="Remove recent posts and comments from this subreddit that Firewatch can access."
       primaryIcon={<RedditBanIcon data-icon="inline-start" />}
       primaryLabel="Remove content"
       title={`Remove recent content from ${formatUsername(comment.author)}`}
@@ -770,7 +809,6 @@ const CommentActionPrepPanel = ({
       }
     >
       <ActionTextArea
-        description="Saved as the removal note when Reddit accepts one."
         id={`fw-content-removal-reason-${comment.id}`}
         label="Reason"
         value={reason}
@@ -784,13 +822,10 @@ export const RepeatedPhrasesCard = ({ incident }: { incident: Incident }) => (
   <Card>
     <CardHeader>
       <CardTitle>Repeated wording</CardTitle>
-      <CardDescription>
-        Repeated phrases across user comments can point to brigading.
-      </CardDescription>
     </CardHeader>
     <CardContent>
       {incident.repeatedPhrases.length === 0 ? (
-        <EmptyText>No repeated wording found.</EmptyText>
+        <EmptyText>No repeats.</EmptyText>
       ) : (
         <div className="flex flex-col gap-3">
           {incident.repeatedPhrases.map((phrase) => (

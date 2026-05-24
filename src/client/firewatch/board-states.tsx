@@ -38,7 +38,7 @@ export const ErrorBoard = ({
   <div className="flex min-h-[60vh] items-center justify-center">
     <Alert variant="destructive" className="max-w-md">
       <RedditReportIcon />
-      <AlertTitle>Could not load Firewatch</AlertTitle>
+      <AlertTitle>Could not load</AlertTitle>
       <AlertDescription>{message}</AlertDescription>
       <Button className="mt-4 w-fit" variant="outline" onClick={onRefresh}>
         <RedditRefreshIcon data-icon="inline-start" />
@@ -60,11 +60,6 @@ export const EmptyBoard = ({
       <h1 className="text-xl font-semibold leading-tight">
         No posts need review
       </h1>
-      <p className="text-sm leading-6 text-muted-foreground">
-        Posts show up here when reports, watched words, watched domains,
-        repeated user wording, reply clusters, or the post menu send them to
-        Firewatch.
-      </p>
     </div>
     <div className="flex flex-col gap-2">
       {FIREWATCH_DEMO_SCENARIOS.map((scenario) => (
@@ -78,15 +73,9 @@ export const EmptyBoard = ({
           <RedditAddIcon className="size-4 shrink-0" data-icon="inline-start" />
           <span className="flex min-w-0 flex-col gap-0.5">
             <span>{busy ? 'Creating demo post' : scenario.label}</span>
-            <span className="text-xs font-normal leading-5 text-muted-foreground">
-              {scenario.description}
-            </span>
           </span>
         </Button>
       ))}
     </div>
-    <p className="text-xs leading-5 text-muted-foreground">
-      Use Settings to edit watched words, domains, thresholds, and demo posts.
-    </p>
   </div>
 );

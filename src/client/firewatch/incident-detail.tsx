@@ -1,6 +1,5 @@
 import { useState, type ReactNode } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { SectionHeader } from './common';
 import {
   ActionLogCard,
   LatestSignalsCard,
@@ -95,25 +94,21 @@ export const IncidentDetail = ({
 
       <div className="grid overflow-hidden rounded-lg border border-border bg-background sm:grid-cols-2 xl:grid-cols-4">
         <InsightItem
-          description="Reports on this post"
           icon={<RedditReportIcon />}
           label="Reports"
           value={String(incident.stats.reportSignals)}
         />
         <InsightItem
-          description="Need mod review"
           icon={<RedditCommentIcon />}
           label="Comments"
           value={String(unresolvedComments.length)}
         />
         <InsightItem
-          description="Users in review"
           icon={<RedditUsersIcon />}
           label="Users"
           value={String(unresolvedUsers.size)}
         />
         <InsightItem
-          description="Crowded reply chains"
           icon={<RedditListIcon />}
           label="Reply clusters"
           value={String(incident.stats.branchPileOns)}
@@ -146,11 +141,6 @@ export const IncidentDetail = ({
           className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 sm:gap-4 xl:grid-cols-[minmax(0,1fr)_360px]"
           value="overview"
         >
-          <SectionHeader
-            className="xl:col-span-full"
-            title="Post review"
-            description="Reports, post actions, and current status."
-          />
           <div className="flex flex-col gap-4">
             <MatchedRulesCard
               busyAction={busyAction}
@@ -183,11 +173,6 @@ export const IncidentDetail = ({
           className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 sm:gap-4 xl:grid-cols-[minmax(0,1fr)_360px]"
           value="comments"
         >
-          <SectionHeader
-            className="xl:col-span-full"
-            title="Comment review"
-            description="Flagged comments and user actions."
-          />
           <FlaggedCommentsCard
             busyAction={busyAction}
             config={config}
@@ -201,11 +186,6 @@ export const IncidentDetail = ({
           className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 sm:gap-4 xl:grid-cols-2"
           value="signals"
         >
-          <SectionHeader
-            className="xl:col-span-full"
-            title="Activity"
-            description="Recent signals and mod actions."
-          />
           <LatestSignalsCard incident={incident} />
           <ActionLogCard incident={incident} />
         </TabsContent>
@@ -214,11 +194,6 @@ export const IncidentDetail = ({
           className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 sm:gap-4 xl:grid-cols-2"
           value="reports"
         >
-          <SectionHeader
-            className="xl:col-span-full"
-            title="Mod notes"
-            description="Handoff and final notes."
-          />
           <SummariesCard incident={incident} />
           <ActionLogCard incident={incident} compact />
         </TabsContent>
@@ -228,12 +203,10 @@ export const IncidentDetail = ({
 };
 
 const InsightItem = ({
-  description,
   icon,
   label,
   value,
 }: {
-  description: string;
   icon: ReactNode;
   label: string;
   value: string;
@@ -242,9 +215,6 @@ const InsightItem = ({
     <div className="min-w-0">
       <p className="text-xs font-semibold leading-4 text-muted-foreground">
         {label}
-      </p>
-      <p className="mt-0.5 truncate text-xs leading-4 text-muted-foreground/85">
-        {description}
       </p>
     </div>
     <div className="flex shrink-0 items-center gap-2 text-muted-foreground">

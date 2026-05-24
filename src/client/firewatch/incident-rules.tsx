@@ -3,7 +3,6 @@ import { Badge } from '@/components/ui/badge';
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
@@ -41,10 +40,7 @@ export const MatchedRulesCard = ({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Matched automation</CardTitle>
-        <CardDescription>
-          Firewatch matched this incident to prepared mod actions.
-        </CardDescription>
+        <CardTitle>Automation</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         {matchedRules.map((rule) => (
@@ -164,5 +160,5 @@ const MatchedRuleItem = ({
 };
 
 export const RuleLogEmptyState = () => (
-  <EmptyText>No automations have matched this incident yet.</EmptyText>
+  <EmptyText>No matches.</EmptyText>
 );

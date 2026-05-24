@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
@@ -29,13 +28,10 @@ export const LatestSignalsCard = ({ incident }: { incident: Incident }) => {
     <Card>
       <CardHeader>
         <CardTitle>Activity</CardTitle>
-        <CardDescription>
-          Reports, comments, post edits, and mod actions.
-        </CardDescription>
       </CardHeader>
       <CardContent>
         {visibleSignals.length === 0 ? (
-          <EmptyText>No activity yet.</EmptyText>
+          <EmptyText>No activity.</EmptyText>
         ) : (
           <ScrollArea className="pr-0 sm:max-h-[460px] sm:pr-3">
             <div className="flex flex-col">
@@ -72,15 +68,6 @@ export const SummariesCard = ({ incident }: { incident: Incident }) => (
   <Card>
     <CardHeader>
       <CardTitle>Mod notes</CardTitle>
-      <CardDescription>
-        {incident.summary && incident.stats.flaggedCount > 0
-          ? 'Final note saved. Review open comments before closing again.'
-          : incident.summary
-            ? 'Final note saved.'
-            : incident.escalationSummary
-              ? 'Handoff saved. Mark handled when comments are clear.'
-              : 'Handoff and final notes for this post.'}
-      </CardDescription>
     </CardHeader>
     <CardContent>
       {incident.escalationSummary || incident.summary ? (
@@ -93,10 +80,7 @@ export const SummariesCard = ({ incident }: { incident: Incident }) => (
           ) : null}
         </div>
       ) : (
-        <EmptyText>
-          Save a handoff note for the mod team. Mark handled to save a final
-          note after comments are clear.
-        </EmptyText>
+        <EmptyText>No notes.</EmptyText>
       )}
     </CardContent>
   </Card>
@@ -143,11 +127,10 @@ export const ActionLogCard = ({
   <Card>
     <CardHeader>
       <CardTitle>Mod log</CardTitle>
-      <CardDescription>Actions taken in Firewatch.</CardDescription>
     </CardHeader>
     <CardContent>
       {incident.actions.length === 0 ? (
-        <EmptyText>No mod actions yet.</EmptyText>
+        <EmptyText>No actions.</EmptyText>
       ) : (
         <ScrollArea
           className={cn(

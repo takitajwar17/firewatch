@@ -120,8 +120,7 @@ const CommandPanel = ({
         </div>
         {incidents.length === 0 ? (
           <p className="rounded-lg border border-sidebar-border bg-transparent p-3 text-xs leading-5 text-sidebar-foreground/70">
-            No posts need mod review. Open Settings for demo tools or use the
-            post menu to send a post here.
+            No posts need review.
           </p>
         ) : (
           <ScrollArea className="min-h-0 flex-1 pr-2">

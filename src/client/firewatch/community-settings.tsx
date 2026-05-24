@@ -3,7 +3,6 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
@@ -20,7 +19,6 @@ import {
   type ConfigActionControlField,
 } from '../../shared/firewatch-config';
 import {
-  RULE_MODE_DESCRIPTIONS,
   RULE_MODE_LABELS,
   RULE_TARGET_LABELS,
   RULE_TRIGGER_LABELS,
@@ -74,10 +72,7 @@ export const CommunitySettingsPage = ({
 }) => {
   return (
     <div className="flex min-w-0 flex-col gap-4 sm:gap-5">
-      <SectionHeader
-        title="Settings"
-        description="Watched words, domains, scores, mod actions, and demo posts."
-      />
+      <SectionHeader title="Settings" />
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 sm:gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         <CommunityFiltersCard
           key={[
@@ -142,11 +137,6 @@ export const ResponseRulesCard = ({
     <Card>
       <CardHeader>
         <CardTitle>Automations</CardTitle>
-        <CardDescription>
-          Create automations that watch posts, comments, reports, user strikes,
-          and review scores. Firewatch can suggest actions, prepare actions for
-          approval, or run safe actions automatically.
-        </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <div className="flex flex-wrap gap-2">
@@ -668,9 +658,6 @@ const RuleBuilder = ({
         />
         Enabled
       </label>
-      <p className="mt-2 text-xs leading-5 text-muted-foreground">
-        {RULE_MODE_DESCRIPTIONS[mode]}
-      </p>
       <div className="mt-3 flex flex-wrap gap-2">
         <PlaybookButton
           disabled={busy || !validName}
@@ -739,8 +726,7 @@ const RuleSelect = <Value extends string>({
 const RuleTestResultCard = ({ result }: { result: RuleTestResponse }) => (
   <div className="rounded-lg border bg-card p-3">
     <p className="text-sm font-bold leading-5">
-      This automation would have matched {result.matchedCount} item
-      {result.matchedCount === 1 ? '' : 's'}.
+      Matched {result.matchedCount} item{result.matchedCount === 1 ? '' : 's'}.
     </p>
     {result.examples.length ? (
       <div className="mt-3 flex flex-col gap-2">
@@ -754,7 +740,7 @@ const RuleTestResultCard = ({ result }: { result: RuleTestResponse }) => (
       </div>
     ) : (
       <p className="mt-2 text-sm leading-5 text-muted-foreground">
-        No recent examples matched this automation.
+        No matches.
       </p>
     )}
     {result.preparedActions.length ? (
@@ -774,10 +760,10 @@ const RuleTestResultCard = ({ result }: { result: RuleTestResponse }) => (
 
 const RuleLogPreview = ({ logs }: { logs: RuleExecutionLog[] }) => (
   <div className="rounded-lg border bg-card p-3">
-    <p className="text-sm font-bold leading-5">Automation log</p>
+    <p className="text-sm font-bold leading-5">Log</p>
     {logs.length === 0 ? (
       <p className="mt-2 text-sm leading-5 text-muted-foreground">
-        No automations have matched yet.
+        No matches.
       </p>
     ) : (
       <div className="mt-2 flex flex-col gap-2">
@@ -837,16 +823,12 @@ const CommunityFiltersCard = ({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Watched words and domains</CardTitle>
-        <CardDescription>
-          These words and domains are the main subreddit-wide triggers.
-        </CardDescription>
+        <CardTitle>Filters</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
         <FieldBlock
-          description={`${splitList(keywords).length} active terms. Comma-separated words or phrases that send posts to review.`}
           htmlFor="fw-keywords"
-          label="Watched words"
+          label={`Watched words (${splitList(keywords).length})`}
         >
           <SettingsTextarea
             id="fw-keywords"
@@ -857,9 +839,8 @@ const CommunityFiltersCard = ({
         </FieldBlock>
 
         <FieldBlock
-          description={`${splitList(suspiciousDomains).length} domains watched in posts, comments, and report reasons.`}
           htmlFor="fw-domains"
-          label="Watched domains"
+          label={`Watched domains (${splitList(suspiciousDomains).length})`}
         >
           <SettingsTextarea
             id="fw-domains"
@@ -869,18 +850,11 @@ const CommunityFiltersCard = ({
           />
         </FieldBlock>
 
-        <DisclosurePanel
-          description="Review scores, signal weights, and sticky comment text."
-          title="Scores and sticky"
-        >
+        <DisclosurePanel title="Scores and sticky">
           <div className="flex flex-col gap-5">
             <div className="flex flex-col gap-3">
               <p className="text-sm font-semibold leading-5">
                 Review thresholds
-              </p>
-              <p className="text-xs leading-5 text-muted-foreground">
-                Firewatch uses these scores to move posts from review to action
-                to lock.
               </p>
               <div className="grid min-w-0 gap-3 md:grid-cols-3">
                 <ThresholdInput
@@ -906,10 +880,6 @@ const CommunityFiltersCard = ({
 
             <div className="flex flex-col gap-3">
               <p className="text-sm font-semibold leading-5">Signal weights</p>
-              <p className="text-xs leading-5 text-muted-foreground">
-                Set a weight to 0 to ignore that signal. Higher weights send
-                posts to review sooner.
-              </p>
               <div className="grid min-w-0 gap-3 md:grid-cols-2">
                 {CONFIG_SIGNAL_WEIGHT_FIELDS.map((field) => (
                   <ThresholdInput
@@ -931,7 +901,6 @@ const CommunityFiltersCard = ({
             </div>
 
             <FieldBlock
-              description="Posted as a distinguished sticky comment."
               htmlFor="fw-reminder-text"
               label="Sticky comment text"
             >
@@ -1009,9 +978,6 @@ const ActionPermissionsControl = ({
     <div className="flex flex-col gap-3">
       <div>
         <p className="text-sm font-semibold leading-5">Allowed mod actions</p>
-        <p className="mt-1 text-xs leading-5 text-muted-foreground">
-          Choose which actions mods can use from Firewatch.
-        </p>
       </div>
 
       <ActionToggleGroup
@@ -1020,10 +986,7 @@ const ActionPermissionsControl = ({
         onChange={toggleAction}
       />
 
-      <DisclosurePanel
-        description="Post, comment, and user actions shown in Firewatch."
-        title="More Reddit actions"
-      >
+      <DisclosurePanel title="More Reddit actions">
         <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
           {CONFIG_ACTION_CONTROL_GROUPS.slice(1).map((group) => (
             <ActionToggleGroup
@@ -1144,17 +1107,10 @@ const CommunityToolsCard = ({
   onResetDemos: () => void;
 }) => {
   const [scenarioId, setScenarioId] = useState(DEFAULT_DEMO_SCENARIO_ID);
-  const selectedScenarioDescription =
-    FIREWATCH_DEMO_SCENARIOS.find((scenario) => scenario.id === scenarioId)
-      ?.description ?? '';
-
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Demo posts</CardTitle>
-        <CardDescription>
-          Create or clear demo posts for this subreddit.
-        </CardDescription>
+        <CardTitle>Demos</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <FieldBlock htmlFor="fw-demo-scenario" label="Demo scenario">
@@ -1179,9 +1135,6 @@ const CommunityToolsCard = ({
             <RedditChevronDownIcon className="pointer-events-none absolute top-1/2 right-4 size-4 -translate-y-1/2 text-muted-foreground" />
           </div>
         </FieldBlock>
-        <p className="rounded-lg border bg-muted/60 p-3 text-sm leading-5 text-muted-foreground">
-          {selectedScenarioDescription}
-        </p>
         <div className="grid min-w-0 gap-2 sm:grid-cols-2 xl:grid-cols-1">
           <PlaybookButton
             disabled={busyAction === 'demo'}

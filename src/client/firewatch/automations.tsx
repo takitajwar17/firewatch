@@ -23,10 +23,7 @@ export const AutomationsPage = ({
   onTestRule: RuleTestHandler;
 }) => (
   <div className="flex min-w-0 flex-col gap-4 sm:gap-5">
-    <SectionHeader
-      title="Automations"
-      description="Create automations, test matches, review prepared actions, and check the log."
-    />
+    <SectionHeader title="Automations" />
     <ResponseRulesCard
       busyAction={busyAction}
       ruleLogs={ruleLogs}

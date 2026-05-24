@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
@@ -98,9 +97,6 @@ export const IncidentIntro = ({ incident }: { incident: Incident }) => {
             </h1>
             <PostStateBadges incident={incident} />
           </div>
-          <p className="mt-2 w-full max-w-full whitespace-normal break-words text-sm leading-6 text-muted-foreground sm:max-w-3xl">
-            {incident.responseSuggestion.detail}
-          </p>
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <PostMetricPill
@@ -115,7 +111,7 @@ export const IncidentIntro = ({ incident }: { incident: Incident }) => {
               value={String(incident.flaggedComments.length)}
             />
             <span className="px-1 text-xs font-semibold leading-6 text-muted-foreground">
-              Latest activity {formatTime(incident.updatedAt)}
+              Updated {formatTime(incident.updatedAt)}
             </span>
           </div>
         </article>
@@ -319,11 +315,8 @@ export const IncidentHero = ({
   return (
     <section className="rounded-lg border border-border bg-background">
       <div className="flex flex-col gap-3 p-3 sm:p-4">
-        <div className="flex min-w-0 flex-col gap-1">
+        <div className="flex min-w-0 flex-col">
           <h2 className="text-base font-bold leading-5">Mod actions</h2>
-          <p className="text-xs font-semibold leading-5 text-muted-foreground">
-            {incident.responseSuggestion.label}
-          </p>
         </div>
 
         <div className="flex flex-col gap-3 border-t border-border pt-3">
@@ -383,7 +376,6 @@ export const IncidentHero = ({
           {showStickyPrep ? (
             <ActionPrepPanel
               busy={busyAction === 'cool-down'}
-              description="Review the mod sticky before posting."
               disabled={stickyText.trim().length === 0}
               primaryIcon={<RedditPinIcon data-icon="inline-start" />}
               primaryLabel="Post sticky"
@@ -400,7 +392,6 @@ export const IncidentHero = ({
               }}
             >
               <ActionTextArea
-                description="Posted as a distinguished sticky comment."
                 id="fw-sticky-reminder"
                 label="Comment text"
                 rows={4}
@@ -543,9 +534,6 @@ export const NativePostControlsCard = ({
     <section className="rounded-lg border border-border bg-background">
       <div className="border-b border-border px-3 py-3 sm:px-4">
         <h3 className="text-base font-bold leading-5">Post actions</h3>
-        <p className="mt-1 text-xs leading-5 text-muted-foreground">
-          Actions for this post.
-        </p>
       </div>
       <div className="flex flex-col gap-3 p-3 sm:p-4">
         {hasPrimaryActions ? (
@@ -585,11 +573,6 @@ export const NativePostControlsCard = ({
             {activePrep === 'remove' || activePrep === 'spam' ? (
               <ActionPrepPanel
                 busy={busyAction === `post:${activePrep}`}
-                description={
-                  activePrep === 'spam'
-                    ? 'Remove this post as spam and add an optional removal note.'
-                    : 'Remove this post and add an optional removal note.'
-                }
                 primaryIcon={
                   activePrep === 'spam' ? (
                     <RedditSpamIcon data-icon="inline-start" />
@@ -604,7 +587,6 @@ export const NativePostControlsCard = ({
                 onSubmit={() => runPostAction(activePrep)}
               >
                 <ActionTextArea
-                  description="Saved to the mod log and removal note."
                   id="fw-post-removal-reason"
                   label="Reason"
                   value={reason}
@@ -616,10 +598,7 @@ export const NativePostControlsCard = ({
         ) : null}
 
         {hasAdvancedActions ? (
-          <DisclosurePanel
-            description="Flair, reports, tags, and Crowd Control."
-            title="More actions"
-          >
+          <DisclosurePanel title="More actions">
             <div className="flex flex-col gap-3">
               <div className="grid min-w-0 gap-2 sm:grid-cols-2">
                 {controls.markPostNsfw ? (
@@ -681,7 +660,6 @@ export const NativePostControlsCard = ({
               {activePrep === 'set-flair' ? (
                 <ActionPrepPanel
                   busy={busyAction === 'post:set-flair'}
-                  description="Choose a post flair or enter custom text."
                   disabled={flairText.trim().length === 0 && !selectedFlair}
                   primaryIcon={<RedditTagIcon data-icon="inline-start" />}
                   primaryLabel="Set flair"
@@ -696,11 +674,6 @@ export const NativePostControlsCard = ({
                   }
                 >
                   <ActionSelect
-                    description={
-                      postFlairOptions.length === 0
-                        ? 'No post flair templates found. Enter custom text.'
-                        : 'Post flair templates from this subreddit.'
-                    }
                     id="fw-post-flair-template"
                     label="Flair template"
                     value={flairTemplateId}
@@ -714,7 +687,6 @@ export const NativePostControlsCard = ({
                     ))}
                   </ActionSelect>
                   <ActionInput
-                    description="Use the template text or enter a custom flair."
                     id="fw-post-flair-text"
                     label="Flair text"
                     value={flairText}
@@ -726,7 +698,6 @@ export const NativePostControlsCard = ({
               {activePrep === 'crowd-control' ? (
                 <ActionPrepPanel
                   busy={busyAction === 'post:crowd-control'}
-                  description="Choose how strongly Reddit should filter comments on this post."
                   primaryIcon={<RedditListIcon data-icon="inline-start" />}
                   primaryLabel="Apply"
                   title="Set Crowd Control"
@@ -763,8 +734,7 @@ export const NativePostControlsCard = ({
 export const ResponseCard = ({ incident }: { incident: Incident }) => (
   <Card>
     <CardHeader>
-      <CardTitle>Recommended next step</CardTitle>
-      <CardDescription>{incident.responseSuggestion.label}</CardDescription>
+      <CardTitle>Next</CardTitle>
     </CardHeader>
     <CardContent className="flex flex-col gap-3">
       {incident.responseSuggestion.steps.map((step, index) => (
@@ -810,10 +780,7 @@ export const ImpactSnapshotCard = ({ incident }: { incident: Incident }) => {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Mod actions taken</CardTitle>
-        <CardDescription>
-          What mods have already handled on this post.
-        </CardDescription>
+        <CardTitle>Impact</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <div className="rounded-lg border bg-muted/60">
@@ -854,14 +821,11 @@ export const ImpactSnapshotCard = ({ incident }: { incident: Incident }) => {
 export const RiskReasonsCard = ({ incident }: { incident: Incident }) => (
   <Card>
     <CardHeader>
-      <CardTitle>Why this is in review</CardTitle>
-      <CardDescription>
-        Based on reports, comments, watched words, links, and mod actions.
-      </CardDescription>
+      <CardTitle>Signals</CardTitle>
     </CardHeader>
     <CardContent>
       {incident.reasons.length === 0 ? (
-        <EmptyText>No mod-review reasons yet.</EmptyText>
+        <EmptyText>No signals.</EmptyText>
       ) : (
         <div className="flex flex-col gap-3">
           {incident.reasons.map((reason) => (
@@ -893,14 +857,11 @@ export const RiskReasonsCard = ({ incident }: { incident: Incident }) => (
 export const TrendCard = ({ incident }: { incident: Incident }) => (
   <Card>
     <CardHeader>
-      <CardTitle>Activity</CardTitle>
-      <CardDescription>
-        Recent comment, report, and watched-word activity.
-      </CardDescription>
+      <CardTitle>Trend</CardTitle>
     </CardHeader>
     <CardContent>
       {incident.trend.length === 0 ? (
-        <EmptyText>No recent activity yet.</EmptyText>
+        <EmptyText>No trend.</EmptyText>
       ) : (
         <div className="flex h-40 items-stretch gap-2 rounded-lg border bg-muted/60 p-3">
           {incident.trend.map((point) => (
@@ -937,14 +898,11 @@ export const ParticipantsCard = ({
 }) => (
   <Card>
     <CardHeader>
-      <CardTitle>Users to review</CardTitle>
-      <CardDescription>
-        Users attached to comments that still need a mod decision.
-      </CardDescription>
+      <CardTitle>Users</CardTitle>
     </CardHeader>
     <CardContent>
       {incident.involvedUsers.length === 0 ? (
-        <EmptyText>No users have unreviewed comments.</EmptyText>
+        <EmptyText>No users.</EmptyText>
       ) : (
         <div className="flex flex-col">
           {incident.involvedUsers.map((user, index) => {
