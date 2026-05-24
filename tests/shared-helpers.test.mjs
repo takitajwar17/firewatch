@@ -7,6 +7,7 @@ import {
   EMPTY_CONFIG,
   buildConfigFormFields,
   configUpdateFromFormValues,
+  normalizeConfig,
 } from '../dist/types/shared/firewatch-config.js';
 import {
   CROWD_CONTROL_OPTIONS,
@@ -29,7 +30,6 @@ import {
   isRestrictedRuleAction,
   preparedRuleAction,
   ruleActionLabel,
-  ruleActionRunDisposition,
   ruleInputFromTemplate,
   summarizeRule,
 } from '../dist/types/shared/response-rules.js';
@@ -73,6 +73,16 @@ test('empty client config preserves numeric defaults but not watched lists', () 
     EMPTY_CONFIG.actionControls.removeUserContent,
     DEFAULT_CONFIG.actionControls.removeUserContent
   );
+});
+
+test('normalized config can intentionally clear watched lists', async () => {
+  const config = normalizeConfig({
+    keywords: [],
+    suspiciousDomains: [],
+  });
+
+  assert.deepEqual(config.keywords, []);
+  assert.deepEqual(config.suspiciousDomains, []);
 });
 
 test('config form field builder produces stable unique form names', () => {
@@ -127,6 +137,13 @@ test('post action helpers keep native post action behavior aligned', () => {
   assert.equal(postActionControl('spam'), 'markPostSpam');
   assert.equal(postActionControl('crowd-control'), 'crowdControl');
   assert.equal(nativePostActionType('set-flair'), 'post_flaired');
+  assert.equal(nativePostActionType('mark-nsfw'), 'post_marked_nsfw');
+  assert.equal(nativePostActionType('unmark-nsfw'), 'post_unmarked_nsfw');
+  assert.equal(nativePostActionType('mark-spoiler'), 'post_marked_spoiler');
+  assert.equal(
+    nativePostActionType('unmark-spoiler'),
+    'post_unmarked_spoiler'
+  );
   assert.equal(
     nativePostActionType('unignore-reports'),
     'post_reports_unignored'
@@ -146,6 +163,11 @@ test('post action helpers keep native post action behavior aligned', () => {
 
 test('comment action helpers keep native comment action behavior aligned', () => {
   assert.equal(commentActionControl('remove-thread'), 'removeCommentThreads');
+  assert.equal(commentActionControl('ignore-reports'), 'ignoreCommentReports');
+  assert.equal(
+    commentActionControl('unignore-reports'),
+    'ignoreCommentReports'
+  );
   assert.equal(commentActionControl('show-comment'), 'showComments');
   assert.equal(nativeCommentActionType('show-comment'), 'comment_shown');
   assert.equal(
@@ -406,7 +428,7 @@ test('matched automation log copy handles prepared action counts', () => {
   );
 });
 
-test('all automation actions have explicit run disposition', () => {
+test('all automation actions are represented in shared and server handlers', () => {
   const executableActions = [
     { type: 'queue_incident', reason: 'queue' },
     { type: 'add_firewatch_strike', reason: 'strike' },
@@ -434,14 +456,6 @@ test('all automation actions have explicit run disposition', () => {
   ).sort();
 
   assert.deepEqual(sampleTypes, ruleActionTypesFromApi());
-
-  for (const action of executableActions) {
-    assert.equal(
-      ruleActionRunDisposition(action),
-      'execute',
-      `${ruleActionLabel(action)} should execute after moderator approval`
-    );
-  }
 });
 
 test('prepared action runner explicitly handles every automation action', () => {
@@ -524,4 +538,111 @@ test('auto-run all mode dispatches selected actions and records failures', () =>
   assert.match(autoAllSource, /triggerType: 'auto_run_all_failed'/);
   assert.match(automationSource, /runAutoSafeRuleActions/);
   assert.match(automationSource, /runAutoAllRuleActions/);
+});
+
+test('server stores real post metadata for post-header consistency', () => {
+  const source = readFileSync('src/server/core/firewatch.ts', 'utf8');
+  const snapshotStart = source.indexOf('const getPostSnapshot');
+  const snapshotEnd = source.indexOf('const refreshIncident', snapshotStart);
+  const snapshotSource = source.slice(snapshotStart, snapshotEnd);
+
+  assert.match(snapshotSource, /authorName: normalizeUsername\(post\.authorName\)/);
+  assert.match(snapshotSource, /score: post\.score/);
+  assert.match(snapshotSource, /numberOfComments: post\.numberOfComments/);
+});
+
+test('cooldown action persists cooldown status instead of only appending an action', () => {
+  const source = readFileSync('src/server/core/firewatch.ts', 'utf8');
+  const cooldownStart = source.indexOf('export const coolDownIncident');
+  const cooldownEnd = source.indexOf('export const lockIncident', cooldownStart);
+  const cooldownSource = source.slice(cooldownStart, cooldownEnd);
+
+  assert.match(cooldownSource, /status: 'cooldown'/);
+});
+
+test('comment review cards hydrate and display native Reddit comment state', () => {
+  const apiSource = readFileSync('src/shared/api.ts', 'utf8');
+  const serverSource = readFileSync('src/server/core/firewatch.ts', 'utf8');
+  const clientSource = readFileSync(
+    'src/client/firewatch/incident-comments.tsx',
+    'utf8'
+  );
+
+  assert.match(apiSource, /approved\?: boolean/);
+  assert.match(apiSource, /ignoringReports\?: boolean/);
+  assert.match(apiSource, /locked\?: boolean/);
+  assert.match(apiSource, /spam\?: boolean/);
+  assert.match(serverSource, /await reddit\.getCommentById/);
+  assert.match(serverSource, /redditComment\.locked/);
+  assert.match(serverSource, /redditComment\.ignoringReports/);
+  assert.match(serverSource, /reviewStateKey\(calculated\)/);
+  assert.match(clientSource, /Boolean\(comment\.locked\)/);
+  assert.match(clientSource, /Boolean\(comment\.ignoringReports\)/);
+  assert.match(clientSource, /Boolean\(comment\.approved\)/);
+  assert.match(clientSource, /Boolean\(comment\.spam\)/);
+});
+
+test('user content removal refreshes and skips content already approved on Reddit', () => {
+  const source = readFileSync('src/server/core/firewatch.ts', 'utf8');
+  const banStart = source.indexOf('export const banUserAndRemoveComments');
+  const userActionStart = source.indexOf('export const applyNativeUserAction');
+  const banSource = source.slice(banStart, userActionStart);
+  const removalStart = source.indexOf('const removeRecentUserContent');
+  const removalEnd = source.indexOf('export const applyNativeUserAction', removalStart);
+  const removalSource = source.slice(removalStart, removalEnd);
+
+  assert.match(banSource, /await refreshIncident\(/);
+  assert.match(removalSource, /item\.isApproved\(\)/);
+  assert.match(removalSource, /if \(item\.isRemoved\(\)\)/);
+});
+
+test('scoring keeps open review comments durable and report counts stable', () => {
+  const source = readFileSync('src/server/core/firewatch-scoring.ts', 'utf8');
+
+  assert.match(source, /previousOpenComments/);
+  assert.match(source, /MAX_FLAGGED_COMMENTS - openFlaggedComments\.length/);
+  assert.match(source, /reportSignals: Math\.max\(totalReportCount, incident\.stats\.reportSignals\)/);
+  assert.match(source, /action\.type === 'user_banned' \? 0 : 1/);
+});
+
+test('automation matching filters by trigger and source scope', () => {
+  const source = readFileSync('src/server/core/firewatch-rules.ts', 'utf8');
+
+  assert.match(source, /triggerTypesForIncident/);
+  assert.match(source, /!effectiveTriggerTypes\.has\(rule\.trigger\.type\)/);
+  assert.match(source, /await reddit\s*\n\s*\.getModerators/);
+  assert.match(source, /moderatorUsers\.has/);
+  assert.match(source, /excludeFirewatchNotices/);
+  assert.match(source, /excludeAutoModerator/);
+  assert.match(source, /ignoredAuthors/);
+});
+
+test('automation runner can execute the selected matched target', () => {
+  const serverSource = readFileSync('src/server/core/firewatch.ts', 'utf8');
+  const apiSource = readFileSync('src/server/routes/api.ts', 'utf8');
+  const clientSource = readFileSync('src/client/firewatch/incident-rules.tsx', 'utf8');
+
+  assert.match(serverSource, /targetId\?: string/);
+  assert.match(serverSource, /rule\.targetId === targetId/);
+  assert.match(apiSource, /targetId: string/);
+  assert.match(clientSource, /targetId: rule\.targetId/);
+});
+
+test('client refreshes dashboard state after settings, automations, and actions', () => {
+  const source = readFileSync('src/client/firewatch/use-dashboard.ts', 'utf8');
+
+  assert.match(source, /await refresh\(\);/);
+  assert.match(source, /const payload = await requestJson<ConfigResponse>/);
+  assert.match(source, /const payload = await requestJson<RulesResponse>/);
+});
+
+test('automation editor preserves existing scope counters and extra actions', () => {
+  const source = readFileSync(
+    'src/client/firewatch/community-settings.tsx',
+    'utf8'
+  );
+
+  assert.match(source, /mergeExistingActions\(builtActions, rule\.actions\)/);
+  assert.match(source, /\.\.\.\(rule\?\.counter \? \{ counter: rule\.counter \} : \{\}\)/);
+  assert.match(source, /\.\.\.\(rule\?\.scope \?\? \{\}\)/);
 });

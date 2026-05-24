@@ -34,6 +34,9 @@ import {
 } from './firewatch-utils';
 
 type PostSnapshot = {
+  authorName?: string;
+  score: number;
+  numberOfComments: number;
   title: string;
   permalink?: string;
   subredditName: string;
@@ -412,6 +415,20 @@ const buildTrend = (
     }));
 };
 
+const mergeTrend = (
+  previous: IncidentTrendPoint[],
+  current: IncidentTrendPoint[]
+) => {
+  const byTimestamp = new Map<number, IncidentTrendPoint>();
+
+  for (const point of previous) byTimestamp.set(point.timestamp, point);
+  for (const point of current) byTimestamp.set(point.timestamp, point);
+
+  return Array.from(byTimestamp.values())
+    .sort((a, b) => a.timestamp - b.timestamp)
+    .slice(-MAX_TREND_POINTS);
+};
+
 const countActionTargets = (
   actions: Incident['actions'],
   type: IncidentActionType
@@ -443,7 +460,7 @@ const REMOVAL_ACTION_TYPES = new Set<IncidentActionType>([
 ]);
 
 const normalizeActionCommentTarget = (targetId: string) => {
-  if (targetId.startsWith('t3_')) return undefined;
+  if (!targetId.startsWith('t1_')) return undefined;
   return normalizeCommentId(targetId);
 };
 
@@ -455,7 +472,11 @@ const actionCommentTargets = (action: Incident['actions'][number]) =>
     );
 
 const countRemovalTargets = (action: Incident['actions'][number]) =>
-  REMOVAL_ACTION_TYPES.has(action.type) ? (action.targetIds?.length ?? 1) : 0;
+  REMOVAL_ACTION_TYPES.has(action.type)
+    ? (action.targetIds?.filter(
+        (targetId) => targetId.startsWith('t1_') || targetId.startsWith('t3_')
+      ).length ?? (action.type === 'user_banned' ? 0 : 1))
+    : 0;
 
 const buildImpactSnapshot = ({
   activeFlaggedComments,
@@ -481,6 +502,9 @@ const buildImpactSnapshot = ({
       .map((comment) => normalizeUsername(comment.author))
       .filter((author): author is string => Boolean(author))
   );
+  for (const username of usersInReview) {
+    usersHandled.delete(username);
+  }
   const moderationActions = incident.actions.filter(
     (action) => action.type !== 'demo_seeded'
   );
@@ -491,7 +515,7 @@ const buildImpactSnapshot = ({
   const resolvedAt = incident.resolvedAt ?? now();
 
   return {
-    reportsGrouped,
+    reportsGrouped: Math.max(reportsGrouped, incident.impact?.reportsGrouped ?? 0),
     commentsReviewed: reviewedComments.length,
     commentsAwaitingReview: activeFlaggedComments.length,
     usersInReview: usersInReview.size,
@@ -513,7 +537,7 @@ const buildImpactSnapshot = ({
       incident.actions.some((action) => action.type === 'resolved'),
     timeOpenMinutes: Math.max(
       0,
-      Math.round((resolvedAt - incident.createdAt) / 60000)
+      Math.round((resolvedAt - (incident.openedAt ?? incident.createdAt)) / 60000)
     ),
     peakAttention: incident.peakScore ?? 0,
   };
@@ -614,6 +638,27 @@ export const calculateIncident = (
           signal.metadata?.action === 'spamlink')) ||
       signal.type === 'automod_filter'
   );
+  const recordedRemovalTargets = new Set(
+    incident.actions
+      .filter((action) => REMOVAL_ACTION_TYPES.has(action.type))
+      .flatMap((action) => action.targetIds ?? [])
+      .map((targetId) =>
+        targetId.startsWith('t1_')
+          ? normalizeCommentId(targetId)
+          : targetId.startsWith('t3_')
+            ? targetId
+            : undefined
+      )
+      .filter((targetId): targetId is string => Boolean(targetId))
+  );
+  const unrecordedExternalRemovalActions = externalRemovalActions.filter(
+    (signal) => {
+      const targetId = signal.commentId
+        ? normalizeCommentId(signal.commentId)
+        : signal.postId;
+      return !recordedRemovalTargets.has(targetId);
+    }
+  );
   const repeatedPhrases = extractRepeatedPhrases(activeUserSignals);
   const repeatedPhraseHits = repeatedPhrases.reduce(
     (total, phrase) => total + phrase.count,
@@ -684,7 +729,8 @@ export const calculateIncident = (
     0,
     20
   );
-  const removalSignalCount = removalsLastHour + externalRemovalActions.length;
+  const removalSignalCount =
+    removalsLastHour + unrecordedExternalRemovalActions.length;
   const removalPoints = clamp(
     removalSignalCount * config.signalWeights.recentRemovals,
     0,
@@ -826,10 +872,35 @@ export const calculateIncident = (
     .map((comment) => ({
       ...comment,
       author: normalizeUsername(comment.author) ?? 'unknown user',
+      approved: false,
+      ignoringReports: false,
+      locked: false,
+      numReports: comment.numReports ?? 0,
       removed: false,
       reviewed: false,
+      spam: false,
     }))
     .sort((a, b) => b.score - a.score);
+  const activeIds = new Set(
+    activeFlaggedComments.map((comment) => normalizeCommentId(comment.id))
+  );
+  const previousOpenComments = incident.flaggedComments
+    .filter((comment) => {
+      const commentId = normalizeCommentId(comment.id);
+      return (
+        !comment.removed &&
+        !comment.reviewed &&
+        !removedCommentIds.has(commentId) &&
+        !reviewedCommentIds.has(commentId) &&
+        !activeIds.has(commentId)
+      );
+    })
+    .map((comment) => ({
+      ...comment,
+      author: normalizeUsername(comment.author) ?? 'unknown user',
+      removed: false,
+      reviewed: false,
+    }));
   const alreadyActionedComments = incident.flaggedComments
     .filter(
       (comment) =>
@@ -841,37 +912,65 @@ export const calculateIncident = (
     .map((comment) => ({
       ...comment,
       author: normalizeUsername(comment.author) ?? 'unknown user',
+      approved:
+        Boolean(comment.approved) ||
+        reviewedCommentIds.has(normalizeCommentId(comment.id)),
       removed:
         comment.removed ||
+        Boolean(comment.spam) ||
         removedCommentIds.has(normalizeCommentId(comment.id)),
       reviewed:
         Boolean(comment.reviewed) ||
+        Boolean(comment.approved) ||
         reviewedCommentIds.has(normalizeCommentId(comment.id)),
+      spam: Boolean(comment.spam),
     }));
-  const actionedIds = new Set(
-    activeFlaggedComments.map((comment) => comment.id)
+  const openFlaggedComments = [
+    ...activeFlaggedComments,
+    ...previousOpenComments,
+  ].sort((a, b) => b.score - a.score);
+  const openIds = new Set(openFlaggedComments.map((comment) => comment.id));
+  const actionedCommentLimit = Math.max(
+    0,
+    MAX_FLAGGED_COMMENTS - openFlaggedComments.length
   );
   const flaggedComments = [
-    ...activeFlaggedComments,
+    ...openFlaggedComments,
     ...alreadyActionedComments.filter(
-      (comment) => !actionedIds.has(comment.id)
-    ),
-  ].slice(0, MAX_FLAGGED_COMMENTS);
+      (comment) => !openIds.has(comment.id)
+    ).slice(0, actionedCommentLimit),
+  ];
   const level = getLevel(score, config);
   const peakScore = Math.max(incident.peakScore ?? 0, score);
   const peakLevel = getLevel(peakScore, config);
+  const sortedReasons = reasons.sort((a, b) => b.points - a.points);
+  const nextPeakReasons =
+    score >= (incident.peakScore ?? 0) && sortedReasons.length > 0
+      ? sortedReasons
+      : (incident.peakReasons ?? sortedReasons);
+  const nextPeakRepeatedPhrases =
+    score >= (incident.peakScore ?? 0) && repeatedPhrases.length > 0
+      ? repeatedPhrases
+      : (incident.peakRepeatedPhrases ?? repeatedPhrases);
   const status = deriveIncidentStatus(
     incident,
-    activeFlaggedComments.length,
+    openFlaggedComments.length,
     postSnapshot.postState?.locked
   );
-  const involvedUsers = buildParticipants(userSignals, activeFlaggedComments);
+  const involvedUsers = buildParticipants(
+    activeUserSignals,
+    openFlaggedComments
+  );
   const fallbackCreatedAt =
     minTimestamp(
       incident.createdAt,
       ...normalizedSignals.map((signal) => signal.createdAt)
     ) ?? incident.createdAt;
   const createdAt = postSnapshot.createdAt ?? fallbackCreatedAt;
+  const openedAt =
+    incident.openedAt ??
+    minTimestamp(...normalizedSignals.map((signal) => signal.createdAt)) ??
+    createdAt;
   const updatedAt =
     maxTimestamp(
       ...normalizedSignals.map((signal) => signal.createdAt),
@@ -882,7 +981,7 @@ export const calculateIncident = (
       createdAt
     ) ?? createdAt;
   const usersInReview = new Set(
-    activeFlaggedComments
+    openFlaggedComments
       .map((comment) => normalizeUsername(comment.author))
       .filter((author): author is string => Boolean(author))
   );
@@ -890,41 +989,48 @@ export const calculateIncident = (
     ...makeEmptyStats(),
     signalCount: visibleSignals.length,
     commentSignals: recentComments.length,
-    reportSignals: totalReportCount,
+    reportSignals: Math.max(totalReportCount, incident.stats.reportSignals),
     manualEscalations: manualEscalations.length,
     keywordHits,
     suspiciousLinkHits: suspiciousHits,
     branchPileOns: branchPileOnCount,
     repeatedPhraseHits,
     removals:
-      externalRemovalActions.length +
+      unrecordedExternalRemovalActions.length +
       incident.actions.reduce((total, action) => {
         return total + countRemovalTargets(action);
       }, 0),
-    flaggedCount: activeFlaggedComments.length,
+    flaggedCount: openFlaggedComments.length,
     uniqueParticipants: usersInReview.size,
     commentsLastHour: recentComments.length,
   };
   const impact = buildImpactSnapshot({
-    activeFlaggedComments,
+    activeFlaggedComments: openFlaggedComments,
     flaggedComments,
     incident,
     reportsGrouped: totalReportCount,
   });
+  const currentTrend = buildTrend(scoreSignals, config);
 
   return {
     ...incident,
     title: postSnapshot.title,
     permalink: postSnapshot.permalink,
     subredditName: postSnapshot.subredditName,
+    postAuthor: postSnapshot.authorName ?? incident.postAuthor,
+    postScore: postSnapshot.score,
+    postCommentCount: postSnapshot.numberOfComments,
     createdAt,
+    openedAt,
     score,
     level,
     peakScore,
     peakLevel,
+    peakReasons: nextPeakReasons,
+    peakRepeatedPhrases: nextPeakRepeatedPhrases,
     status,
     postState: postSnapshot.postState,
-    reasons: reasons.sort((a, b) => b.points - a.points),
+    reasons: sortedReasons,
     flaggedComments,
     involvedUsers,
     repeatedPhrases,
@@ -933,13 +1039,13 @@ export const calculateIncident = (
       ...impact,
       peakAttention: peakScore,
     },
-    trend: buildTrend(scoreSignals, config),
+    trend: mergeTrend(incident.trend ?? [], currentTrend),
     recentSignals: normalizedSignals.slice(0, MAX_RECENT_SIGNALS),
     responseSuggestion: getResponseSuggestion(
       score,
       level,
       status,
-      activeFlaggedComments.length
+      openFlaggedComments.length
     ),
     updatedAt,
   };

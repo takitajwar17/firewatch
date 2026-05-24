@@ -40,7 +40,7 @@ export const MatchedRulesCard = ({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Automation</CardTitle>
+        <CardTitle>Automations</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         {matchedRules.map((rule) => (
@@ -59,8 +59,9 @@ export const MatchedRulesCard = ({
             onEditRules={onEditRules}
             onRun={() =>
               onAction(
-                `rule:${rule.ruleId}`,
-                `/api/incidents/${incident.postId}/rules/${rule.ruleId}/run`
+                `rule:${rule.ruleId}:${rule.targetId}`,
+                `/api/incidents/${incident.postId}/rules/${rule.ruleId}/run`,
+                { targetId: rule.targetId }
               )
             }
           />
@@ -85,7 +86,7 @@ const MatchedRuleItem = ({
   onEditRules: () => void;
   onRun: () => void;
 }) => {
-  const actionId = `rule:${rule.ruleId}`;
+  const actionId = `rule:${rule.ruleId}:${rule.targetId}`;
   const canRun = rule.mode !== 'suggest_only';
 
   return (

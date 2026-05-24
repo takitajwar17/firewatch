@@ -37,6 +37,7 @@ import type {
   FirewatchRule,
   FirewatchRuleInput,
   RuleExecutionLog,
+  RuleAction,
   RuleMode,
   RuleTestResponse,
   RuleTrigger,
@@ -291,7 +292,10 @@ const RULE_TRIGGER_OPTIONS: {
 }[] = [
   { label: RULE_TRIGGER_LABELS.new_comment, value: 'new_comment' },
   { label: RULE_TRIGGER_LABELS.new_post, value: 'new_post' },
+  { label: RULE_TRIGGER_LABELS.comment_report, value: 'comment_report' },
+  { label: RULE_TRIGGER_LABELS.post_report, value: 'post_report' },
   { label: RULE_TRIGGER_LABELS.comment_removed, value: 'comment_removed' },
+  { label: RULE_TRIGGER_LABELS.post_removed, value: 'post_removed' },
   {
     label: RULE_TRIGGER_LABELS.incident_score_changed,
     value: 'incident_score_changed',
@@ -397,6 +401,84 @@ const firstBuilderAction = (
   return 'strike_and_note';
 };
 
+const firstConditionDefaults = (rule: FirewatchRule | undefined) => {
+  const condition = rule?.conditions[0];
+  if (!condition) {
+    return {
+      phrase: 'recovery agent',
+      threshold: '2',
+      windowHours: '24',
+    };
+  }
+
+  if (condition.type === 'text_contains') {
+    return {
+      phrase: condition.value,
+      threshold: '2',
+      windowHours: '24',
+    };
+  }
+
+  if (
+    condition.type === 'watched_word_hit' ||
+    condition.type === 'watched_domain_hit'
+  ) {
+    return {
+      phrase: 'recovery agent',
+      threshold: String(condition.minHits),
+      windowHours: '24',
+    };
+  }
+
+  if (
+    condition.type === 'user_strikes' ||
+    condition.type === 'user_removed_comments' ||
+    condition.type === 'post_reports'
+  ) {
+    return {
+      phrase: 'recovery agent',
+      threshold: String(condition.value),
+      windowHours: String(
+        Math.max(1, Math.round((condition.windowMinutes ?? 24 * 60) / 60))
+      ),
+    };
+  }
+
+  if (condition.type === 'incident_score') {
+    return {
+      phrase: 'recovery agent',
+      threshold: String(condition.value),
+      windowHours: '24',
+    };
+  }
+
+  return {
+    phrase: 'recovery agent',
+    threshold: '2',
+    windowHours: '24',
+  };
+};
+
+const actionSignature = (action: RuleAction) =>
+  action.type === 'mark_spam' || action.type === 'ignore_reports'
+    ? `${action.type}:${action.target}`
+    : action.type;
+
+const mergeExistingActions = (
+  nextActions: FirewatchRuleInput['actions'],
+  existingActions: FirewatchRule['actions']
+) => {
+  const seen = new Set(nextActions.map(actionSignature));
+  const preserved = existingActions.filter((action) => {
+    const signature = actionSignature(action);
+    if (seen.has(signature)) return false;
+    seen.add(signature);
+    return true;
+  });
+
+  return [...nextActions, ...preserved];
+};
+
 const RuleBuilder = ({
   busy,
   rule,
@@ -419,14 +501,19 @@ const RuleBuilder = ({
     rule?.trigger.type ?? 'new_comment'
   );
   const [target, setTarget] = useState(rule?.scope.target ?? 'comment');
+  const initialConditionType = firstBuilderCondition(rule);
+  const initialActionType = firstBuilderAction(rule);
+  const initialConditionDefaults = firstConditionDefaults(rule);
   const [conditionType, setConditionType] = useState<BuilderConditionType>(
-    firstBuilderCondition(rule)
+    initialConditionType
   );
-  const [phrase, setPhrase] = useState('recovery agent');
-  const [threshold, setThreshold] = useState('2');
-  const [windowHours, setWindowHours] = useState('24');
+  const [phrase, setPhrase] = useState(initialConditionDefaults.phrase);
+  const [threshold, setThreshold] = useState(initialConditionDefaults.threshold);
+  const [windowHours, setWindowHours] = useState(
+    initialConditionDefaults.windowHours
+  );
   const [actionType, setActionType] = useState<BuilderActionType>(
-    firstBuilderAction(rule)
+    initialActionType
   );
   const [mode, setMode] = useState<RuleMode>(
     rule?.mode ?? 'prepare_for_approval'
@@ -551,18 +638,37 @@ const RuleBuilder = ({
     ];
   };
 
-  const saveRule = () =>
-    onSave({
+  const saveRule = () => {
+    const builtConditions = buildCondition();
+    const conditions =
+      rule && conditionType === initialConditionType
+        ? [...builtConditions, ...rule.conditions.slice(1)]
+        : builtConditions;
+    const builtActions = buildActions();
+    const actions =
+      rule && actionType === initialActionType
+        ? mergeExistingActions(builtActions, rule.actions)
+        : builtActions;
+    const scope = {
+      ...defaultRuleScope(subredditId, target),
+      ...(rule?.scope ?? {}),
+      target,
+      subredditId,
+    };
+
+    return onSave({
       ...(rule ? { id: rule.id } : {}),
       name,
       ...(description.trim() ? { description: description.trim() } : {}),
       enabled,
       trigger: { type: triggerType },
-      scope: defaultRuleScope(subredditId, target),
-      conditions: buildCondition(),
-      actions: buildActions(),
+      scope,
+      conditions,
+      ...(rule?.counter ? { counter: rule.counter } : {}),
+      actions,
       mode,
     });
+  };
 
   return (
     <div className="rounded-lg border bg-muted/40 p-3">

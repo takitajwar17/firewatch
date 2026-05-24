@@ -61,9 +61,12 @@ import {
 } from './reddit-icons';
 
 export const IncidentIntro = ({ incident }: { incident: Incident }) => {
-  const authorLabel = incident.recentSignals[0]?.author
-    ? `u/${incident.recentSignals[0].author}`
+  const authorLabel = incident.postAuthor
+    ? formatUsername(incident.postAuthor)
     : `r/${incident.subredditName}`;
+  const postScore = incident.postScore ?? incident.score;
+  const postCommentCount =
+    incident.postCommentCount ?? incident.flaggedComments.length;
 
   return (
     <section className="overflow-hidden border-b border-border bg-background text-card-foreground">
@@ -100,15 +103,15 @@ export const IncidentIntro = ({ incident }: { incident: Incident }) => {
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <PostMetricPill
-              ariaLabel="Post score 1 upvote"
+              ariaLabel={`Post score ${postScore}`}
               icon={<RedditUpvoteIcon />}
               secondaryIcon={<RedditDownvoteIcon />}
-              value="1"
+              value={String(postScore)}
             />
             <PostMetricPill
-              ariaLabel={`${pluralize(incident.flaggedComments.length, 'comment')} attached`}
+              ariaLabel={`${pluralize(postCommentCount, 'comment')} on Reddit`}
               icon={<RedditCommentIcon />}
-              value={String(incident.flaggedComments.length)}
+              value={String(postCommentCount)}
             />
             <span className="px-1 text-xs font-semibold leading-6 text-muted-foreground">
               Updated {formatTime(incident.updatedAt)}
@@ -302,7 +305,9 @@ export const IncidentHero = ({
   const [showStickyPrep, setShowStickyPrep] = useState(false);
   const [stickyText, setStickyText] = useState(config.reminderText);
   const terminal = isTerminalStatus(incident.status);
-  const reminderAlreadyPosted = incident.status === 'cooldown';
+  const reminderAlreadyPosted = incident.actions.some(
+    (action) => action.type === 'cool_down'
+  );
   const postLocked = isPostLocked(incident);
   const canToggleLock = postLocked
     ? config.actionControls.unlockPost

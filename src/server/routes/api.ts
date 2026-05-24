@@ -305,9 +305,15 @@ api.post('/incidents/:postId/users/:username/native-action', async (c) => {
 });
 
 api.post('/incidents/:postId/rules/:ruleId/run', async (c) => {
-  return incidentAction(c, () =>
-    runPreparedRuleActions(c.req.param('postId'), c.req.param('ruleId'))
-  );
+  return incidentAction(c, async () => {
+    const body = await readOptionalJson<{ targetId: string }>(c);
+    return runPreparedRuleActions(
+      c.req.param('postId'),
+      c.req.param('ruleId'),
+      undefined,
+      body.targetId
+    );
+  });
 });
 
 api.post('/incidents/:postId/users/:username/strikes/clear', async (c) => {

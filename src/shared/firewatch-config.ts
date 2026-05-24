@@ -64,6 +64,7 @@ export const DEFAULT_CONFIG: FirewatchConfig = {
     markPostNsfw: true,
     markPostSpoiler: true,
     ignoreReports: true,
+    ignoreCommentReports: true,
     crowdControl: true,
     setPostFlair: true,
     lockComments: true,
@@ -93,6 +94,220 @@ export const EMPTY_CONFIG: FirewatchConfig = {
   ...DEFAULT_CONFIG,
   keywords: [],
   suspiciousDomains: [],
+};
+
+const clamp = (value: number, min: number, max: number) =>
+  Math.max(min, Math.min(max, value));
+
+const normalizeBoolean = (value: unknown, fallback: boolean) =>
+  typeof value === 'boolean' ? value : fallback;
+
+const normalizeWeight = (value: unknown, fallback: number, max = 50) => {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return fallback;
+  return clamp(Math.round(numericValue), 0, max);
+};
+
+const normalizeList = (
+  value: FirewatchConfig['keywords'] | undefined,
+  fallback: string[]
+) => {
+  if (!Array.isArray(value)) return fallback;
+
+  return Array.from(
+    new Set(
+      value
+        .map((item) => item.trim().toLowerCase())
+        .filter((item) => item.length > 0)
+    )
+  );
+};
+
+export const normalizeThresholds = (
+  heatThreshold: number,
+  fireThreshold: number,
+  wildfireThreshold: number
+) => {
+  const heatInput = Number.isFinite(heatThreshold)
+    ? heatThreshold
+    : DEFAULT_CONFIG.heatThreshold;
+  const fireInput = Number.isFinite(fireThreshold)
+    ? fireThreshold
+    : DEFAULT_CONFIG.fireThreshold;
+  const wildfireInput = Number.isFinite(wildfireThreshold)
+    ? wildfireThreshold
+    : DEFAULT_CONFIG.wildfireThreshold;
+  const heat = clamp(heatInput, 1, 98);
+  const fire = clamp(fireInput, heat + 1, 99);
+  const wildfire = clamp(wildfireInput, fire + 1, 100);
+
+  return {
+    heatThreshold: heat,
+    fireThreshold: fire,
+    wildfireThreshold: wildfire,
+  };
+};
+
+export const normalizeConfig = (
+  value: Partial<FirewatchConfig> | undefined
+): FirewatchConfig => {
+  const thresholds = normalizeThresholds(
+    Number(value?.heatThreshold ?? DEFAULT_CONFIG.heatThreshold),
+    Number(value?.fireThreshold ?? DEFAULT_CONFIG.fireThreshold),
+    Number(value?.wildfireThreshold ?? DEFAULT_CONFIG.wildfireThreshold)
+  );
+  const actionControls = value?.actionControls;
+  const signalWeights = value?.signalWeights;
+  const reminderText = value?.reminderText?.trim();
+
+  return {
+    keywords: normalizeList(value?.keywords, DEFAULT_CONFIG.keywords),
+    suspiciousDomains: normalizeList(
+      value?.suspiciousDomains,
+      DEFAULT_CONFIG.suspiciousDomains
+    ),
+    ...thresholds,
+    reminderText: reminderText
+      ? reminderText.slice(0, 800)
+      : DEFAULT_CONFIG.reminderText,
+    actionControls: {
+      approveComments: normalizeBoolean(
+        actionControls?.approveComments,
+        DEFAULT_CONFIG.actionControls.approveComments
+      ),
+      removeComments: normalizeBoolean(
+        actionControls?.removeComments,
+        DEFAULT_CONFIG.actionControls.removeComments
+      ),
+      banUsers: normalizeBoolean(
+        actionControls?.banUsers,
+        DEFAULT_CONFIG.actionControls.banUsers
+      ),
+      stickyReminder: normalizeBoolean(
+        actionControls?.stickyReminder,
+        DEFAULT_CONFIG.actionControls.stickyReminder
+      ),
+      lockPost: normalizeBoolean(
+        actionControls?.lockPost,
+        DEFAULT_CONFIG.actionControls.lockPost
+      ),
+      unlockPost: normalizeBoolean(
+        actionControls?.unlockPost,
+        DEFAULT_CONFIG.actionControls.unlockPost
+      ),
+      approvePosts: normalizeBoolean(
+        actionControls?.approvePosts,
+        DEFAULT_CONFIG.actionControls.approvePosts
+      ),
+      removePosts: normalizeBoolean(
+        actionControls?.removePosts,
+        DEFAULT_CONFIG.actionControls.removePosts
+      ),
+      markPostSpam: normalizeBoolean(
+        actionControls?.markPostSpam,
+        DEFAULT_CONFIG.actionControls.markPostSpam
+      ),
+      markPostNsfw: normalizeBoolean(
+        actionControls?.markPostNsfw,
+        DEFAULT_CONFIG.actionControls.markPostNsfw
+      ),
+      markPostSpoiler: normalizeBoolean(
+        actionControls?.markPostSpoiler,
+        DEFAULT_CONFIG.actionControls.markPostSpoiler
+      ),
+      ignoreReports: normalizeBoolean(
+        actionControls?.ignoreReports,
+        DEFAULT_CONFIG.actionControls.ignoreReports
+      ),
+      ignoreCommentReports: normalizeBoolean(
+        actionControls?.ignoreCommentReports,
+        actionControls?.ignoreReports ??
+          DEFAULT_CONFIG.actionControls.ignoreCommentReports
+      ),
+      crowdControl: normalizeBoolean(
+        actionControls?.crowdControl,
+        DEFAULT_CONFIG.actionControls.crowdControl
+      ),
+      setPostFlair: normalizeBoolean(
+        actionControls?.setPostFlair,
+        DEFAULT_CONFIG.actionControls.setPostFlair
+      ),
+      lockComments: normalizeBoolean(
+        actionControls?.lockComments,
+        DEFAULT_CONFIG.actionControls.lockComments
+      ),
+      markCommentSpam: normalizeBoolean(
+        actionControls?.markCommentSpam,
+        DEFAULT_CONFIG.actionControls.markCommentSpam
+      ),
+      removeCommentThreads: normalizeBoolean(
+        actionControls?.removeCommentThreads,
+        DEFAULT_CONFIG.actionControls.removeCommentThreads
+      ),
+      showComments: normalizeBoolean(
+        actionControls?.showComments,
+        DEFAULT_CONFIG.actionControls.showComments
+      ),
+      approveUsers: normalizeBoolean(
+        actionControls?.approveUsers,
+        DEFAULT_CONFIG.actionControls.approveUsers
+      ),
+      muteUsers: normalizeBoolean(
+        actionControls?.muteUsers,
+        DEFAULT_CONFIG.actionControls.muteUsers
+      ),
+      addModNotes: normalizeBoolean(
+        actionControls?.addModNotes,
+        DEFAULT_CONFIG.actionControls.addModNotes
+      ),
+      removeUserContent: normalizeBoolean(
+        actionControls?.removeUserContent,
+        DEFAULT_CONFIG.actionControls.removeUserContent
+      ),
+      handoffNotes: normalizeBoolean(
+        actionControls?.handoffNotes,
+        DEFAULT_CONFIG.actionControls.handoffNotes
+      ),
+      markHandled: normalizeBoolean(
+        actionControls?.markHandled,
+        DEFAULT_CONFIG.actionControls.markHandled
+      ),
+    },
+    signalWeights: {
+      commentVelocity: normalizeWeight(
+        signalWeights?.commentVelocity,
+        DEFAULT_CONFIG.signalWeights.commentVelocity
+      ),
+      reports: normalizeWeight(
+        signalWeights?.reports,
+        DEFAULT_CONFIG.signalWeights.reports
+      ),
+      watchedWords: normalizeWeight(
+        signalWeights?.watchedWords,
+        DEFAULT_CONFIG.signalWeights.watchedWords
+      ),
+      watchedDomains: normalizeWeight(
+        signalWeights?.watchedDomains,
+        DEFAULT_CONFIG.signalWeights.watchedDomains
+      ),
+      replyPileOns: normalizeWeight(
+        signalWeights?.replyPileOns,
+        DEFAULT_CONFIG.signalWeights.replyPileOns
+      ),
+      repeatedWording: normalizeWeight(
+        signalWeights?.repeatedWording,
+        DEFAULT_CONFIG.signalWeights.repeatedWording
+      ),
+      recentRemovals: normalizeWeight(
+        signalWeights?.recentRemovals,
+        DEFAULT_CONFIG.signalWeights.recentRemovals
+      ),
+      manualSend: normalizeWeight(
+        signalWeights?.manualSend,
+        DEFAULT_CONFIG.signalWeights.manualSend
+      ),
+    },
+  };
 };
 
 export type FirewatchConfigUpdate = OptionalValue<{
@@ -137,6 +352,7 @@ export type FirewatchConfigFormValues = {
   allowMarkPostNsfw?: boolean;
   allowMarkPostSpoiler?: boolean;
   allowIgnoreReports?: boolean;
+  allowIgnoreCommentReports?: boolean;
   allowCrowdControl?: boolean;
   allowSetPostFlair?: boolean;
   allowApproveUsers?: boolean;
@@ -311,7 +527,14 @@ const ignoreReportsField: ConfigActionControlField = {
   id: 'ignoreReports',
   formName: 'allowIgnoreReports',
   formLabel: 'Allow ignoring reports',
-  label: 'Ignore reports',
+  label: 'Ignore post reports',
+};
+
+const ignoreCommentReportsField: ConfigActionControlField = {
+  id: 'ignoreCommentReports',
+  formName: 'allowIgnoreCommentReports',
+  formLabel: 'Allow ignoring comment reports',
+  label: 'Ignore comment reports',
 };
 
 const crowdControlField: ConfigActionControlField = {
@@ -434,6 +657,7 @@ export const CONFIG_POST_ACTION_FIELDS: ConfigActionControlField[] = [
 export const CONFIG_COMMENT_ACTION_FIELDS: ConfigActionControlField[] = [
   markCommentSpamField,
   lockCommentsField,
+  ignoreCommentReportsField,
   removeCommentThreadsField,
   showCommentsField,
 ];
@@ -469,6 +693,7 @@ const CONFIG_FORM_ACTION_FIELDS: ConfigActionControlField[] = [
   markPostNsfwField,
   markPostSpoilerField,
   ignoreReportsField,
+  ignoreCommentReportsField,
   crowdControlField,
   setPostFlairField,
   approveUsersField,
@@ -572,6 +797,7 @@ export const configUpdateFromFormValues = (
     markPostNsfw: values.allowMarkPostNsfw,
     markPostSpoiler: values.allowMarkPostSpoiler,
     ignoreReports: values.allowIgnoreReports,
+    ignoreCommentReports: values.allowIgnoreCommentReports,
     crowdControl: values.allowCrowdControl,
     setPostFlair: values.allowSetPostFlair,
     approveUsers: values.allowApproveUsers,

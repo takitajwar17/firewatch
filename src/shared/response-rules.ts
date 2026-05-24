@@ -155,32 +155,6 @@ export const isDestructiveRuleAction = (action: RuleAction) =>
   action.type === 'prepare_temp_ban' ||
   action.type === 'prepare_permanent_ban';
 
-export const ruleActionRunDisposition = (
-  action: RuleAction
-): 'execute' | 'prepare' => {
-  switch (action.type) {
-    case 'queue_incident':
-    case 'add_firewatch_strike':
-    case 'save_firewatch_log':
-    case 'generate_handoff':
-    case 'add_native_mod_note':
-    case 'remove_comment':
-    case 'remove_post':
-    case 'approve_comment':
-    case 'approve_post':
-    case 'mark_spam':
-    case 'sticky_reminder':
-    case 'lock_post':
-    case 'set_post_flair':
-    case 'ignore_reports':
-    case 'prepare_temp_ban':
-    case 'prepare_permanent_ban':
-    case 'mute_user':
-    case 'mark_handled':
-      return 'execute';
-  }
-};
-
 export const preparedRuleAction = ({
   action,
   id,

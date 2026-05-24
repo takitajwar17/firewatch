@@ -72,11 +72,13 @@ export const nativePostActionType = (
     case 'unlock':
       return 'post_unlocked';
     case 'mark-nsfw':
+      return 'post_marked_nsfw';
     case 'unmark-nsfw':
-      return 'post_nsfw';
+      return 'post_unmarked_nsfw';
     case 'mark-spoiler':
+      return 'post_marked_spoiler';
     case 'unmark-spoiler':
-      return 'post_spoiler';
+      return 'post_unmarked_spoiler';
     case 'ignore-reports':
       return 'post_reports_ignored';
     case 'unignore-reports':
@@ -138,7 +140,7 @@ export const commentActionControl = (
       return 'lockComments';
     case 'ignore-reports':
     case 'unignore-reports':
-      return 'ignoreReports';
+      return 'ignoreCommentReports';
     case 'remove-thread':
       return 'removeCommentThreads';
     case 'show-comment':

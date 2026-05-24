@@ -94,17 +94,26 @@ const getCommentActionState = (
     latestResolutionAction === 'comment_removed' ||
     latestResolutionAction === 'comment_spammed' ||
     latestResolutionAction === 'comment_thread_removed';
+  const approvedByAction = latestResolutionAction === 'comment_approved';
+  const nativeRemoved = Boolean(comment.removed) || Boolean(comment.spam);
+  const nativeReviewed = Boolean(comment.reviewed) || Boolean(comment.approved);
 
   return {
-    locked: latestLockAction === 'comment_locked',
-    removed: Boolean(comment.removed) || removedByAction,
-    reportsIgnored: latestReportAction === 'comment_reports_ignored',
-    reviewed:
-      Boolean(comment.reviewed) || latestResolutionAction === 'comment_approved',
+    locked:
+      latestLockAction === 'comment_unlocked'
+        ? false
+        : Boolean(comment.locked) || latestLockAction === 'comment_locked',
+    removed: nativeRemoved || removedByAction,
+    reportsIgnored:
+      latestReportAction === 'comment_reports_unignored'
+        ? false
+        : Boolean(comment.ignoringReports) ||
+          latestReportAction === 'comment_reports_ignored',
+    reviewed: nativeReviewed || approvedByAction,
     shown:
       latestCommentAction(incident, comment.id, ['comment_shown']) ===
       'comment_shown',
-    spammed: latestResolutionAction === 'comment_spammed',
+    spammed: Boolean(comment.spam) || latestResolutionAction === 'comment_spammed',
   };
 };
 
@@ -123,12 +132,14 @@ export const FlaggedCommentsCard = ({
   const [reason, setReason] = useState('Rule-breaking comment');
   const [userNote, setUserNote] = useState('Firewatch moderator action');
   const [banDuration, setBanDuration] = useState('0');
-  const needsReview = incident.flaggedComments.filter(
-    (comment) => !comment.removed && !comment.reviewed
-  );
-  const alreadyActioned = incident.flaggedComments.filter(
-    (comment) => comment.removed || comment.reviewed
-  );
+  const needsReview = incident.flaggedComments.filter((comment) => {
+    const commentState = getCommentActionState(incident, comment);
+    return !commentState.removed && !commentState.reviewed;
+  });
+  const alreadyActioned = incident.flaggedComments.filter((comment) => {
+    const commentState = getCommentActionState(incident, comment);
+    return commentState.removed || commentState.reviewed;
+  });
   const controls = config.actionControls;
 
   return (
@@ -176,7 +187,7 @@ export const FlaggedCommentsCard = ({
                   controls.markCommentSpam ||
                   (controls.removeCommentThreads && controls.removeComments) ||
                   controls.lockComments ||
-                  controls.ignoreReports ||
+                  controls.ignoreCommentReports ||
                   controls.showComments;
                 const hasAdvancedUserActions =
                   controls.approveUsers ||
@@ -384,7 +395,7 @@ export const FlaggedCommentsCard = ({
                                         }
                                       />
                                     ) : null}
-                                    {controls.ignoreReports ? (
+                                    {controls.ignoreCommentReports ? (
                                       <RedditActionButton
                                         action={reportsAction}
                                         busyAction={busyAction}
@@ -546,6 +557,7 @@ export const FlaggedCommentsCard = ({
             <div className="flex flex-col">
               {alreadyActioned.map((comment) => {
                 const permalink = comment.permalink;
+                const commentState = getCommentActionState(incident, comment);
 
                 return (
                   <div
@@ -556,7 +568,7 @@ export const FlaggedCommentsCard = ({
                       <div className="min-w-0">
                         <p className="text-sm font-semibold leading-5">
                           {formatUsername(comment.author)} -{' '}
-                          {comment.removed ? 'removed' : 'approved'}
+                          {commentState.removed ? 'removed' : 'approved'}
                         </p>
                         <p className="mt-2 line-clamp-2 break-words text-sm leading-5 text-muted-foreground">
                           {comment.body}

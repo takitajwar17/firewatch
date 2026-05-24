@@ -9,6 +9,7 @@ import type {
   NativePostAction,
   NativeUserAction,
   RuleExecutionLog,
+  RuleTrigger,
   SignalSource,
 } from '../../shared/api';
 import {
@@ -32,7 +33,6 @@ import type {
   FirewatchConfigUpdate,
 } from '../../shared/firewatch-config';
 import { sortIncidentsByPriority } from '../../shared/incidents';
-import { ruleActionRunDisposition } from '../../shared/response-rules';
 import {
   DEFAULT_CONFIG,
   INDEX_KEY,
@@ -106,18 +106,6 @@ const parseStoredClaim = (
   return fallback;
 };
 
-const mergeConfigList = (
-  storedList: string[] | undefined,
-  defaultList: string[]
-) =>
-  Array.from(
-    new Set(
-      [...defaultList, ...(storedList ?? [])]
-        .map((item) => item.trim().toLowerCase())
-        .filter(Boolean)
-    )
-  );
-
 export const getConfig = async (
   subredditName = context.subredditName
 ): Promise<FirewatchConfig> => {
@@ -127,11 +115,8 @@ export const getConfig = async (
   try {
     const parsed: Partial<FirewatchConfig> = JSON.parse(stored);
     return normalizeConfig({
-      keywords: mergeConfigList(parsed.keywords, DEFAULT_CONFIG.keywords),
-      suspiciousDomains: mergeConfigList(
-        parsed.suspiciousDomains,
-        DEFAULT_CONFIG.suspiciousDomains
-      ),
+      keywords: parsed.keywords,
+      suspiciousDomains: parsed.suspiciousDomains,
       heatThreshold: parsed.heatThreshold,
       fireThreshold: parsed.fireThreshold,
       wildfireThreshold: parsed.wildfireThreshold,
@@ -233,10 +218,18 @@ const getIncident = async (postId: string) => {
   }
 };
 
-const shouldShowInQueue = (incident: Incident) =>
-  incident.score > 0 ||
-  incident.actions.length > 0 ||
-  deriveIncidentStatus(incident) !== 'open';
+const shouldShowInQueue = (incident: Incident) => {
+  const status = deriveIncidentStatus(incident);
+  const hasUnresolvedComments = incident.flaggedComments.some(
+    (comment) => !comment.removed && !comment.reviewed
+  );
+
+  if ((status === 'handled' || status === 'resolved') && !hasUnresolvedComments) {
+    return false;
+  }
+
+  return incident.score > 0 || hasUnresolvedComments || status !== 'open';
+};
 
 const saveIncident = async (incident: Incident) => {
   await redis.set(incidentKey(incident.postId), JSON.stringify(incident), {
@@ -331,6 +324,9 @@ const getPostSnapshot = async (postId: string) => {
     : undefined;
 
   return {
+    authorName: normalizeUsername(post.authorName),
+    score: post.score,
+    numberOfComments: post.numberOfComments,
     title: post.title || 'Untitled post',
     permalink: post.permalink,
     subredditName: post.subredditName,
@@ -349,14 +345,81 @@ const getPostSnapshot = async (postId: string) => {
   };
 };
 
+const isDemoCommentSnapshot = (incident: Incident, commentId: string) =>
+  normalizeCommentId(commentId).startsWith('t1_fw_demo_') ||
+  incident.recentSignals.some(
+    (signal) =>
+      signal.commentId === normalizeCommentId(commentId) && signal.isDemo
+  );
+
+const applyNativeCommentState = async (
+  incident: Incident,
+  comment: Incident['flaggedComments'][number]
+) => {
+  if (isDemoCommentSnapshot(incident, comment.id)) return comment;
+
+  try {
+    const redditComment = await reddit.getCommentById(
+      normalizeCommentId(comment.id)
+    );
+    const removed = comment.removed || redditComment.removed || redditComment.spam;
+    const reviewed = comment.reviewed || redditComment.approved;
+
+    return {
+      ...comment,
+      approved: redditComment.approved,
+      ignoringReports: redditComment.ignoringReports,
+      locked: redditComment.locked,
+      numReports: redditComment.numReports,
+      removed,
+      reviewed,
+      spam: redditComment.spam,
+    };
+  } catch {
+    return comment;
+  }
+};
+
+const hydrateFlaggedCommentStates = async (incident: Incident) => {
+  if (incident.flaggedComments.length === 0) return incident;
+
+  const flaggedComments = await Promise.all(
+    incident.flaggedComments.map((comment) =>
+      applyNativeCommentState(incident, comment)
+    )
+  );
+
+  return {
+    ...incident,
+    flaggedComments,
+  };
+};
+
+const reviewStateKey = (incident: Incident) =>
+  incident.flaggedComments
+    .map(
+      (comment) =>
+        `${comment.id}:${Boolean(comment.removed)}:${Boolean(comment.reviewed)}`
+    )
+    .join('|');
+
 const refreshIncident = async (incident: Incident) => {
   const postSnapshot = await getPostSnapshot(incident.postId);
   const config = await getConfig(postSnapshot.subredditName);
-  const calculated = calculateIncident(incident, config, postSnapshot);
-  return attachRuleContext(calculated, config);
+  const hydratedIncident = await hydrateFlaggedCommentStates(incident);
+  const calculated = calculateIncident(hydratedIncident, config, postSnapshot);
+  const hydratedCalculated = await hydrateFlaggedCommentStates(calculated);
+  const stableCalculated =
+    reviewStateKey(calculated) === reviewStateKey(hydratedCalculated)
+      ? hydratedCalculated
+      : await hydrateFlaggedCommentStates(
+          calculateIncident(hydratedCalculated, config, postSnapshot)
+        );
+
+  return attachRuleContext(stableCalculated, config);
 };
 
-const signalRuleTrigger = (signal: IncidentSignal) => {
+const signalRuleTrigger = (signal: IncidentSignal): RuleTrigger['type'] => {
   if (signal.type === 'comment_create') return 'new_comment';
   if (signal.type === 'post_create') return 'new_post';
   if (signal.type === 'comment_report') return 'comment_report';
@@ -407,11 +470,15 @@ export const upsertIncidentSignal = async (input: SignalInput) => {
     title: postSnapshot.title,
     permalink: postSnapshot.permalink,
     score: 0,
+    postAuthor: postSnapshot.authorName,
+    postScore: postSnapshot.score,
+    postCommentCount: postSnapshot.numberOfComments,
     level: 'watch',
     peakScore: 0,
     peakLevel: 'watch',
     status: 'open',
     createdAt: postSnapshot.createdAt ?? signal.createdAt,
+    openedAt: signal.createdAt,
     updatedAt: signal.createdAt,
     reasons: [],
     flaggedComments: [],
@@ -424,10 +491,13 @@ export const upsertIncidentSignal = async (input: SignalInput) => {
     responseSuggestion: getResponseSuggestion(0, 'watch', 'open'),
     actions: [],
   };
-  const nextStatus =
+  const shouldReopen =
     signal.type === 'manual_escalation' ||
-    baseIncident.status === 'resolved' ||
-    baseIncident.status === 'handled'
+    signal.source === 'user' ||
+    signal.source === 'report';
+  const nextStatus =
+    shouldReopen &&
+    (baseIncident.status === 'resolved' || baseIncident.status === 'handled')
       ? 'open'
       : normalizeStatus(baseIncident.status);
   const config = await getConfig(postSnapshot.subredditName);
@@ -435,7 +505,8 @@ export const upsertIncidentSignal = async (input: SignalInput) => {
     {
       ...baseIncident,
       status: nextStatus,
-      resolvedAt: undefined,
+      resolvedAt: shouldReopen ? undefined : baseIncident.resolvedAt,
+      summary: shouldReopen ? undefined : baseIncident.summary,
       recentSignals: [signal, ...baseIncident.recentSignals].slice(
         0,
         MAX_RECENT_SIGNALS
@@ -641,11 +712,19 @@ export const coolDownIncident = async (
     },
   });
 
-  return appendAction(normalizedPostId, {
+  const withAction = await appendAction(normalizedPostId, {
     type: 'cool_down',
     actor,
     detail: `Added sticky mod reminder ${comment.id}`,
   });
+  const refreshedIncident = await refreshIncident({
+    ...withAction,
+    status: 'cooldown',
+    updatedAt: now(),
+  });
+
+  await saveIncident(refreshedIncident);
+  return refreshedIncident;
 };
 
 export const lockIncident = async (postId: string) => {
@@ -701,11 +780,7 @@ export const recordExternalModAction = async ({
 };
 
 const isDemoComment = (incident: Incident, commentId: string) =>
-  normalizeCommentId(commentId).startsWith('t1_fw_demo_') ||
-  incident.recentSignals.some(
-    (signal) =>
-      signal.commentId === normalizeCommentId(commentId) && signal.isDemo
-  );
+  isDemoCommentSnapshot(incident, commentId);
 
 const trimRemovalNote = (reason: string | undefined) => {
   const trimmed = reason?.trim();
@@ -750,8 +825,10 @@ export const approveFlaggedComment = async (
 ) => {
   const normalizedPostId = normalizePostId(postId);
   const normalizedCommentId = normalizeCommentId(commentId);
-  const sourceIncident = await getIncident(normalizedPostId);
-  if (!sourceIncident) throw new Error('Post is not in Firewatch yet');
+  const sourceIncident = await refreshIncident(
+    await getIncidentOrThrow(normalizedPostId)
+  );
+  await saveIncident(sourceIncident);
   const config = await getConfig(sourceIncident.subredditName);
   if (!config.actionControls.approveComments) {
     throw new Error('Comment approvals are disabled in Settings');
@@ -968,7 +1045,9 @@ const banPreparedRuleUser = async ({
     detail: demoUser
       ? `Recorded demo ${durationLabel} ban for u/${normalizedUsername}: ${actionReason}`
       : `Banned u/${normalizedUsername} (${durationLabel}): ${actionReason}`,
-    targetIds: [normalizedUsername],
+    targetIds: contextId?.startsWith('t1_')
+      ? [normalizeCommentId(contextId)]
+      : undefined,
   });
 };
 
@@ -1171,6 +1250,7 @@ const trackedCommentIdsByUser = (incident: Incident, username: string) =>
     .filter(
       (comment) =>
         !comment.removed &&
+        !comment.reviewed &&
         normalizeUsername(comment.author)?.toLowerCase() ===
           username.toLowerCase()
     )
@@ -1221,6 +1301,7 @@ const removeRecentUserContent = async (
 
   for (const item of subredditItems) {
     if (removedIds.has(item.id)) continue;
+    if (item.isApproved()) continue;
     if (item.isRemoved()) {
       removedIds.add(item.id);
       continue;
@@ -1359,23 +1440,6 @@ const ruleDraftSummary = (
     ...match.preparedActions.map((action) => `- ${action.label}`),
   ].join('\n');
 
-const preparedRuleDetail = (
-  match: NonNullable<Incident['matchedRules']>[number],
-  prepared: NonNullable<Incident['matchedRules']>[number]['preparedActions'][number]
-) => {
-  const action = prepared.action;
-  if (action.type === 'sticky_reminder') {
-    return `Prepared sticky reminder from ${match.ruleName}`;
-  }
-  if (action.type === 'prepare_temp_ban') {
-    return `Prepared ${action.durationDays}-day ban for ${formatUserHandle(prepared.username)} from ${match.ruleName}: ${action.reason}`;
-  }
-  if (action.type === 'prepare_permanent_ban') {
-    return `Prepared permanent ban for ${formatUserHandle(prepared.username)} from ${match.ruleName}: ${action.reason}`;
-  }
-  return `Prepared ${prepared.label} from ${match.ruleName}`;
-};
-
 const runAutoSafeRuleActions = async (
   incident: Incident,
   logs: RuleExecutionLog[]
@@ -1462,13 +1526,17 @@ const runAutoSafeRuleActions = async (
 export const runPreparedRuleActions = async (
   postId: string,
   ruleId: string,
-  actorOverride?: string
+  actorOverride?: string,
+  targetId?: string
 ) => {
   const normalizedPostId = normalizePostId(postId);
   const incident = await refreshIncident(
     await getIncidentOrThrow(normalizedPostId)
   );
-  const match = incident.matchedRules?.find((rule) => rule.ruleId === ruleId);
+  const match = incident.matchedRules?.find(
+    (rule) =>
+      rule.ruleId === ruleId && (!targetId || rule.targetId === targetId)
+  );
   if (!match) throw new Error('Response rule no longer matches this incident');
 
   const actor = actorOverride ?? (await actorName());
@@ -1479,29 +1547,21 @@ export const runPreparedRuleActions = async (
   const alreadyExecuted = new Set(
     existingLogs
       .filter(
-        (log) => log.ruleId === match.ruleId && log.targetId === match.targetId
+        (log) =>
+          log.ruleId === match.ruleId &&
+          log.targetId === match.targetId &&
+          log.matchedConditions.join('|') === match.why.join('|') &&
+          log.preparedActions.join('|') ===
+            match.preparedActions.map((action) => action.label).join('|')
       )
       .flatMap((log) => log.executedActions)
   );
 
   for (const prepared of match.preparedActions) {
     const action = prepared.action;
-    const disposition = ruleActionRunDisposition(action);
 
     if (alreadyExecuted.has(prepared.label)) {
       skippedActions.push(`${prepared.label}: already executed`);
-      continue;
-    }
-
-    if (disposition === 'prepare') {
-      currentIncident = await appendAction(normalizedPostId, {
-        type: 'rule_prepared',
-        actor,
-        detail: preparedRuleDetail(match, prepared),
-        summary: action.type === 'sticky_reminder' ? action.text : undefined,
-        targetIds: [prepared.targetId ?? match.targetId],
-      });
-      executedActions.push(prepared.label);
       continue;
     }
 
@@ -1808,7 +1868,8 @@ const runAutoAllRuleActions = async (
       currentIncident = await runPreparedRuleActions(
         currentIncident.postId,
         log.ruleId,
-        'firewatch'
+        'firewatch',
+        log.targetId
       );
     } catch (error) {
       await recordRuleExecutionLog({
@@ -1842,11 +1903,17 @@ const buildSummary = (incident: Incident) => {
   const handler =
     incident.claim?.username ??
     incident.actions.find((action) => action.type === 'claimed')?.actor;
-  const topReasons = incident.reasons
+  const topReasons = (incident.peakReasons?.length
+    ? incident.peakReasons
+    : incident.reasons
+  )
     .slice(0, 3)
     .map((reason) => `${reason.label} (+${reason.points})`)
     .join(', ');
-  const commonPhrases = incident.repeatedPhrases
+  const commonPhrases = (incident.peakRepeatedPhrases?.length
+    ? incident.peakRepeatedPhrases
+    : incident.repeatedPhrases
+  )
     .slice(0, 3)
     .map((phrase) => `"${phrase.phrase}" x${phrase.count}`)
     .join(', ');
@@ -1868,13 +1935,13 @@ const buildSummary = (incident: Incident) => {
     )
     .join('\n');
   const resolutionTime =
-    incident.resolvedAt && incident.createdAt
-      ? `${Math.max(1, Math.round((incident.resolvedAt - incident.createdAt) / 60000))}m`
+    incident.resolvedAt && (incident.openedAt ?? incident.createdAt)
+      ? `${Math.max(1, Math.round((incident.resolvedAt - (incident.openedAt ?? incident.createdAt)) / 60000))}m`
       : 'unresolved';
 
   return [
     `Final mod note for ${incident.title}`,
-    `Started at: ${new Date(incident.createdAt).toISOString()}`,
+    `Started at: ${new Date(incident.openedAt ?? incident.createdAt).toISOString()}`,
     `Peak review score: ${incident.peakScore}/100 (${formatLevel(incident.peakLevel)})`,
     `Final status: ${formatStatus(incident.status)}`,
     `Time open: ${resolutionTime}`,
@@ -1937,8 +2004,9 @@ const buildEscalationSummary = (incident: Incident) => {
 
 export const escalateIncident = async (postId: string) => {
   const normalizedPostId = normalizePostId(postId);
-  const incident = await getIncident(normalizedPostId);
-  if (!incident) throw new Error('Post is not in Firewatch yet');
+  const storedIncident = await getIncident(normalizedPostId);
+  if (!storedIncident) throw new Error('Post is not in Firewatch yet');
+  const incident = await refreshIncident(storedIncident);
   const config = await getConfig(incident.subredditName);
   if (!config.actionControls.handoffNotes) {
     throw new Error('Handoff notes are disabled in Settings');
@@ -1965,8 +2033,9 @@ export const escalateIncident = async (postId: string) => {
 
 export const resolveIncident = async (postId: string) => {
   const normalizedPostId = normalizePostId(postId);
-  const incident = await getIncident(normalizedPostId);
-  if (!incident) throw new Error('Post is not in Firewatch yet');
+  const storedIncident = await getIncident(normalizedPostId);
+  if (!storedIncident) throw new Error('Post is not in Firewatch yet');
+  const incident = await refreshIncident(storedIncident);
   const config = await getConfig(incident.subredditName);
   if (!config.actionControls.markHandled) {
     throw new Error('Mark handled is disabled in Settings');

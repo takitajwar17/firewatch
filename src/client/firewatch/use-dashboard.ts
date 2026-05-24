@@ -142,9 +142,7 @@ export const useDashboard = () => {
       });
       updateIncident(payload.incident);
       setNotice({ type: 'success', message: actionSuccessMessage(action) });
-      if (action.startsWith('rule:') || action.startsWith('clear-strikes:')) {
-        void refresh();
-      }
+      await refresh();
       return payload.incident;
     } catch (error) {
       console.error(`Firewatch action failed: ${action}`, error);
@@ -216,6 +214,7 @@ export const useDashboard = () => {
           : current
       );
       setNotice({ type: 'success', message: 'Settings saved.' });
+      await refresh();
     } catch (error) {
       setNotice({
         type: 'error',
@@ -254,6 +253,7 @@ export const useDashboard = () => {
       });
       applyRulesResponse(payload);
       setNotice({ type: 'success', message: 'Automation saved.' });
+      await refresh();
     } catch (error) {
       setNotice({
         type: 'error',
@@ -280,6 +280,7 @@ export const useDashboard = () => {
         type: 'success',
         message: 'Automation templates loaded.',
       });
+      await refresh();
     } catch (error) {
       setNotice({
         type: 'error',
@@ -303,6 +304,7 @@ export const useDashboard = () => {
       );
       applyRulesResponse(payload);
       setNotice({ type: 'success', message: 'All automations disabled.' });
+      await refresh();
     } catch (error) {
       setNotice({
         type: 'error',

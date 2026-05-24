@@ -113,7 +113,11 @@ export type IncidentActionType =
   | 'post_spammed'
   | 'post_unlocked'
   | 'post_nsfw'
+  | 'post_marked_nsfw'
+  | 'post_unmarked_nsfw'
   | 'post_spoiler'
+  | 'post_marked_spoiler'
+  | 'post_unmarked_spoiler'
   | 'post_reports_ignored'
   | 'post_reports_unignored'
   | 'post_crowd_control'
@@ -348,6 +352,7 @@ export type FirewatchConfig = {
     markPostNsfw: boolean;
     markPostSpoiler: boolean;
     ignoreReports: boolean;
+    ignoreCommentReports: boolean;
     crowdControl: boolean;
     setPostFlair: boolean;
     lockComments: boolean;
@@ -395,8 +400,13 @@ export type FlaggedComment = {
   createdAt: number;
   score: number;
   reasons: string[];
+  approved?: boolean;
+  ignoringReports?: boolean;
+  locked?: boolean;
+  numReports?: number;
   removed?: boolean;
   reviewed?: boolean;
+  spam?: boolean;
 };
 
 export type IncidentAction = {
@@ -491,12 +501,18 @@ export type Incident = {
   title: string;
   permalink?: string;
   score: number;
+  postAuthor?: string;
+  postScore?: number;
+  postCommentCount?: number;
   level: IncidentLevel;
   peakScore: number;
   peakLevel: IncidentLevel;
+  peakReasons?: RiskReason[];
+  peakRepeatedPhrases?: RepeatedPhrase[];
   status: IncidentStatus;
   postState?: IncidentPostState;
   createdAt: number;
+  openedAt?: number;
   updatedAt: number;
   resolvedAt?: number;
   claim?: {

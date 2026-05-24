@@ -108,11 +108,13 @@ export const externalModActionType = ({
     case 'unlock':
       return 'post_unlocked';
     case 'marknsfw':
+      return 'post_marked_nsfw';
     case 'unmarknsfw':
-      return 'post_nsfw';
+      return 'post_unmarked_nsfw';
     case 'spoiler':
+      return 'post_marked_spoiler';
     case 'unspoiler':
-      return 'post_spoiler';
+      return 'post_unmarked_spoiler';
     case 'ignorereports':
       return 'post_reports_ignored';
     case 'unignorereports':
