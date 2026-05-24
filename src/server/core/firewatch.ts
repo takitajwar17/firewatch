@@ -2435,7 +2435,7 @@ export const createFirewatchPost = async (options?: {
     title: sourcePost
       ? `Firewatch review: ${sourcePost.title.slice(0, 220)}`
       : 'Firewatch posts to review',
-    entry: 'dashboard',
+    entry: 'default',
     postData: normalizedIncidentPostId
       ? {
           incidentPostId: normalizedIncidentPostId,

@@ -13,13 +13,13 @@ https://developers.reddit.com/apps/firewatch17
 Display name:
 
 ```text
-Firewatch
+Firewatch: Hot Thread Queue
 ```
 
 Description:
 
 ```text
-Incident command for Reddit mods: detect escalating posts, explain review signals, coordinate ownership, approve/remove comments, ban users, lock posts, and save handoff notes.
+Find threads heating up. Firewatch groups reports, risky comments, and watched links into one mod queue with clear reasons, mod ownership, Reddit actions, and handoff notes.
 ```
 
 Terms and privacy:
@@ -43,10 +43,10 @@ Firewatch is not a ported Data API app.
 
 ## Tool Overview
 
-Firewatch is an incident-command dashboard for Reddit moderators. It watches
-for posts that are likely to need team attention, explains exactly why the post
-is in review, lets one mod take ownership, supports manual moderation actions,
-and generates handoff and final notes so the team can close the loop.
+One Reddit post can turn into 40 comments, 7 reports, and three mods opening
+the same thread. Firewatch puts that thread in one queue, shows why it is
+heating up, lets one mod take it, supports manual Reddit actions, and saves the
+handoff notes the team needs to close the loop.
 
 Capabilities:
 

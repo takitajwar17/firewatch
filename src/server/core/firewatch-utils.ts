@@ -20,7 +20,7 @@ export type T3 = `t3_${string}`;
 export const incidentKey = (postId: string) => `fw:incident:${postId}`;
 export const configKey = (subredditName: string) => `fw:config:${subredditName}`;
 export const boardPostKey = (subredditName: string) =>
-  `fw:board-post:${subredditName}`;
+  `fw:board-post:inline-v2:${subredditName}`;
 export const claimKey = (postId: string) => `fw:claim:${postId}`;
 export const selectionKey = (subredditName: string, username: string) =>
   `fw:selected:${subredditName}:${username}`;

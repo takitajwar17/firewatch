@@ -1,38 +1,37 @@
-# Firewatch: Mod Command Center
+# Firewatch: Hot Thread Queue
 
-Firewatch is a Devvit moderation command center for Reddit communities. It
-helps mod teams detect escalating posts, understand the signals behind each
-queue item, coordinate ownership, run automations, take Reddit-native mod
-actions, and save handoff notes.
+One Reddit post can turn into 40 comments, 7 reports, and three mods opening
+the same thread. Firewatch puts that thread in one queue, shows why it is
+heating up, lets one mod take it, and keeps the cleanup trail in one place.
 
-Firewatch is built for high-noise threads: scam links, heated discussions,
-support-safety issues, repeated wording, report spikes, AutoModerator filters,
-and posts that need a shared moderator view before the situation gets worse.
+Firewatch is built for posts that need more than a single approve/remove click:
+scam links, heated arguments, support-safety cleanup, repeated wording, report
+spikes, AutoModerator filters, and threads where the mod team needs shared
+context before acting.
 
 ## What Firewatch Does
 
-- Creates a subreddit-level Firewatch queue post for moderators.
-- Scores posts with deterministic, explainable signals instead of hidden AI
-  moderation decisions.
-- Tracks matching post creates and edits, new comments, comment reports, post
-  reports, watched words, watched domains, repeated wording, reply pile-ons,
-  manual moderator sends, moderator removal actions, and AutoModerator filter
-  events.
-- Shows queued posts with score, level, top reasons, flagged comments, involved
-  users, repeated phrases, trend, recent activity, suggested next step, action
-  history, and moderator impact.
-- Lets one moderator take ownership so the rest of the team can see who is
-  handling the incident.
-- Lets moderators approve comments, remove comments with a Reddit removal note,
-  ban a user after cleanup, lock or unlock posts, apply post actions, mute or
-  approve users, add mod notes, remove recent user content, save handoff notes,
-  and mark an incident handled.
-- Provides Automations for common playbooks such as scam cleanup, repeated
-  offender review, heated thread cooldowns, and lock recommendations.
-- Includes demo drills that create a real source post and populate the queue
-  through the same signal pipeline used by production events.
-- Removes stored post or comment content when Reddit delete triggers are
-  received.
+- Creates a subreddit-level queue post for moderators.
+- Sends a post to Firewatch from the post menu, or queues it from reports,
+  watched words, watched domains, comment bursts, repeated user wording,
+  AutoModerator filters, and mod actions.
+- Shows the reasons in plain Reddit terms: reports, comments waiting for a mod
+  decision, users in review, reply clusters, watched words, watched domains,
+  repeated phrases, and recent activity.
+- Lets one moderator take the thread so the team can see who is handling it.
+- Keeps Reddit-native controls close to the evidence: approve comments, remove
+  comments with a removal note, ban a user after cleanup, lock or unlock posts,
+  set flair, mark NSFW or spoiler, ignore reports, add mod notes, mute users,
+  approve users, and remove recent user content.
+- Runs Automations as visible playbooks for scam cleanup, repeated offenders,
+  heated thread cooldowns, and lock recommendations.
+- Saves handoff notes and final notes with the reasons, users, actions, and
+  remaining review work.
+- Excludes moderator comments, AutoModerator, and Firewatch notices from user
+  wording scores so the app does not score its own cleanup comments.
+- Includes demo drills that create a real source post and feed the same signal
+  pipeline used by production events.
+- Deletes stored post or comment content when Reddit delete triggers arrive.
 
 ## How Moderators Use It
 
