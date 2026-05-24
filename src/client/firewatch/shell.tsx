@@ -421,6 +421,7 @@ const IncidentQueueItem = ({
     aria-pressed={selected}
     className={cn(
       'ui-feedback w-full rounded-md border p-3 text-left transition-colors focus-visible:ring-2 focus-visible:ring-ring/35 focus-visible:outline-none',
+      'content-visibility-list-item',
       surface === 'dark'
         ? 'border-transparent bg-transparent hover:bg-sidebar-accent'
         : 'w-[min(17.5rem,calc(100vw-1rem))] snap-start border-border bg-card hover:bg-accent',

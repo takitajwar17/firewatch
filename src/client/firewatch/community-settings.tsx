@@ -24,7 +24,7 @@ import {
   RULE_TRIGGER_LABELS,
   defaultRuleScope,
   summarizeRule,
-} from '../../shared/response-rules';
+} from '../../shared/automation-rules';
 import {
   DisclosurePanel,
   FieldBlock,
@@ -101,7 +101,7 @@ export const CommunitySettingsPage = ({
   );
 };
 
-export const ResponseRulesCard = ({
+export const AutomationsCard = ({
   busyAction,
   ruleLogs,
   rules,
@@ -178,6 +178,7 @@ export const ResponseRulesCard = ({
 
         {showBuilder ? (
           <RuleBuilder
+            key={editingRule?.id ?? 'new'}
             busy={busyAction === 'rule-save'}
             rule={editingRule}
             subredditId={subredditId}
@@ -501,19 +502,23 @@ const RuleBuilder = ({
     rule?.trigger.type ?? 'new_comment'
   );
   const [target, setTarget] = useState(rule?.scope.target ?? 'comment');
-  const initialConditionType = firstBuilderCondition(rule);
-  const initialActionType = firstBuilderAction(rule);
-  const initialConditionDefaults = firstConditionDefaults(rule);
+  const [initialRuleState] = useState(() => ({
+    actionType: firstBuilderAction(rule),
+    conditionDefaults: firstConditionDefaults(rule),
+    conditionType: firstBuilderCondition(rule),
+  }));
   const [conditionType, setConditionType] = useState<BuilderConditionType>(
-    initialConditionType
+    initialRuleState.conditionType
   );
-  const [phrase, setPhrase] = useState(initialConditionDefaults.phrase);
-  const [threshold, setThreshold] = useState(initialConditionDefaults.threshold);
+  const [phrase, setPhrase] = useState(initialRuleState.conditionDefaults.phrase);
+  const [threshold, setThreshold] = useState(
+    initialRuleState.conditionDefaults.threshold
+  );
   const [windowHours, setWindowHours] = useState(
-    initialConditionDefaults.windowHours
+    initialRuleState.conditionDefaults.windowHours
   );
   const [actionType, setActionType] = useState<BuilderActionType>(
-    initialActionType
+    initialRuleState.actionType
   );
   const [mode, setMode] = useState<RuleMode>(
     rule?.mode ?? 'prepare_for_approval'
@@ -641,12 +646,12 @@ const RuleBuilder = ({
   const saveRule = () => {
     const builtConditions = buildCondition();
     const conditions =
-      rule && conditionType === initialConditionType
+      rule && conditionType === initialRuleState.conditionType
         ? [...builtConditions, ...rule.conditions.slice(1)]
         : builtConditions;
     const builtActions = buildActions();
     const actions =
-      rule && actionType === initialActionType
+      rule && actionType === initialRuleState.actionType
         ? mergeExistingActions(builtActions, rule.actions)
         : builtActions;
     const scope = {
@@ -897,22 +902,24 @@ const CommunityFiltersCard = ({
   config: FirewatchConfig;
   onSave: ConfigSaveHandler;
 }) => {
-  const [keywords, setKeywords] = useState(config.keywords.join(', '));
-  const [suspiciousDomains, setSuspiciousDomains] = useState(
+  const [keywords, setKeywords] = useState(() => config.keywords.join(', '));
+  const [suspiciousDomains, setSuspiciousDomains] = useState(() =>
     config.suspiciousDomains.join(', ')
   );
-  const [heatThreshold, setHeatThreshold] = useState(
+  const [heatThreshold, setHeatThreshold] = useState(() =>
     String(config.heatThreshold)
   );
-  const [fireThreshold, setFireThreshold] = useState(
+  const [fireThreshold, setFireThreshold] = useState(() =>
     String(config.fireThreshold)
   );
-  const [wildfireThreshold, setWildfireThreshold] = useState(
+  const [wildfireThreshold, setWildfireThreshold] = useState(() =>
     String(config.wildfireThreshold)
   );
-  const [reminderText, setReminderText] = useState(config.reminderText);
-  const [actionControls, setActionControls] = useState(config.actionControls);
-  const [signalWeights, setSignalWeights] = useState(config.signalWeights);
+  const [reminderText, setReminderText] = useState(() => config.reminderText);
+  const [actionControls, setActionControls] = useState(
+    () => config.actionControls
+  );
+  const [signalWeights, setSignalWeights] = useState(() => config.signalWeights);
 
   const parsedHeat = Number(heatThreshold);
   const parsedFire = Number(fireThreshold);

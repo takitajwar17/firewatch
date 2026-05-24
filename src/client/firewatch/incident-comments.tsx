@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { navigateTo } from '@devvit/web/client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -22,7 +22,12 @@ import {
 } from './action-prep';
 import { formatUsername } from './format';
 import type { ActionRunner } from './types';
-import type { FirewatchConfig, FlaggedComment, Incident } from '../../shared/api';
+import type {
+  FirewatchConfig,
+  FlaggedComment,
+  Incident,
+  IncidentActionType,
+} from '../../shared/api';
 import {
   RedditApproveIcon,
   RedditBanIcon,
@@ -49,6 +54,29 @@ type CommentPrepSelection = {
   kind: CommentPrepKind;
 };
 
+type LatestLockAction = Extract<
+  IncidentActionType,
+  'comment_locked' | 'comment_unlocked'
+>;
+type LatestReportAction = Extract<
+  IncidentActionType,
+  'comment_reports_ignored' | 'comment_reports_unignored'
+>;
+type LatestResolutionAction = Extract<
+  IncidentActionType,
+  | 'comment_approved'
+  | 'comment_removed'
+  | 'comment_spammed'
+  | 'comment_thread_removed'
+>;
+
+type CommentActionSnapshot = {
+  latestLockAction?: LatestLockAction;
+  latestReportAction?: LatestReportAction;
+  latestResolutionAction?: LatestResolutionAction;
+  shown?: boolean;
+};
+
 const BAN_DURATION_OPTIONS = [
   { label: 'Permanent', value: '0' },
   { label: '1 day', value: '1' },
@@ -62,34 +90,69 @@ const parseBanDuration = (value: string) => {
   return Number.isFinite(duration) && duration > 0 ? duration : 0;
 };
 
-const latestCommentAction = (
-  incident: Incident,
-  commentId: string,
-  types: string[]
-) =>
-  incident.actions.find(
-    (action) =>
-      action.targetIds?.includes(commentId) && types.includes(action.type)
-  )?.type;
+const getSnapshot = (
+  snapshots: Map<string, CommentActionSnapshot>,
+  commentId: string
+) => {
+  const existing = snapshots.get(commentId);
+  if (existing) return existing;
+
+  const next: CommentActionSnapshot = {};
+  snapshots.set(commentId, next);
+  return next;
+};
+
+const buildCommentActionSnapshots = (incident: Incident) => {
+  const snapshots = new Map<string, CommentActionSnapshot>();
+
+  for (const action of incident.actions) {
+    if (!action.targetIds?.length) continue;
+
+    for (const targetId of action.targetIds) {
+      const snapshot = getSnapshot(snapshots, targetId);
+
+      if (
+        (action.type === 'comment_locked' ||
+          action.type === 'comment_unlocked') &&
+        !snapshot.latestLockAction
+      ) {
+        snapshot.latestLockAction = action.type;
+      }
+
+      if (
+        (action.type === 'comment_reports_ignored' ||
+          action.type === 'comment_reports_unignored') &&
+        !snapshot.latestReportAction
+      ) {
+        snapshot.latestReportAction = action.type;
+      }
+
+      if (
+        (action.type === 'comment_approved' ||
+          action.type === 'comment_removed' ||
+          action.type === 'comment_spammed' ||
+          action.type === 'comment_thread_removed') &&
+        !snapshot.latestResolutionAction
+      ) {
+        snapshot.latestResolutionAction = action.type;
+      }
+
+      if (action.type === 'comment_shown') {
+        snapshot.shown = true;
+      }
+    }
+  }
+
+  return snapshots;
+};
 
 const getCommentActionState = (
-  incident: Incident,
+  actionSnapshot: CommentActionSnapshot | undefined,
   comment: FlaggedComment
 ) => {
-  const latestLockAction = latestCommentAction(incident, comment.id, [
-    'comment_locked',
-    'comment_unlocked',
-  ]);
-  const latestReportAction = latestCommentAction(incident, comment.id, [
-    'comment_reports_ignored',
-    'comment_reports_unignored',
-  ]);
-  const latestResolutionAction = latestCommentAction(incident, comment.id, [
-    'comment_approved',
-    'comment_removed',
-    'comment_spammed',
-    'comment_thread_removed',
-  ]);
+  const latestLockAction = actionSnapshot?.latestLockAction;
+  const latestReportAction = actionSnapshot?.latestReportAction;
+  const latestResolutionAction = actionSnapshot?.latestResolutionAction;
   const removedByAction =
     latestResolutionAction === 'comment_removed' ||
     latestResolutionAction === 'comment_spammed' ||
@@ -110,9 +173,7 @@ const getCommentActionState = (
         : Boolean(comment.ignoringReports) ||
           latestReportAction === 'comment_reports_ignored',
     reviewed: nativeReviewed || approvedByAction,
-    shown:
-      latestCommentAction(incident, comment.id, ['comment_shown']) ===
-      'comment_shown',
+    shown: Boolean(actionSnapshot?.shown),
     spammed: Boolean(comment.spam) || latestResolutionAction === 'comment_spammed',
   };
 };
@@ -132,14 +193,35 @@ export const FlaggedCommentsCard = ({
   const [reason, setReason] = useState('Rule-breaking comment');
   const [userNote, setUserNote] = useState('Firewatch moderator action');
   const [banDuration, setBanDuration] = useState('0');
-  const needsReview = incident.flaggedComments.filter((comment) => {
-    const commentState = getCommentActionState(incident, comment);
-    return !commentState.removed && !commentState.reviewed;
-  });
-  const alreadyActioned = incident.flaggedComments.filter((comment) => {
-    const commentState = getCommentActionState(incident, comment);
-    return commentState.removed || commentState.reviewed;
-  });
+  const { alreadyActioned, commentStateById, needsReview } = useMemo(() => {
+    const actionSnapshots = buildCommentActionSnapshots(incident);
+    const nextNeedsReview: FlaggedComment[] = [];
+    const nextAlreadyActioned: FlaggedComment[] = [];
+    const nextCommentStateById = new Map<
+      string,
+      ReturnType<typeof getCommentActionState>
+    >();
+
+    for (const comment of incident.flaggedComments) {
+      const commentState = getCommentActionState(
+        actionSnapshots.get(comment.id),
+        comment
+      );
+      nextCommentStateById.set(comment.id, commentState);
+
+      if (commentState.removed || commentState.reviewed) {
+        nextAlreadyActioned.push(comment);
+      } else {
+        nextNeedsReview.push(comment);
+      }
+    }
+
+    return {
+      alreadyActioned: nextAlreadyActioned,
+      commentStateById: nextCommentStateById,
+      needsReview: nextNeedsReview,
+    };
+  }, [incident]);
   const controls = config.actionControls;
 
   return (
@@ -164,7 +246,8 @@ export const FlaggedCommentsCard = ({
                 const authorLabel = formatUsername(comment.author);
                 const permalink = comment.permalink;
                 const canBanAuthor = authorLabel !== 'unknown user';
-                const commentState = getCommentActionState(incident, comment);
+                const commentState = commentStateById.get(comment.id);
+                if (!commentState) return null;
                 const commentOpen =
                   !commentState.removed && !commentState.reviewed;
                 const approveAction = `approve:${comment.id}`;
@@ -198,7 +281,7 @@ export const FlaggedCommentsCard = ({
                 return (
                   <article
                     key={comment.id}
-                    className="min-w-0 overflow-hidden border-b border-border px-3 py-3 last:border-b-0 sm:px-4"
+                    className="content-visibility-list-item min-w-0 overflow-hidden border-b border-border px-3 py-3 last:border-b-0 sm:px-4"
                   >
                     <div className="flex gap-3">
                       <img
@@ -557,12 +640,13 @@ export const FlaggedCommentsCard = ({
             <div className="flex flex-col">
               {alreadyActioned.map((comment) => {
                 const permalink = comment.permalink;
-                const commentState = getCommentActionState(incident, comment);
+                const commentState = commentStateById.get(comment.id);
+                if (!commentState) return null;
 
                 return (
                   <div
                     key={comment.id}
-                    className="border-t border-border px-3 py-3 sm:px-4"
+                    className="content-visibility-list-item border-t border-border px-3 py-3 sm:px-4"
                   >
                     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                       <div className="min-w-0">

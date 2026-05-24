@@ -1,7 +1,7 @@
 import type {
   FirewatchRule,
   FirewatchRuleInput,
-  MatchedResponseRule,
+  MatchedAutomationRule,
   PreparedRuleAction,
   RuleAction,
   RuleCondition,
@@ -190,7 +190,7 @@ export const summarizeRule = (rule: FirewatchRule) => {
   } -> ${RULE_MODE_LABELS[rule.mode].toLowerCase()} ${actionSummary.toLowerCase()}`;
 };
 
-export const formatMatchedRuleLogLine = (match: MatchedResponseRule) =>
+export const formatMatchedRuleLogLine = (match: MatchedAutomationRule) =>
   `${match.ruleName} matched and prepared ${match.preparedActions.length} action${
     match.preparedActions.length === 1 ? '' : 's'
   }.`;

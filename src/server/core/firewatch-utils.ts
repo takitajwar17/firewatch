@@ -38,10 +38,12 @@ export const clamp = (value: number, min: number, max: number) =>
   Math.max(min, Math.min(max, value));
 
 export const normalizePostId = (postId: string): T3 =>
-  (postId.startsWith('t3_') ? postId : `t3_${postId}`) as T3;
+  postId.startsWith('t3_') ? `t3_${postId.slice(3)}` : `t3_${postId}`;
 
 export const normalizeCommentId = (commentId: string): T1 =>
-  (commentId.startsWith('t1_') ? commentId : `t1_${commentId}`) as T1;
+  commentId.startsWith('t1_')
+    ? `t1_${commentId.slice(3)}`
+    : `t1_${commentId}`;
 
 export const normalizeUsername = (username: string | undefined) => {
   const normalized = username?.trim().replace(/^u\//i, '');

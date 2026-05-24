@@ -4,7 +4,7 @@ import type {
   FirewatchRule,
   FirewatchRuleInput,
   Incident,
-  MatchedResponseRule,
+  MatchedAutomationRule,
   RuleCondition,
   RuleExecutionLog,
   RuleMode,
@@ -18,7 +18,7 @@ import {
   defaultRuleScope,
   defaultRuleTemplates,
   preparedRuleAction,
-} from '../../shared/response-rules';
+} from '../../shared/automation-rules';
 import {
   makeId,
   normalizeCommentId,
@@ -106,7 +106,7 @@ const templateRules = (subredditName: string) =>
     subredditId: subredditName,
   });
 
-export const getResponseRules = async (
+export const getAutomations = async (
   subredditName = context.subredditName
 ) => {
   const stored = parseJsonList<FirewatchRule>(
@@ -116,7 +116,7 @@ export const getResponseRules = async (
   return stored.length > 0 ? stored : templateRules(subredditName);
 };
 
-const saveResponseRules = async (
+const saveAutomations = async (
   subredditName: string,
   rules: FirewatchRule[]
 ) => {
@@ -134,7 +134,7 @@ const normalizeRuleScope = (
   subredditId: subredditName,
 });
 
-export const saveResponseRule = async ({
+export const saveAutomation = async ({
   input,
   subredditName = context.subredditName,
   username = context.username ?? 'mod',
@@ -143,7 +143,7 @@ export const saveResponseRule = async ({
   subredditName?: string;
   username?: string;
 }) => {
-  const rules = await getResponseRules(subredditName);
+  const rules = await getAutomations(subredditName);
   const existing = input.id
     ? rules.find((rule) => rule.id === input.id)
     : undefined;
@@ -169,22 +169,22 @@ export const saveResponseRule = async ({
     ? rules.map((rule) => (rule.id === nextRule.id ? nextRule : rule))
     : [nextRule, ...rules];
 
-  await saveResponseRules(subredditName, nextRules);
+  await saveAutomations(subredditName, nextRules);
   return nextRules;
 };
 
-export const importResponseRuleTemplates = async (
+export const importAutomationTemplates = async (
   subredditName = context.subredditName
 ) => {
   const templates = templateRules(subredditName);
-  await saveResponseRules(subredditName, templates);
+  await saveAutomations(subredditName, templates);
   return templates;
 };
 
-export const disableAllResponseRules = async (
+export const disableAllAutomations = async (
   subredditName = context.subredditName
 ) => {
-  const rules = await getResponseRules(subredditName);
+  const rules = await getAutomations(subredditName);
   const timestamp = currentIso();
   const nextRules = rules.map((rule) => ({
     ...rule,
@@ -192,7 +192,7 @@ export const disableAllResponseRules = async (
     updatedAt: timestamp,
   }));
 
-  await saveResponseRules(subredditName, nextRules);
+  await saveAutomations(subredditName, nextRules);
   return nextRules;
 };
 
@@ -518,7 +518,7 @@ const compareConditionValue = ({
 
 type Candidate = {
   targetId: string;
-  targetType: MatchedResponseRule['targetType'];
+  targetType: MatchedAutomationRule['targetType'];
   text: string;
   username?: string;
 };
@@ -875,11 +875,11 @@ const matchRule = ({
   rule: FirewatchRule;
   strikeSummaries: UserStrikeSummary[];
   moderatorUsers: Set<string>;
-}): MatchedResponseRule[] => {
+}): MatchedAutomationRule[] => {
   if (!rule.enabled) return [];
   if (!effectiveTriggerTypes.has(rule.trigger.type)) return [];
 
-  const matches: MatchedResponseRule[] = [];
+  const matches: MatchedAutomationRule[] = [];
   for (const candidate of candidatesForRule(
     rule,
     incident,
@@ -992,7 +992,7 @@ export const getUserStrikeSummaries = async (
   );
 };
 
-export const matchIncidentResponseRules = async ({
+export const matchIncidentAutomations = async ({
   config,
   incident,
   triggerType,
@@ -1002,7 +1002,7 @@ export const matchIncidentResponseRules = async ({
   triggerType?: RuleTrigger['type'];
 }) => {
   const [rules, strikeSummaries] = await Promise.all([
-    getResponseRules(incident.subredditName),
+    getAutomations(incident.subredditName),
     getUserStrikeSummaries(incident),
   ]);
   const effectiveTriggerTypes = triggerType
@@ -1020,7 +1020,7 @@ export const matchIncidentResponseRules = async ({
         moderatorUsers,
       })
     )
-    .filter((match): match is MatchedResponseRule => Boolean(match));
+    .filter((match): match is MatchedAutomationRule => Boolean(match));
 
   return { matches, strikeSummaries };
 };
@@ -1029,7 +1029,7 @@ export const attachRuleContext = async (
   incident: Incident,
   config: FirewatchConfig
 ): Promise<Incident> => {
-  const { matches, strikeSummaries } = await matchIncidentResponseRules({
+  const { matches, strikeSummaries } = await matchIncidentAutomations({
     config,
     incident,
   });
@@ -1056,7 +1056,7 @@ export const recordRuleMatches = async ({
 }) => {
   if (incident.recentSignals[0]?.source === 'firewatch_notice') return [];
 
-  const { matches } = await matchIncidentResponseRules({
+  const { matches } = await matchIncidentAutomations({
     config,
     incident,
     triggerType,
@@ -1111,7 +1111,7 @@ export const recordRuleMatches = async ({
   return newLogs;
 };
 
-export const testResponseRule = async ({
+export const testAutomation = async ({
   config,
   incidents,
   ruleId,
@@ -1120,7 +1120,7 @@ export const testResponseRule = async ({
   incidents: Incident[];
   ruleId: string;
 }): Promise<RuleTestResponse> => {
-  const rules = await getResponseRules();
+  const rules = await getAutomations();
   const rule = rules.find((item) => item.id === ruleId);
   if (!rule) throw new Error('Rule not found');
 

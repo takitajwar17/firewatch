@@ -32,7 +32,7 @@ import {
   ruleActionLabel,
   ruleInputFromTemplate,
   summarizeRule,
-} from '../dist/types/shared/response-rules.js';
+} from '../dist/types/shared/automation-rules.js';
 
 const configFormDefaults = {
   keywords: DEFAULT_CONFIG.keywords.join(', '),

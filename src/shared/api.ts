@@ -271,7 +271,7 @@ export type PreparedRuleAction = {
   username?: string | undefined;
 };
 
-export type MatchedResponseRule = {
+export type MatchedAutomationRule = {
   id: string;
   ruleId: string;
   ruleName: string;
@@ -524,7 +524,7 @@ export type Incident = {
   recentSignals: IncidentSignal[];
   involvedUsers: IncidentParticipant[];
   repeatedPhrases: RepeatedPhrase[];
-  matchedRules?: MatchedResponseRule[];
+  matchedRules?: MatchedAutomationRule[];
   userStrikeSummaries?: UserStrikeSummary[];
   stats: IncidentStats;
   impact: IncidentImpactSnapshot;

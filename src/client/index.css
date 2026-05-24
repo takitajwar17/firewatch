@@ -100,6 +100,11 @@ p {
   display: none;
 }
 
+.content-visibility-list-item {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 5rem;
+}
+
 @theme inline {
   --font-heading: var(--font-sans);
   --font-sans: var(--font-reddit-sans);

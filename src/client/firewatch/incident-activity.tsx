@@ -36,7 +36,7 @@ export const LatestSignalsCard = ({ incident }: { incident: Incident }) => {
           <ScrollArea className="pr-0 sm:max-h-[460px] sm:pr-3">
             <div className="flex flex-col">
               {visibleSignals.slice(0, 16).map((signal, index) => (
-                <div key={signal.id}>
+                <div key={signal.id} className="content-visibility-list-item">
                   {index > 0 ? <Separator /> : null}
                   <div className="flex flex-col gap-1 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
                     <div className="min-w-0">
@@ -140,7 +140,7 @@ export const ActionLogCard = ({
         >
           <div className="flex flex-col">
             {incident.actions.map((action, index) => (
-              <div key={action.id}>
+              <div key={action.id} className="content-visibility-list-item">
                 {index > 0 ? <Separator /> : null}
                 <div className="flex flex-col gap-1 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
                   <div className="min-w-0">

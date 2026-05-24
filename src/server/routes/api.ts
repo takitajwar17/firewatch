@@ -42,12 +42,12 @@ import {
   saveConfig,
 } from '../core/firewatch';
 import {
-  disableAllResponseRules,
-  getResponseRules,
+  disableAllAutomations,
+  getAutomations,
   getRuleExecutionLogs,
-  importResponseRuleTemplates,
-  saveResponseRule,
-  testResponseRule,
+  importAutomationTemplates,
+  saveAutomation,
+  testAutomation,
 } from '../core/firewatch-rules';
 
 export const api = new Hono();
@@ -64,7 +64,7 @@ const loadDashboardData = async (): Promise<DashboardInitResponse> => {
       getConfig(),
       reddit.getCurrentUsername(),
       getPostFlairOptions(subredditName),
-      getResponseRules(subredditName),
+      getAutomations(subredditName),
       getRuleExecutionLogs(subredditName),
     ]);
   const selectedPostId =
@@ -97,17 +97,23 @@ const getPostFlairOptions = async (
 ): Promise<PostFlairOption[]> => {
   try {
     const templates = await reddit.getPostFlairTemplates(subredditName);
+    const options: PostFlairOption[] = [];
 
-    return templates
-      .map((template) => ({
+    for (const template of templates) {
+      const text = template.text.trim();
+      if (text.length === 0) continue;
+
+      options.push({
         id: template.id,
-        text: template.text.trim(),
+        text,
         backgroundColor: template.backgroundColor,
         textColor: template.textColor,
         modOnly: template.modOnly,
         allowUserEdits: template.allowUserEdits,
-      }))
-      .filter((template) => template.text.length > 0);
+      });
+    }
+
+    return options;
   } catch (error) {
     console.error('Could not load post flair templates:', error);
     return [];
@@ -198,12 +204,14 @@ api.post('/config', async (c) => {
 api.post('/rules', async (c) => {
   try {
     const input = await c.req.json<FirewatchRuleInput>();
-    const rules = await saveResponseRule({
-      input,
-      subredditName: context.subredditName,
-      username: context.username ?? 'mod',
-    });
-    const ruleLogs = await getRuleExecutionLogs(context.subredditName);
+    const [rules, ruleLogs] = await Promise.all([
+      saveAutomation({
+        input,
+        subredditName: context.subredditName,
+        username: context.username ?? 'mod',
+      }),
+      getRuleExecutionLogs(context.subredditName),
+    ]);
     return c.json<RulesResponse>({ type: 'rules', rules, ruleLogs });
   } catch (error) {
     return incidentActionError(c, error);
@@ -212,8 +220,10 @@ api.post('/rules', async (c) => {
 
 api.post('/rules/import-templates', async (c) => {
   try {
-    const rules = await importResponseRuleTemplates(context.subredditName);
-    const ruleLogs = await getRuleExecutionLogs(context.subredditName);
+    const [rules, ruleLogs] = await Promise.all([
+      importAutomationTemplates(context.subredditName),
+      getRuleExecutionLogs(context.subredditName),
+    ]);
     return c.json<RulesResponse>({ type: 'rules', rules, ruleLogs });
   } catch (error) {
     return incidentActionError(c, error);
@@ -222,8 +232,10 @@ api.post('/rules/import-templates', async (c) => {
 
 api.post('/rules/disable-all', async (c) => {
   try {
-    const rules = await disableAllResponseRules(context.subredditName);
-    const ruleLogs = await getRuleExecutionLogs(context.subredditName);
+    const [rules, ruleLogs] = await Promise.all([
+      disableAllAutomations(context.subredditName),
+      getRuleExecutionLogs(context.subredditName),
+    ]);
     return c.json<RulesResponse>({ type: 'rules', rules, ruleLogs });
   } catch (error) {
     return incidentActionError(c, error);
@@ -237,7 +249,7 @@ api.post('/rules/:ruleId/test', async (c) => {
       getConfig(),
     ]);
     return c.json<RuleTestResponse>(
-      await testResponseRule({
+      await testAutomation({
         config,
         incidents,
         ruleId: c.req.param('ruleId'),

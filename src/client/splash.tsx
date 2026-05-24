@@ -41,7 +41,10 @@ export const Splash = () => {
   );
 };
 
-createRoot(document.getElementById('root')!).render(
+const root = document.getElementById('root');
+if (!root) throw new Error('Missing Firewatch splash root element');
+
+createRoot(root).render(
   <StrictMode>
     <Splash />
   </StrictMode>

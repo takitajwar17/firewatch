@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   ActionLogCard,
@@ -46,40 +46,51 @@ export const IncidentDetail = ({
   onAction: ActionRunner;
   onEditRules: () => void;
 }) => {
-  const unresolvedComments = incident.flaggedComments.filter(
-    (comment) => !comment.removed && !comment.reviewed
+  const unresolvedComments = useMemo(
+    () =>
+      incident.flaggedComments.filter(
+        (comment) => !comment.removed && !comment.reviewed
+      ),
+    [incident.flaggedComments]
   );
-  const unresolvedUsers = new Set(
-    unresolvedComments
-      .map((comment) => formatUsername(comment.author))
-      .filter((author) => author !== 'unknown user')
+  const unresolvedUsers = useMemo(
+    () =>
+      new Set(
+        unresolvedComments
+          .map((comment) => formatUsername(comment.author))
+          .filter((author) => author !== 'unknown user')
+      ),
+    [unresolvedComments]
   );
   const [activeTab, setActiveTab] = useState(
     unresolvedComments.length > 0 ? 'comments' : 'overview'
   );
 
-  const runModAction: ActionRunner = async (action, endpoint, body) => {
-    const updatedIncident = await onAction(action, endpoint, body);
-    if (!updatedIncident) return undefined;
+  const runModAction: ActionRunner = useCallback(
+    async (action, endpoint, body) => {
+      const updatedIncident = await onAction(action, endpoint, body);
+      if (!updatedIncident) return undefined;
 
-    if (action === 'escalate' || action === 'resolve') {
-      setActiveTab('reports');
-    }
-    if (action.startsWith('rule:') || action.startsWith('clear-strikes:')) {
-      setActiveTab('overview');
-    }
+      if (action === 'escalate' || action === 'resolve') {
+        setActiveTab('reports');
+      }
+      if (action.startsWith('rule:') || action.startsWith('clear-strikes:')) {
+        setActiveTab('overview');
+      }
 
-    if (
-      action.startsWith('t1_') ||
-      action.startsWith('remove:') ||
-      action.startsWith('approve:') ||
-      action.startsWith('ban:')
-    ) {
-      setActiveTab('comments');
-    }
+      if (
+        action.startsWith('t1_') ||
+        action.startsWith('remove:') ||
+        action.startsWith('approve:') ||
+        action.startsWith('ban:')
+      ) {
+        setActiveTab('comments');
+      }
 
-    return updatedIncident;
-  };
+      return updatedIncident;
+    },
+    [onAction]
+  );
 
   return (
     <div className="flex min-w-0 flex-col gap-3 sm:gap-4">

@@ -1,5 +1,5 @@
 import { SectionHeader } from './common';
-import { ResponseRulesCard } from './community-settings';
+import { AutomationsCard } from './community-settings';
 import type { FirewatchRule, RuleExecutionLog } from '../../shared/api';
 import type { RuleSaveHandler, RuleTestHandler } from './types';
 
@@ -24,7 +24,7 @@ export const AutomationsPage = ({
 }) => (
   <div className="flex min-w-0 flex-col gap-4 sm:gap-5">
     <SectionHeader title="Automations" />
-    <ResponseRulesCard
+    <AutomationsCard
       busyAction={busyAction}
       ruleLogs={ruleLogs}
       rules={rules}

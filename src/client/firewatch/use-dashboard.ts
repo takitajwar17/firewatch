@@ -106,7 +106,7 @@ export const useDashboard = () => {
     [data.incidents, selectedPostId]
   );
 
-  const updateIncident = (updatedIncident: Incident) => {
+  const updateIncident = useCallback((updatedIncident: Incident) => {
     setLoadState((current) => {
       if (current.status !== 'ready') return current;
 
@@ -130,9 +130,9 @@ export const useDashboard = () => {
       };
     });
     setSelectedPostId(updatedIncident.postId);
-  };
+  }, []);
 
-  const runAction: ActionRunner = async (action, endpoint, body) => {
+  const runAction: ActionRunner = useCallback(async (action, endpoint, body) => {
     setBusyAction(action);
     setNotice(undefined);
     try {
@@ -157,16 +157,19 @@ export const useDashboard = () => {
     } finally {
       setBusyAction(undefined);
     }
-  };
+  }, [refresh, updateIncident]);
 
-  const createDemoIncident = (scenarioId?: FirewatchDemoScenarioId) =>
-    runAction(
-      'demo',
-      '/api/demo/incident',
-      scenarioId ? { scenarioId } : undefined
-    );
+  const createDemoIncident = useCallback(
+    (scenarioId?: FirewatchDemoScenarioId) =>
+      runAction(
+        'demo',
+        '/api/demo/incident',
+        scenarioId ? { scenarioId } : undefined
+      ),
+    [runAction]
+  );
 
-  const resetDemoIncidents = async () => {
+  const resetDemoIncidents = useCallback(async () => {
     setBusyAction('reset-demo');
     setNotice(undefined);
     try {
@@ -192,9 +195,9 @@ export const useDashboard = () => {
     } finally {
       setBusyAction(undefined);
     }
-  };
+  }, [applyDashboard]);
 
-  const saveDashboardConfig = async (values: ConfigFormValues) => {
+  const saveDashboardConfig = useCallback(async (values: ConfigFormValues) => {
     setBusyAction('config');
     setNotice(undefined);
     try {
@@ -226,9 +229,9 @@ export const useDashboard = () => {
     } finally {
       setBusyAction(undefined);
     }
-  };
+  }, [refresh]);
 
-  const applyRulesResponse = (payload: RulesResponse) => {
+  const applyRulesResponse = useCallback((payload: RulesResponse) => {
     setLoadState((current) =>
       current.status === 'ready'
         ? {
@@ -241,9 +244,9 @@ export const useDashboard = () => {
           }
         : current
     );
-  };
+  }, []);
 
-  const saveResponseRule = async (values: FirewatchRuleInput) => {
+  const saveAutomation = useCallback(async (values: FirewatchRuleInput) => {
     setBusyAction('rule-save');
     setNotice(undefined);
     try {
@@ -265,9 +268,9 @@ export const useDashboard = () => {
     } finally {
       setBusyAction(undefined);
     }
-  };
+  }, [applyRulesResponse, refresh]);
 
-  const importRuleTemplates = async () => {
+  const importRuleTemplates = useCallback(async () => {
     setBusyAction('rule-import');
     setNotice(undefined);
     try {
@@ -292,9 +295,9 @@ export const useDashboard = () => {
     } finally {
       setBusyAction(undefined);
     }
-  };
+  }, [applyRulesResponse, refresh]);
 
-  const disableAllRules = async () => {
+  const disableAllRules = useCallback(async () => {
     setBusyAction('rule-disable-all');
     setNotice(undefined);
     try {
@@ -316,9 +319,9 @@ export const useDashboard = () => {
     } finally {
       setBusyAction(undefined);
     }
-  };
+  }, [applyRulesResponse, refresh]);
 
-  const testResponseRule = async (ruleId: string) => {
+  const testAutomation = useCallback(async (ruleId: string) => {
     setBusyAction(`rule-test:${ruleId}`);
     setNotice(undefined);
     try {
@@ -345,7 +348,7 @@ export const useDashboard = () => {
     } finally {
       setBusyAction(undefined);
     }
-  };
+  }, []);
 
   return {
     busyAction,
@@ -358,11 +361,11 @@ export const useDashboard = () => {
     refresh,
     resetDemoIncidents,
     runAction,
+    saveAutomation,
     saveDashboardConfig,
-    saveResponseRule,
     selectedIncident,
     selectedPostId,
     setSelectedPostId,
-    testResponseRule,
+    testAutomation,
   };
 };

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { AutomationsPage } from './automations';
 import { EmptyBoard, ErrorBoard, LoadingBoard } from './board-states';
 import { CommunitySettingsPage } from './community-settings';
@@ -20,20 +20,22 @@ export const App = () => {
     refresh,
     resetDemoIncidents,
     runAction,
+    saveAutomation,
     saveDashboardConfig,
-    saveResponseRule,
     selectedIncident,
     selectedPostId,
     setSelectedPostId,
-    testResponseRule,
+    testAutomation,
   } = useDashboard();
-  const hasDemoIncidents = data.incidents.some((incident) =>
-    Boolean(incident.demo)
+  const hasDemoIncidents = useMemo(
+    () => data.incidents.some((incident) => Boolean(incident.demo)),
+    [data.incidents]
   );
-  const selectIncident = (postId: string) => {
+  const selectIncident = useCallback((postId: string) => {
     setActiveView('queue');
     setSelectedPostId(postId);
-  };
+  }, [setSelectedPostId]);
+  const showAutomations = useCallback(() => setActiveView('automations'), []);
 
   if (loadState.status === 'error') {
     return (
@@ -75,8 +77,8 @@ export const App = () => {
           subredditName={data.subredditName}
           onDisableAllRules={disableAllRules}
           onImportRuleTemplates={importRuleTemplates}
-          onSaveRule={saveResponseRule}
-          onTestRule={testResponseRule}
+          onSaveRule={saveAutomation}
+          onTestRule={testAutomation}
         />
       ) : activeView === 'settings' ? (
         <CommunitySettingsPage
@@ -95,7 +97,7 @@ export const App = () => {
           incident={selectedIncident}
           postFlairOptions={data.postFlairOptions}
           onAction={runAction}
-          onEditRules={() => setActiveView('automations')}
+          onEditRules={showAutomations}
         />
       ) : (
         <EmptyBoard

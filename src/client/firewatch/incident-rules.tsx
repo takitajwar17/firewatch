@@ -6,8 +6,8 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { RULE_MODE_LABELS } from '../../shared/response-rules';
-import type { Incident, MatchedResponseRule } from '../../shared/api';
+import { RULE_MODE_LABELS } from '../../shared/automation-rules';
+import type { Incident, MatchedAutomationRule } from '../../shared/api';
 import { EmptyText, PlaybookButton } from './common';
 import type { ActionRunner } from './types';
 import {
@@ -81,7 +81,7 @@ const MatchedRuleItem = ({
 }: {
   busyAction: string | undefined;
   incident: Incident;
-  rule: MatchedResponseRule;
+  rule: MatchedAutomationRule;
   onDismiss: () => void;
   onEditRules: () => void;
   onRun: () => void;
