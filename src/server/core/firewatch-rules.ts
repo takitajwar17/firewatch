@@ -508,7 +508,7 @@ const conditionReason = ({
     return compareConditionValue({
       actual: incident.score,
       expected: condition.value,
-      label: 'incident score',
+      label: 'review score',
       operator: condition.operator,
     });
   }

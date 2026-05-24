@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { navigateTo } from '@devvit/web/client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -9,7 +9,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import {
   DisclosurePanel,
@@ -17,9 +16,14 @@ import {
   PanelLabel,
   RedditActionButton,
 } from './common';
+import {
+  ActionPrepPanel,
+  ActionSelect,
+  ActionTextArea,
+} from './action-prep';
 import { formatUsername } from './format';
 import type { ActionRunner } from './types';
-import type { FirewatchConfig, Incident } from '../../shared/api';
+import type { FirewatchConfig, FlaggedComment, Incident } from '../../shared/api';
 import {
   RedditApproveIcon,
   RedditBanIcon,
@@ -32,21 +36,48 @@ import {
   RedditUsersIcon,
 } from './reddit-icons';
 
+type CommentPrepKind =
+  | 'remove'
+  | 'ban'
+  | 'spam'
+  | 'thread'
+  | 'mute'
+  | 'note'
+  | 'content';
+
+type CommentPrepSelection = {
+  commentId: string;
+  kind: CommentPrepKind;
+};
+
+const BAN_DURATION_OPTIONS = [
+  { label: 'Permanent', value: '0' },
+  { label: '1 day', value: '1' },
+  { label: '3 days', value: '3' },
+  { label: '7 days', value: '7' },
+  { label: '30 days', value: '30' },
+];
+
+const parseBanDuration = (value: string) => {
+  const duration = Number.parseInt(value, 10);
+  return Number.isFinite(duration) && duration > 0 ? duration : 0;
+};
+
 export const FlaggedCommentsCard = ({
   busyAction,
   config,
-  cleanupReason,
   incident,
   onAction,
-  onCleanupReasonChange,
 }: {
   busyAction: string | undefined;
   config: FirewatchConfig;
-  cleanupReason: string;
   incident: Incident;
   onAction: ActionRunner;
-  onCleanupReasonChange: (value: string) => void;
 }) => {
+  const [activePrep, setActivePrep] = useState<CommentPrepSelection>();
+  const [reason, setReason] = useState('Rule-breaking comment');
+  const [userNote, setUserNote] = useState('Firewatch moderator action');
+  const [banDuration, setBanDuration] = useState('0');
   const needsReview = incident.flaggedComments.filter(
     (comment) => !comment.removed && !comment.reviewed
   );
@@ -61,7 +92,7 @@ export const FlaggedCommentsCard = ({
         <div className="min-w-0">
           <h3 className="text-base font-bold leading-5">Needs review</h3>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Comments that matched reports, watched words, or watched domains.
+            Flagged by reports, watched words, or watched domains.
           </p>
         </div>
         <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-bold text-secondary-foreground">
@@ -71,24 +102,10 @@ export const FlaggedCommentsCard = ({
       <div className="flex flex-col gap-0">
         {needsReview.length === 0 ? (
           <div className="p-3 sm:p-4">
-            <EmptyText>No comments need review.</EmptyText>
+            <EmptyText>No comments need mod review.</EmptyText>
           </div>
         ) : (
           <>
-            <div className="grid gap-2 border-b border-border p-3 sm:grid-cols-[160px_minmax(0,1fr)] sm:items-center sm:p-4">
-              <label
-                className="text-xs font-bold leading-5 text-muted-foreground"
-                htmlFor="fw-cleanup-reason"
-              >
-                Removal reason
-              </label>
-              <Input
-                id="fw-cleanup-reason"
-                value={cleanupReason}
-                onChange={(event) => onCleanupReasonChange(event.target.value)}
-              />
-            </div>
-
             <div className="flex flex-col">
               {needsReview.map((comment) => {
                 const authorLabel = formatUsername(comment.author);
@@ -143,7 +160,7 @@ export const FlaggedCommentsCard = ({
                             ·
                           </span>
                           <span className="text-xs font-semibold leading-5 text-muted-foreground">
-                            attention {comment.score}
+                            score {comment.score}
                           </span>
                           {comment.reasons.map((reason) => (
                             <Badge
@@ -198,11 +215,10 @@ export const FlaggedCommentsCard = ({
                               label="Remove"
                               variant="secondary"
                               onClick={() =>
-                                onAction(
-                                  removeAction,
-                                  `/api/incidents/${incident.postId}/comments/${comment.id}/remove`,
-                                  { reason: cleanupReason }
-                                )
+                                setActivePrep({
+                                  commentId: comment.id,
+                                  kind: 'remove',
+                                })
                               }
                             />
                           ) : null}
@@ -213,14 +229,13 @@ export const FlaggedCommentsCard = ({
                               disabled={!canBanAuthor}
                               icon={<RedditBanIcon data-icon="inline-start" />}
                               label="Ban user"
-                              title="Remove this user's recent subreddit content, then ban them from the subreddit."
+                              title="Remove this user's recent content here, then ban them."
                               variant="destructive"
                               onClick={() =>
-                                onAction(
-                                  banAction,
-                                  `/api/incidents/${incident.postId}/users/${encodeURIComponent(comment.author)}/ban`,
-                                  { reason: cleanupReason }
-                                )
+                                setActivePrep({
+                                  commentId: comment.id,
+                                  kind: 'ban',
+                                })
                               }
                             />
                           ) : null}
@@ -229,7 +244,7 @@ export const FlaggedCommentsCard = ({
                         {hasAdvancedCommentActions || hasAdvancedUserActions ? (
                           <div className="mt-4">
                             <DisclosurePanel
-                              description="Spam, thread cleanup, locking, reports, and user tools."
+                              description="Spam, thread removal, locks, reports, and user actions."
                               title="More actions"
                             >
                               <div className="flex flex-col gap-3">
@@ -245,14 +260,10 @@ export const FlaggedCommentsCard = ({
                                         label="Spam"
                                         variant="destructive"
                                         onClick={() =>
-                                          onAction(
-                                            spamAction,
-                                            `/api/incidents/${incident.postId}/comments/${comment.id}/native-action`,
-                                            {
-                                              action: 'spam',
-                                              reason: cleanupReason,
-                                            }
-                                          )
+                                          setActivePrep({
+                                            commentId: comment.id,
+                                            kind: 'spam',
+                                          })
                                         }
                                       />
                                     ) : null}
@@ -267,14 +278,10 @@ export const FlaggedCommentsCard = ({
                                         label="Remove thread"
                                         variant="destructive"
                                         onClick={() =>
-                                          onAction(
-                                            threadAction,
-                                            `/api/incidents/${incident.postId}/comments/${comment.id}/native-action`,
-                                            {
-                                              action: 'remove-thread',
-                                              reason: cleanupReason,
-                                            }
-                                          )
+                                          setActivePrep({
+                                            commentId: comment.id,
+                                            kind: 'thread',
+                                          })
                                         }
                                       />
                                     ) : null}
@@ -336,7 +343,7 @@ export const FlaggedCommentsCard = ({
                                           icon={
                                             <RedditReportIcon data-icon="inline-start" />
                                           }
-                                          label="Watch reports"
+                                          label="Unignore reports"
                                           variant="ghost"
                                           onClick={() =>
                                             onAction(
@@ -398,14 +405,10 @@ export const FlaggedCommentsCard = ({
                                         }
                                         label="Mute"
                                         onClick={() =>
-                                          onAction(
-                                            muteUserAction,
-                                            `/api/incidents/${incident.postId}/users/${encodeURIComponent(comment.author)}/native-action`,
-                                            {
-                                              action: 'mute',
-                                              note: cleanupReason,
-                                            }
-                                          )
+                                          setActivePrep({
+                                            commentId: comment.id,
+                                            kind: 'mute',
+                                          })
                                         }
                                       />
                                     ) : null}
@@ -419,14 +422,10 @@ export const FlaggedCommentsCard = ({
                                         }
                                         label="Add mod note"
                                         onClick={() =>
-                                          onAction(
-                                            modNoteAction,
-                                            `/api/incidents/${incident.postId}/users/${encodeURIComponent(comment.author)}/native-action`,
-                                            {
-                                              action: 'add-mod-note',
-                                              note: cleanupReason,
-                                            }
-                                          )
+                                          setActivePrep({
+                                            commentId: comment.id,
+                                            kind: 'note',
+                                          })
                                         }
                                       />
                                     ) : null}
@@ -441,14 +440,10 @@ export const FlaggedCommentsCard = ({
                                         label="Remove recent content"
                                         variant="destructive"
                                         onClick={() =>
-                                          onAction(
-                                            removeContentAction,
-                                            `/api/incidents/${incident.postId}/users/${encodeURIComponent(comment.author)}/native-action`,
-                                            {
-                                              action: 'remove-recent-content',
-                                              reason: cleanupReason,
-                                            }
-                                          )
+                                          setActivePrep({
+                                            commentId: comment.id,
+                                            kind: 'content',
+                                          })
                                         }
                                       />
                                     ) : null}
@@ -457,6 +452,22 @@ export const FlaggedCommentsCard = ({
                               </div>
                             </DisclosurePanel>
                           </div>
+                        ) : null}
+                        {activePrep?.commentId === comment.id ? (
+                          <CommentActionPrepPanel
+                            activePrep={activePrep.kind}
+                            banDuration={banDuration}
+                            busyAction={busyAction}
+                            comment={comment}
+                            incident={incident}
+                            reason={reason}
+                            userNote={userNote}
+                            onAction={onAction}
+                            onBanDurationChange={setBanDuration}
+                            onCancel={() => setActivePrep(undefined)}
+                            onReasonChange={setReason}
+                            onUserNoteChange={setUserNote}
+                          />
                         ) : null}
                       </div>
                     </div>
@@ -473,8 +484,7 @@ export const FlaggedCommentsCard = ({
             <div className="px-3 py-3 sm:px-4">
               <PanelLabel>ALREADY ACTIONED</PanelLabel>
               <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                Reviewed comments stay here for the handoff note, but no longer
-                count as active review work.
+                These stay in the record and no longer count as open review.
               </p>
             </div>
             <div className="flex flex-col">
@@ -544,6 +554,231 @@ const ActionGroup = ({
     <div className="flex min-w-0 flex-wrap gap-2">{children}</div>
   </div>
 );
+
+const CommentActionPrepPanel = ({
+  activePrep,
+  banDuration,
+  busyAction,
+  comment,
+  incident,
+  reason,
+  userNote,
+  onAction,
+  onBanDurationChange,
+  onCancel,
+  onReasonChange,
+  onUserNoteChange,
+}: {
+  activePrep: CommentPrepKind;
+  banDuration: string;
+  busyAction: string | undefined;
+  comment: FlaggedComment;
+  incident: Incident;
+  reason: string;
+  userNote: string;
+  onAction: ActionRunner;
+  onBanDurationChange: (value: string) => void;
+  onCancel: () => void;
+  onReasonChange: (value: string) => void;
+  onUserNoteChange: (value: string) => void;
+}) => {
+  const encodedAuthor = encodeURIComponent(comment.author);
+  const commentAction = `comment:${comment.id}:${activePrep}`;
+  const removeAction = `remove:${comment.id}`;
+  const banAction = `ban:${comment.author}`;
+  const userAction = `user:${comment.author}:${activePrep}`;
+  const run = (action: string, endpoint: string, body: Record<string, unknown>) => {
+    void onAction(action, endpoint, body).then((updatedIncident) => {
+      if (updatedIncident) onCancel();
+    });
+  };
+
+  if (activePrep === 'remove') {
+    return (
+      <ActionPrepPanel
+        busy={busyAction === removeAction}
+        description="Add a removal reason before removing."
+        primaryIcon={<RedditRemoveIcon data-icon="inline-start" />}
+        primaryLabel="Remove"
+        title="Remove comment"
+        variant="destructive"
+        onCancel={onCancel}
+        onSubmit={() =>
+          run(
+            removeAction,
+            `/api/incidents/${incident.postId}/comments/${comment.id}/remove`,
+            { reason }
+          )
+        }
+      >
+        <ActionTextArea
+          description="Saved as a removal note when Reddit accepts one."
+          id={`fw-remove-reason-${comment.id}`}
+          label="Removal reason"
+          value={reason}
+          onChange={onReasonChange}
+        />
+      </ActionPrepPanel>
+    );
+  }
+
+  if (activePrep === 'ban') {
+    return (
+      <ActionPrepPanel
+        busy={busyAction === banAction}
+        description="Removes this user's unreviewed comments first, then bans them."
+        primaryIcon={<RedditBanIcon data-icon="inline-start" />}
+        primaryLabel="Remove and ban"
+        title={`Ban ${formatUsername(comment.author)}`}
+        variant="destructive"
+        onCancel={onCancel}
+        onSubmit={() =>
+          run(banAction, `/api/incidents/${incident.postId}/users/${encodedAuthor}/ban`, {
+            durationDays: parseBanDuration(banDuration),
+            reason,
+          })
+        }
+      >
+        <ActionSelect
+          id={`fw-ban-duration-${comment.id}`}
+          label="Ban duration"
+          value={banDuration}
+          onChange={onBanDurationChange}
+        >
+          {BAN_DURATION_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </ActionSelect>
+        <ActionTextArea
+          description="Used for the ban note and removals."
+          id={`fw-ban-reason-${comment.id}`}
+          label="Reason"
+          value={reason}
+          onChange={onReasonChange}
+        />
+      </ActionPrepPanel>
+    );
+  }
+
+  if (activePrep === 'spam' || activePrep === 'thread') {
+    const nativeAction =
+      activePrep === 'spam' ? 'spam' : 'remove-thread';
+
+    return (
+      <ActionPrepPanel
+        busy={busyAction === commentAction}
+        description={
+          activePrep === 'spam'
+            ? 'Mark this comment as spam and add an optional removal note.'
+            : 'Remove this comment and the replies Reddit returns under it.'
+        }
+        primaryIcon={
+          activePrep === 'spam' ? (
+            <RedditSpamIcon data-icon="inline-start" />
+          ) : (
+            <RedditRemoveIcon data-icon="inline-start" />
+          )
+        }
+        primaryLabel={activePrep === 'spam' ? 'Spam' : 'Remove thread'}
+        title={activePrep === 'spam' ? 'Spam comment' : 'Remove comment thread'}
+        variant="destructive"
+        onCancel={onCancel}
+        onSubmit={() =>
+          run(
+            commentAction,
+            `/api/incidents/${incident.postId}/comments/${comment.id}/native-action`,
+            {
+              action: nativeAction,
+              reason,
+            }
+          )
+        }
+      >
+        <ActionTextArea
+          description="Saved as the removal note when Reddit accepts one."
+          id={`fw-comment-native-reason-${comment.id}`}
+          label="Reason"
+          value={reason}
+          onChange={onReasonChange}
+        />
+      </ActionPrepPanel>
+    );
+  }
+
+  if (activePrep === 'mute' || activePrep === 'note') {
+    const nativeAction = activePrep === 'mute' ? 'mute' : 'add-mod-note';
+
+    return (
+      <ActionPrepPanel
+        busy={busyAction === userAction}
+        description={
+          activePrep === 'mute'
+            ? 'Mute this user from modmail and save the note.'
+            : 'Add a Reddit mod note for this user.'
+        }
+        primaryIcon={<RedditUsersIcon data-icon="inline-start" />}
+        primaryLabel={activePrep === 'mute' ? 'Mute' : 'Add note'}
+        title={
+          activePrep === 'mute'
+            ? `Mute ${formatUsername(comment.author)}`
+            : `Add mod note for ${formatUsername(comment.author)}`
+        }
+        variant="outline"
+        onCancel={onCancel}
+        onSubmit={() =>
+          run(
+            userAction,
+            `/api/incidents/${incident.postId}/users/${encodedAuthor}/native-action`,
+            {
+              action: nativeAction,
+              note: userNote,
+            }
+          )
+        }
+      >
+        <ActionTextArea
+          description="Saved with the Reddit action."
+          id={`fw-user-note-${comment.id}`}
+          label="Note"
+          value={userNote}
+          onChange={onUserNoteChange}
+        />
+      </ActionPrepPanel>
+    );
+  }
+
+  return (
+    <ActionPrepPanel
+      busy={busyAction === userAction}
+      description="Remove recent posts and comments from this subreddit that Firewatch can access."
+      primaryIcon={<RedditBanIcon data-icon="inline-start" />}
+      primaryLabel="Remove content"
+      title={`Remove recent content from ${formatUsername(comment.author)}`}
+      variant="destructive"
+      onCancel={onCancel}
+      onSubmit={() =>
+        run(
+          userAction,
+          `/api/incidents/${incident.postId}/users/${encodedAuthor}/native-action`,
+          {
+            action: 'remove-recent-content',
+            reason,
+          }
+        )
+      }
+    >
+      <ActionTextArea
+        description="Saved as the removal note when Reddit accepts one."
+        id={`fw-content-removal-reason-${comment.id}`}
+        label="Reason"
+        value={reason}
+        onChange={onReasonChange}
+      />
+    </ActionPrepPanel>
+  );
+};
 
 export const RepeatedPhrasesCard = ({ incident }: { incident: Incident }) => (
   <Card>

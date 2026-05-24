@@ -34,11 +34,11 @@ export const RULE_MODE_LABELS: Record<RuleMode, string> = {
 export const RULE_MODE_DESCRIPTIONS: Record<RuleMode, string> = {
   suggest_only: 'Show the match and recommended actions without running them.',
   prepare_for_approval:
-    'Prepare actions for a moderator to review and run manually.',
+    'Prepare actions for mods to review and run manually.',
   auto_run_safe_actions:
     'Run safe Firewatch-only actions and prepare risky Reddit actions.',
   auto_run_all_selected_actions:
-    'Run all selected actions. Use only for rules you trust completely.',
+    'Run all selected actions. Use only for automations you trust completely.',
 };
 
 export const RULE_TRIGGER_LABELS: Record<RuleTrigger['type'], string> = {
@@ -48,13 +48,13 @@ export const RULE_TRIGGER_LABELS: Record<RuleTrigger['type'], string> = {
   comment_report: 'Comment report',
   comment_removed: 'Comment is removed',
   post_removed: 'Post is removed',
-  incident_score_changed: 'Incident score changes',
+  incident_score_changed: 'Review score changes',
   user_strike_count_changed: 'User strike count changes',
 };
 
 export const RULE_TARGET_LABELS: Record<RuleScope['target'], string> = {
   comment: 'Comments',
-  incident: 'Incidents',
+  incident: 'Posts in review',
   post: 'Posts',
   user: 'Users',
 };
@@ -83,7 +83,7 @@ export const conditionLabel = (condition: RuleCondition) => {
     case 'post_reports':
       return `post reports ${condition.operator} ${condition.value}`;
     case 'incident_score':
-      return `incident score ${condition.operator} ${condition.value}`;
+      return `review score ${condition.operator} ${condition.value}`;
     case 'repeated_phrase':
       return `${condition.minMatches}+ repeated phrase matches`;
     case 'reply_cluster':
@@ -94,15 +94,15 @@ export const conditionLabel = (condition: RuleCondition) => {
 export const ruleActionLabel = (action: RuleAction) => {
   switch (action.type) {
     case 'queue_incident':
-      return 'Send to Firewatch queue';
+      return 'Send to review';
     case 'add_firewatch_strike':
       return 'Add Firewatch strike';
     case 'save_firewatch_log':
-      return 'Save Firewatch log entry';
+      return 'Save log entry';
     case 'generate_handoff':
-      return 'Generate draft handoff';
+      return 'Draft handoff note';
     case 'add_native_mod_note':
-      return 'Add native mod note';
+      return 'Add Reddit mod note';
     case 'remove_comment':
       return 'Remove current comment';
     case 'remove_post':
@@ -114,7 +114,7 @@ export const ruleActionLabel = (action: RuleAction) => {
     case 'mark_spam':
       return `Mark ${action.target} as spam`;
     case 'sticky_reminder':
-      return 'Prepare sticky reminder';
+      return 'Draft sticky comment';
     case 'lock_post':
       return 'Lock post';
     case 'set_post_flair':
@@ -128,7 +128,7 @@ export const ruleActionLabel = (action: RuleAction) => {
     case 'mute_user':
       return 'Mute user';
     case 'mark_handled':
-      return 'Mark handled';
+      return 'Mark post handled';
   }
 };
 
@@ -276,7 +276,7 @@ export const defaultRuleTemplates = ({
     id: 'rule_scam_link_response',
     name: 'Scam link response',
     description:
-      'Prepares comment removal, a Firewatch strike, and a native mod note for scam-link comments.',
+      'Prepares comment removal, a Firewatch strike, and a Reddit mod note for scam-link comments.',
     enabled: true,
     trigger: { type: 'new_comment' },
     scope: defaultRuleScope(subredditId, 'comment'),
@@ -313,7 +313,7 @@ export const defaultRuleTemplates = ({
     id: 'rule_heated_thread_cooldown',
     name: 'Heated thread cooldown',
     description:
-      'Prepares a sticky reminder draft when the incident score reaches action level.',
+      'Prepares a sticky comment draft when the review score reaches action level.',
     enabled: true,
     trigger: { type: 'incident_score_changed' },
     scope: defaultRuleScope(subredditId, 'incident'),
@@ -333,7 +333,7 @@ export const defaultRuleTemplates = ({
       {
         type: 'generate_handoff',
         template:
-          'Heated thread cooldown matched. Review flagged comments, then decide whether to post the sticky reminder.',
+          'Heated thread cooldown matched. Review flagged comments, then decide whether to post the sticky comment.',
       },
     ],
     mode: 'prepare_for_approval',
@@ -345,7 +345,7 @@ export const defaultRuleTemplates = ({
     id: 'rule_lock_escalating_thread',
     name: 'Lock escalating thread',
     description:
-      'Suggests a lock and handoff when a post reaches lockdown-level attention.',
+      'Suggests a lock and handoff when a post reaches lock-level review.',
     enabled: true,
     trigger: { type: 'incident_score_changed' },
     scope: defaultRuleScope(subredditId, 'incident'),
@@ -354,7 +354,7 @@ export const defaultRuleTemplates = ({
       { type: 'post_reports', operator: '>=', value: 3 },
     ],
     actions: [
-      { type: 'lock_post', reason: 'Escalating Firewatch incident' },
+      { type: 'lock_post', reason: 'Escalating Firewatch review' },
       {
         type: 'generate_handoff',
         template:

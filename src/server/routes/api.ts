@@ -13,6 +13,7 @@ import type {
   NativeCommentAction,
   NativePostAction,
   NativeUserAction,
+  PostFlairOption,
   RulesResponse,
   RuleTestResponse,
 } from '../../shared/api';
@@ -56,13 +57,16 @@ const loadDashboardData = async (): Promise<DashboardInitResponse> => {
     typeof context.postData?.incidentPostId === 'string'
       ? context.postData.incidentPostId
       : undefined;
-  const [incidents, config, username, rules, ruleLogs] = await Promise.all([
-    getIncidents(),
-    getConfig(),
-    reddit.getCurrentUsername(),
-    getResponseRules(context.subredditName),
-    getRuleExecutionLogs(context.subredditName),
-  ]);
+  const subredditName = context.subredditName;
+  const [incidents, config, username, postFlairOptions, rules, ruleLogs] =
+    await Promise.all([
+      getIncidents(),
+      getConfig(),
+      reddit.getCurrentUsername(),
+      getPostFlairOptions(subredditName),
+      getResponseRules(subredditName),
+      getRuleExecutionLogs(subredditName),
+    ]);
   const selectedPostId =
     contextSelectedPostId ??
     (await getRememberedIncidentPostId(username ?? undefined));
@@ -78,13 +82,36 @@ const loadDashboardData = async (): Promise<DashboardInitResponse> => {
   return {
     type: 'dashboard',
     username: username ?? 'anonymous',
-    subredditName: context.subredditName,
+    subredditName,
     selectedPostId,
     incidents: mergedIncidents,
     config,
+    postFlairOptions,
     rules,
     ruleLogs,
   };
+};
+
+const getPostFlairOptions = async (
+  subredditName: string
+): Promise<PostFlairOption[]> => {
+  try {
+    const templates = await reddit.getPostFlairTemplates(subredditName);
+
+    return templates
+      .map((template) => ({
+        id: template.id,
+        text: template.text.trim(),
+        backgroundColor: template.backgroundColor,
+        textColor: template.textColor,
+        modOnly: template.modOnly,
+        allowUserEdits: template.allowUserEdits,
+      }))
+      .filter((template) => template.text.length > 0);
+  } catch (error) {
+    console.error('Could not load post flair templates:', error);
+    return [];
+  }
 };
 
 const readOptionalJson = async <Body extends object>(
@@ -108,7 +135,10 @@ api.post('/incidents/:postId/claim', async (c) => {
 });
 
 api.post('/incidents/:postId/cool-down', async (c) => {
-  return incidentAction(c, () => coolDownIncident(c.req.param('postId')));
+  return incidentAction(c, async () => {
+    const body = await readOptionalJson<{ reminderText: string }>(c);
+    return coolDownIncident(c.req.param('postId'), body.reminderText);
+  });
 });
 
 api.post('/incidents/:postId/lock', async (c) => {
@@ -120,6 +150,7 @@ api.post('/incidents/:postId/post-action', async (c) => {
     const body: {
       action: NativePostAction;
       crowdControlLevel?: CrowdControlLevel;
+      flairTemplateId?: string;
       flairText?: string;
       reason?: string;
     } = await c.req.json();
@@ -248,11 +279,15 @@ api.post('/incidents/:postId/comments/:commentId/native-action', async (c) => {
 
 api.post('/incidents/:postId/users/:username/ban', async (c) => {
   return incidentAction(c, async () => {
-    const body = await readOptionalJson<{ reason: string }>(c);
+    const body = await readOptionalJson<{
+      durationDays: number;
+      reason: string;
+    }>(c);
     return banUserAndRemoveComments(
       c.req.param('postId'),
       c.req.param('username'),
-      body.reason
+      body.reason,
+      body.durationDays
     );
   });
 });

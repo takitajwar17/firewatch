@@ -63,6 +63,33 @@ export type NativeUserAction =
   | 'add-mod-note'
   | 'remove-recent-content';
 
+export type PostFlairOption = {
+  id: string;
+  text: string;
+  backgroundColor: string;
+  textColor: string;
+  modOnly: boolean;
+  allowUserEdits: boolean;
+};
+
+export type PostFlairState = {
+  text: string;
+  templateId?: string;
+  backgroundColor?: string;
+  textColor?: string;
+};
+
+export type IncidentPostState = {
+  approved: boolean;
+  ignoringReports: boolean;
+  locked: boolean;
+  nsfw: boolean;
+  removed: boolean;
+  spam: boolean;
+  spoiler: boolean;
+  flair?: PostFlairState;
+};
+
 export type IncidentActionType =
   | 'claimed'
   | 'cool_down'
@@ -468,6 +495,7 @@ export type Incident = {
   peakScore: number;
   peakLevel: IncidentLevel;
   status: IncidentStatus;
+  postState?: IncidentPostState;
   createdAt: number;
   updatedAt: number;
   resolvedAt?: number;
@@ -503,6 +531,7 @@ export type DashboardInitResponse = {
   selectedPostId?: string;
   incidents: Incident[];
   config: FirewatchConfig;
+  postFlairOptions: PostFlairOption[];
   rules: FirewatchRule[];
   ruleLogs: RuleExecutionLog[];
 };

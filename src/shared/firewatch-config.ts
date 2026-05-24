@@ -254,8 +254,8 @@ const banUsersField: ConfigActionControlField = {
 const stickyReminderField: ConfigActionControlField = {
   id: 'stickyReminder',
   formName: 'allowStickyReminder',
-  formLabel: 'Allow sticky reminders',
-  label: 'Sticky reminders',
+  formLabel: 'Allow sticky comments',
+  label: 'Sticky comments',
 };
 
 const lockPostField: ConfigActionControlField = {
@@ -345,7 +345,7 @@ const muteUsersField: ConfigActionControlField = {
 const addModNotesField: ConfigActionControlField = {
   id: 'addModNotes',
   formName: 'allowAddModNotes',
-  formLabel: 'Allow native mod notes',
+  formLabel: 'Allow Reddit mod notes',
   label: 'Add mod notes',
 };
 
@@ -538,7 +538,7 @@ export const buildConfigFormFields = (
   {
     type: 'paragraph',
     name: 'reminderText',
-    label: 'Sticky reminder text',
+    label: 'Sticky comment text',
     defaultValue: defaults.reminderText,
   },
   ...CONFIG_FORM_ACTION_FIELDS.map((field) =>

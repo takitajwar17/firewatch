@@ -242,7 +242,7 @@ const WorkspaceHeader = ({
     ? 'Settings'
     : isAutomations
       ? 'Automations'
-      : 'Queue';
+      : 'Posts to review';
   const [refreshing, setRefreshing] = useState(false);
   const refreshTimerRef = useRef<number | undefined>(undefined);
 

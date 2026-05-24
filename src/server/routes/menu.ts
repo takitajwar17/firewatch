@@ -26,8 +26,8 @@ menu.post('/open-board', async (c) => {
     return uiErrorResponse(
       c,
       error,
-      'Error opening Firewatch mod queue',
-      'Could not open Firewatch mod queue'
+      'Error opening Firewatch review post',
+      'Could not open Firewatch review post'
     );
   }
 });
@@ -92,7 +92,7 @@ menu.post('/configure', async (c) => {
         form: {
           title: 'Settings',
           description:
-            'Choose what Firewatch watches, how strongly each signal counts, and which actions mods can take from the queue.',
+            'Choose watched words, domains, scores, and mod actions.',
           acceptLabel: 'Save',
           fields: buildConfigFormFields(defaults),
         },

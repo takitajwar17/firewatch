@@ -28,14 +28,14 @@ export const LatestSignalsCard = ({ incident }: { incident: Incident }) => {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Recent activity</CardTitle>
+        <CardTitle>Activity</CardTitle>
         <CardDescription>
-          Reports, user comments, post edits, and posts sent to Firewatch.
+          Reports, comments, post edits, and mod actions.
         </CardDescription>
       </CardHeader>
       <CardContent>
         {visibleSignals.length === 0 ? (
-          <EmptyText>No recent activity yet.</EmptyText>
+          <EmptyText>No activity yet.</EmptyText>
         ) : (
           <ScrollArea className="pr-0 sm:max-h-[460px] sm:pr-3">
             <div className="flex flex-col">
@@ -74,12 +74,12 @@ export const SummariesCard = ({ incident }: { incident: Incident }) => (
       <CardTitle>Mod notes</CardTitle>
       <CardDescription>
         {incident.summary && incident.stats.flaggedCount > 0
-          ? 'Final note saved earlier. Review remaining comments before closing again.'
+          ? 'Final note saved. Review open comments before closing again.'
           : incident.summary
-            ? 'Final note saved. Copy it if this incident reopens.'
+            ? 'Final note saved.'
             : incident.escalationSummary
-              ? 'Handoff saved. Mark handled after comment review is clear.'
-              : 'Handoff and final notes generated from this post.'}
+              ? 'Handoff saved. Mark handled when comments are clear.'
+              : 'Handoff and final notes for this post.'}
       </CardDescription>
     </CardHeader>
     <CardContent>
@@ -95,7 +95,7 @@ export const SummariesCard = ({ incident }: { incident: Incident }) => (
       ) : (
         <EmptyText>
           Save a handoff note for the mod team. Mark handled to save a final
-          note after comment review is clear.
+          note after comments are clear.
         </EmptyText>
       )}
     </CardContent>
@@ -143,7 +143,7 @@ export const ActionLogCard = ({
   <Card>
     <CardHeader>
       <CardTitle>Mod log</CardTitle>
-      <CardDescription>Actions taken from this view.</CardDescription>
+      <CardDescription>Actions taken in Firewatch.</CardDescription>
     </CardHeader>
     <CardContent>
       {incident.actions.length === 0 ? (

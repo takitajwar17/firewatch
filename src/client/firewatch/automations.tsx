@@ -25,7 +25,7 @@ export const AutomationsPage = ({
   <div className="flex min-w-0 flex-col gap-4 sm:gap-5">
     <SectionHeader
       title="Automations"
-      description="Create automations, test matches, review prepared actions, and audit the log."
+      description="Create automations, test matches, review prepared actions, and check the log."
     />
     <ResponseRulesCard
       busyAction={busyAction}

@@ -38,7 +38,7 @@ export const ErrorBoard = ({
   <div className="flex min-h-[60vh] items-center justify-center">
     <Alert variant="destructive" className="max-w-md">
       <RedditReportIcon />
-      <AlertTitle>Could not load your mod view</AlertTitle>
+      <AlertTitle>Could not load Firewatch</AlertTitle>
       <AlertDescription>{message}</AlertDescription>
       <Button className="mt-4 w-fit" variant="outline" onClick={onRefresh}>
         <RedditRefreshIcon data-icon="inline-start" />
@@ -61,9 +61,9 @@ export const EmptyBoard = ({
         No posts need review
       </h1>
       <p className="text-sm leading-6 text-muted-foreground">
-        Firewatch will list posts here when reports, watched words, watched
-        domains, repeated user wording, reply clusters, or post-menu sends need
-        a mod look.
+        Posts show up here when reports, watched words, watched domains,
+        repeated user wording, reply clusters, or the post menu send them to
+        Firewatch.
       </p>
     </div>
     <div className="flex flex-col gap-2">
@@ -86,8 +86,7 @@ export const EmptyBoard = ({
       ))}
     </div>
     <p className="text-xs leading-5 text-muted-foreground">
-      Open Settings when mods want to change watched words, domains, or
-      thresholds.
+      Use Settings to edit watched words, domains, thresholds, and demo posts.
     </p>
   </div>
 );

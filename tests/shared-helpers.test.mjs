@@ -188,7 +188,7 @@ test('runtime copy keeps automation and settings naming consistent', () => {
     'src/shared/firewatch-presets.ts',
   ];
   const staleCopy =
-    /Response Rules|response rules|response rule|Rule log|rule log|Create rule|Save rule|Test rule|Edit rule|View rule|dry runs|Firewatch Settings|Firewatch settings|matched rules|Firewatch mod tools/;
+    /Response Rules|response rules|response rule|Rule log|rule log|Create rule|Save rule|Test rule|Edit rule|View rule|dry runs|Firewatch Settings|Firewatch settings|matched rules|Rule prepared|Firewatch mod tools/;
 
   for (const file of runtimeFiles) {
     assert.doesNotMatch(readFileSync(file, 'utf8'), staleCopy, file);

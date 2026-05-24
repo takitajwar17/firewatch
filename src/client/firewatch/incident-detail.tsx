@@ -20,7 +20,11 @@ import {
 } from './incident-overview';
 import { MatchedRulesCard } from './incident-rules';
 import type { ActionRunner } from './types';
-import type { FirewatchConfig, Incident } from '../../shared/api';
+import type {
+  FirewatchConfig,
+  Incident,
+  PostFlairOption,
+} from '../../shared/api';
 import {
   RedditCommentIcon,
   RedditListIcon,
@@ -32,12 +36,14 @@ export const IncidentDetail = ({
   busyAction,
   config,
   incident,
+  postFlairOptions,
   onAction,
   onEditRules,
 }: {
   busyAction: string | undefined;
   config: FirewatchConfig;
   incident: Incident;
+  postFlairOptions: PostFlairOption[];
   onAction: ActionRunner;
   onEditRules: () => void;
 }) => {
@@ -52,7 +58,6 @@ export const IncidentDetail = ({
   const [activeTab, setActiveTab] = useState(
     unresolvedComments.length > 0 ? 'comments' : 'overview'
   );
-  const [cleanupReason, setCleanupReason] = useState('Rule-breaking comment');
 
   const runModAction: ActionRunner = async (action, endpoint, body) => {
     const updatedIncident = await onAction(action, endpoint, body);
@@ -90,25 +95,25 @@ export const IncidentDetail = ({
 
       <div className="grid overflow-hidden rounded-lg border border-border bg-background sm:grid-cols-2 xl:grid-cols-4">
         <InsightItem
-          description="Reports attached here"
+          description="Reports on this post"
           icon={<RedditReportIcon />}
           label="Reports"
           value={String(incident.stats.reportSignals)}
         />
         <InsightItem
-          description="Waiting for a mod decision"
+          description="Need mod review"
           icon={<RedditCommentIcon />}
           label="Comments"
           value={String(unresolvedComments.length)}
         />
         <InsightItem
-          description="Authors in review"
+          description="Users in review"
           icon={<RedditUsersIcon />}
           label="Users"
           value={String(unresolvedUsers.size)}
         />
         <InsightItem
-          description="Dense reply chains"
+          description="Crowded reply chains"
           icon={<RedditListIcon />}
           label="Reply clusters"
           value={String(incident.stats.branchPileOns)}
@@ -117,7 +122,7 @@ export const IncidentDetail = ({
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList
-          aria-label="Incident sections"
+          aria-label="Post review sections"
           className="no-scrollbar w-full max-w-full justify-start gap-1 overflow-x-auto overscroll-x-contain border-b border-border pb-2"
         >
           <TabsTrigger className="flex-none" value="overview">
@@ -144,7 +149,7 @@ export const IncidentDetail = ({
           <SectionHeader
             className="xl:col-span-full"
             title="Post review"
-            description="Signals, post tools, impact, and users."
+            description="Reports, post actions, and current status."
           />
           <div className="flex flex-col gap-4">
             <MatchedRulesCard
@@ -158,6 +163,7 @@ export const IncidentDetail = ({
               busyAction={busyAction}
               config={config}
               incident={incident}
+              postFlairOptions={postFlairOptions}
               onAction={runModAction}
             />
             <TrendCard incident={incident} />
@@ -185,10 +191,8 @@ export const IncidentDetail = ({
           <FlaggedCommentsCard
             busyAction={busyAction}
             config={config}
-            cleanupReason={cleanupReason}
             incident={incident}
             onAction={runModAction}
-            onCleanupReasonChange={setCleanupReason}
           />
           <RepeatedPhrasesCard incident={incident} />
         </TabsContent>
@@ -200,7 +204,7 @@ export const IncidentDetail = ({
           <SectionHeader
             className="xl:col-span-full"
             title="Activity"
-            description="Signals and mod actions in time order."
+            description="Recent signals and mod actions."
           />
           <LatestSignalsCard incident={incident} />
           <ActionLogCard incident={incident} />

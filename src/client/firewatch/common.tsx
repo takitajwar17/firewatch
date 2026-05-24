@@ -60,9 +60,9 @@ export const SectionHeader = ({
 
 export const ScoreBadge = ({ incident }: { incident: Incident }) => (
   <Badge
-    aria-label={`Current attention ${incident.score} out of 100`}
+    aria-label={`Review score ${incident.score} out of 100`}
     className="shrink-0 font-semibold tabular-nums"
-    title={`Current attention ${incident.score}/100`}
+    title={`Review score ${incident.score}/100`}
     variant={levelBadgeVariant[incident.level]}
   >
     {incident.score}
@@ -88,7 +88,7 @@ export const DisclosurePanel = ({
     className="group overflow-hidden rounded-lg border border-border bg-muted/45 open:bg-muted/70"
     open={defaultOpen}
   >
-    <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 hover:bg-accent/60 [&::-webkit-details-marker]:hidden">
+    <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 px-4 py-2 hover:bg-accent/60 [&::-webkit-details-marker]:hidden">
       <span className="min-w-0">
         <span className="block text-sm font-semibold leading-5">{title}</span>
         {description ? (
@@ -99,7 +99,7 @@ export const DisclosurePanel = ({
       </span>
       <RedditChevronDownIcon className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
     </summary>
-    <div className="min-w-0 border-t px-3 py-3">{children}</div>
+    <div className="min-w-0 border-t px-4 py-3">{children}</div>
   </details>
 );
 

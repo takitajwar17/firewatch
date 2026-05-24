@@ -99,16 +99,16 @@ triggers.post('/on-app-install', async (c) => {
     return c.json<TriggerResponse>(
       {
         status: 'success',
-        message: `Firewatch queue created with id ${post.id} (trigger: ${input.type})`,
+        message: `Firewatch review post created with id ${post.id} (trigger: ${input.type})`,
       },
       200
     );
   } catch (error) {
-    console.error(`Error creating Firewatch queue: ${error}`);
+    console.error(`Error creating Firewatch review post: ${error}`);
     return c.json<TriggerResponse>(
       {
         status: 'error',
-        message: 'Could not create Firewatch queue',
+        message: 'Could not create Firewatch review post',
       },
       400
     );

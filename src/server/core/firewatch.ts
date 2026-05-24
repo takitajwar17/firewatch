@@ -321,6 +321,14 @@ export const deleteStoredCommentContent = async (
 const getPostSnapshot = async (postId: string) => {
   const post = await reddit.getPostById(normalizePostId(postId));
   const createdAt = post.createdAt.getTime();
+  const flair = post.flair?.text?.trim()
+    ? {
+        text: post.flair.text.trim(),
+        templateId: post.flair.templateId,
+        backgroundColor: post.flair.backgroundColor,
+        textColor: post.flair.textColor,
+      }
+    : undefined;
 
   return {
     title: post.title || 'Untitled post',
@@ -328,6 +336,16 @@ const getPostSnapshot = async (postId: string) => {
     subredditName: post.subredditName,
     numberOfReports: post.numberOfReports,
     createdAt: Number.isFinite(createdAt) ? createdAt : undefined,
+    postState: {
+      approved: post.approved,
+      ignoringReports: post.ignoringReports,
+      locked: post.locked,
+      nsfw: post.nsfw,
+      removed: post.removed,
+      spam: post.spam,
+      spoiler: post.spoiler,
+      flair,
+    },
   };
 };
 
@@ -600,7 +618,7 @@ export const coolDownIncident = async (
   const incident = await getIncidentOrThrow(normalizedPostId);
   const config = await getConfig(incident.subredditName);
   if (!config.actionControls.stickyReminder) {
-    throw new Error('Sticky reminders are disabled in Settings');
+    throw new Error('Sticky comments are disabled in Settings');
   }
   const post = await reddit.getPostById(normalizedPostId);
   const actor = await actorName();
@@ -959,6 +977,7 @@ export const applyNativePostAction = async (
   values: {
     action: NativePostAction;
     crowdControlLevel?: string;
+    flairTemplateId?: string;
     flairText?: string;
     reason?: string;
   }
@@ -977,7 +996,8 @@ export const applyNativePostAction = async (
   const post = await reddit.getPostById(normalizedPostId);
   const reason = values.reason?.trim();
   const removalNote = trimRemovalNote(reason);
-  const flairText = values.flairText?.trim().slice(0, 64);
+  const flairTemplateId = values.flairTemplateId?.trim() || undefined;
+  const flairText = values.flairText?.trim().slice(0, 64) || undefined;
   const crowdControlLevel = parseCrowdControlLevel(values.crowdControlLevel);
 
   switch (values.action) {
@@ -1021,8 +1041,11 @@ export const applyNativePostAction = async (
       await post.updateCrowdControlLevel(crowdControlLevel);
       break;
     case 'set-flair':
-      if (!flairText) throw new Error('Enter post flair text first');
+      if (!flairTemplateId && !flairText) {
+        throw new Error('Select a post flair or enter flair text first');
+      }
       await reddit.setPostFlair({
+        flairTemplateId,
         postId: normalizedPostId,
         subredditName: incident.subredditName,
         text: flairText,
@@ -1698,7 +1721,7 @@ export const runPreparedRuleActions = async (
       currentIncident = await appendAction(normalizedPostId, {
         type: 'mod_note_added',
         actor,
-        detail: `Added native mod note for ${formatUserHandle(prepared.username)} from ${match.ruleName}`,
+        detail: `Added Reddit mod note for ${formatUserHandle(prepared.username)} from ${match.ruleName}`,
         targetIds: [prepared.username],
       });
       executedActions.push(prepared.label);
@@ -1740,7 +1763,7 @@ export const runPreparedRuleActions = async (
       continue;
     }
 
-    skippedActions.push(`${prepared.label}: left prepared for native review`);
+    skippedActions.push(`${prepared.label}: left for mod review`);
   }
 
   await recordRuleExecutionLog({
@@ -1852,7 +1875,7 @@ const buildSummary = (incident: Incident) => {
   return [
     `Final mod note for ${incident.title}`,
     `Started at: ${new Date(incident.createdAt).toISOString()}`,
-    `Peak incident score: ${incident.peakScore}/100 (${formatLevel(incident.peakLevel)})`,
+    `Peak review score: ${incident.peakScore}/100 (${formatLevel(incident.peakLevel)})`,
     `Final status: ${formatStatus(incident.status)}`,
     `Time open: ${resolutionTime}`,
     `Impact: ${incident.impact.reportsGrouped} reports grouped, ${incident.impact.commentsReviewed} comments reviewed, ${incident.impact.actionsTaken} mod actions recorded`,
@@ -1899,7 +1922,7 @@ const buildEscalationSummary = (incident: Incident) => {
 
   return [
     `Mod handoff note: ${incident.title}`,
-    `Current attention: ${incident.score}/100 (${formatLevel(incident.level)}); peak incident score: ${incident.peakScore}/100; suggested action: ${incident.responseSuggestion.label}`,
+    `Review score: ${incident.score}/100 (${formatLevel(incident.level)}); peak review score: ${incident.peakScore}/100; recommended next step: ${incident.responseSuggestion.label}`,
     `Post: ${incident.permalink ?? incident.postId}`,
     `Handled by: ${handler ? formatUserHandle(handler) : 'unclaimed'}`,
     `Impact so far: ${incident.impact.reportsGrouped} reports grouped, ${incident.impact.commentsReviewed} comments reviewed, ${incident.impact.commentsAwaitingReview} comments still waiting`,
@@ -2118,7 +2141,7 @@ const buildDemoComments = ({
       },
       {
         author: 'demoConcerned',
-        body: `The thread needs a mod look before the ${secondKeyword} replies get copied again.`,
+        body: `This post needs mod review before the ${secondKeyword} replies get copied again.`,
         branch: 'post',
       },
     ];
@@ -2188,8 +2211,8 @@ export const createDemoIncident = async (
     title,
     text: [
       `This is a Firewatch demo post for: ${scenario.label}.`,
-      'The mod queue is populated through the same path used by comments, reports, and posts sent by mods.',
-      'Mods can test taking the post, adding a sticky reminder, removing comments, locking the post, saving a handoff note, and marking it handled without waiting for real reports.',
+      'Posts show up in Firewatch through the same path used by comments, reports, and posts sent by mods.',
+      'Mods can test taking the post, adding a sticky comment, removing comments, locking the post, saving a handoff note, and marking it handled without waiting for real reports.',
     ].join('\n\n'),
   });
   const branchParentId = `t1_fw_demo_branch_${seed.toString(36)}`;
@@ -2342,7 +2365,7 @@ export const createFirewatchPost = async (options?: {
     subredditName: context.subredditName,
     title: sourcePost
       ? `Firewatch review: ${sourcePost.title.slice(0, 220)}`
-      : 'Firewatch mod queue',
+      : 'Firewatch posts to review',
     entry: 'dashboard',
     postData: normalizedIncidentPostId
       ? {
@@ -2353,8 +2376,8 @@ export const createFirewatchPost = async (options?: {
         },
     textFallback: {
       text: sourcePost
-        ? `Firewatch mod view for ${sourcePost.title}`
-        : 'Firewatch mod queue for this community.',
+        ? `Firewatch review for ${sourcePost.title}`
+        : 'Firewatch posts to review for this community.',
     },
   });
 
@@ -2373,7 +2396,7 @@ export const getOrCreateFirewatchBoardPost = async () => {
       return await reddit.getPostById(normalizePostId(storedPostId));
     } catch (error) {
       console.error(
-        `Stored Firewatch queue post could not be opened: ${error}`
+        `Stored Firewatch review post could not be opened: ${error}`
       );
     }
   }

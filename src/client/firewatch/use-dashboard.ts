@@ -25,6 +25,7 @@ const EMPTY_DASHBOARD: DashboardInitResponse = {
   subredditName: '',
   incidents: [],
   config: emptyConfig,
+  postFlairOptions: [],
   rules: [],
   ruleLogs: [],
 };
@@ -179,8 +180,8 @@ export const useDashboard = () => {
         type: 'success',
         message:
           payload.resetCount === 1
-            ? 'Demo incident cleared.'
-            : `${payload.resetCount} demo incidents cleared.`,
+            ? 'Demo post cleared.'
+            : `${payload.resetCount} demo posts cleared.`,
       });
     } catch (error) {
       setNotice({

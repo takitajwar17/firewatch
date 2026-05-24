@@ -100,15 +100,22 @@ export const normalizeStatus = (status: string | undefined): IncidentStatus => {
 
 export const deriveIncidentStatus = (
   incident: Incident,
-  commentsToReview = 0
+  commentsToReview = 0,
+  currentPostLocked?: boolean
 ): IncidentStatus => {
   const normalized = normalizeStatus(incident.status);
-  const lockAction = incident.actions.find(
+  const latestLockAction = incident.actions.find(
     (action) => action.type === 'locked' || action.type === 'post_unlocked'
   );
+  const actionLocked = latestLockAction?.type === 'locked';
+  const actionUnlocked = latestLockAction?.type === 'post_unlocked';
   const locked =
-    normalized === 'locked' ||
-    lockAction?.type === 'locked';
+    currentPostLocked ??
+    (actionUnlocked
+      ? false
+      : normalized === 'locked' ||
+        actionLocked ||
+        incident.postState?.locked === true);
   const finalNoteSaved =
     Boolean(incident.summary) ||
     Boolean(incident.resolvedAt) ||

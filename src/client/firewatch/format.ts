@@ -149,9 +149,9 @@ export const readErrorMessage = async (res: Response) => {
 
 export const actionLabel = (action: string) => {
   if (action.startsWith('ban:')) return 'Remove and ban user';
-  if (action.startsWith('post:')) return 'Reddit post action';
-  if (action.startsWith('comment:')) return 'Reddit comment action';
-  if (action.startsWith('user:')) return 'Reddit user action';
+  if (action.startsWith('post:')) return 'Post action';
+  if (action.startsWith('comment:')) return 'Comment action';
+  if (action.startsWith('user:')) return 'User action';
   if (action.startsWith('rule:')) return 'Run prepared automation actions';
   if (action.startsWith('clear-strikes:')) return 'Clear Firewatch strikes';
   if (action.startsWith('approve:')) return 'Approve comment';
@@ -161,7 +161,7 @@ export const actionLabel = (action: string) => {
 
   const labels: Record<string, string> = {
     claim: 'Take post',
-    'cool-down': 'Sticky reminder',
+    'cool-down': 'Add sticky comment',
     lock: 'Lock post',
     escalate: 'Save handoff note',
     resolve: 'Mark handled',
@@ -194,7 +194,7 @@ export const actionSuccessMessage = (action: string) => {
 
   const messages: Record<string, string> = {
     claim: 'Post taken.',
-    'cool-down': 'Sticky reminder posted.',
+    'cool-down': 'Sticky comment posted.',
     lock: 'Post locked.',
     escalate: 'Handoff note saved in Mod notes.',
     resolve: 'Post marked handled. Final note saved.',

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useState, type CSSProperties, type ReactNode } from 'react';
 import { navigateTo } from '@devvit/web/client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -9,9 +9,14 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
+import {
+  ActionInput,
+  ActionPrepPanel,
+  ActionSelect,
+  ActionTextArea,
+} from './action-prep';
 import {
   DisclosurePanel,
   EmptyText,
@@ -32,6 +37,7 @@ import type {
   FirewatchConfig,
   Incident,
   NativePostAction,
+  PostFlairOption,
 } from '../../shared/api';
 import {
   CROWD_CONTROL_OPTIONS,
@@ -86,9 +92,12 @@ export const IncidentIntro = ({ incident }: { incident: Incident }) => {
             ) : null}
           </div>
 
-          <h1 className="mt-3 w-full max-w-full break-words text-xl font-bold leading-tight text-foreground sm:text-2xl">
-            {incident.title}
-          </h1>
+          <div className="mt-3 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+            <h1 className="min-w-0 max-w-full break-words text-xl font-bold leading-tight text-foreground sm:text-2xl">
+              {incident.title}
+            </h1>
+            <PostStateBadges incident={incident} />
+          </div>
           <p className="mt-2 w-full max-w-full whitespace-normal break-words text-sm leading-6 text-muted-foreground sm:max-w-3xl">
             {incident.responseSuggestion.detail}
           </p>
@@ -127,12 +136,12 @@ const AttentionScoreRail = ({ incident }: { incident: Incident }) => {
 
   return (
     <aside
-      aria-label={`Attention score ${incident.score}`}
+      aria-label={`Review score ${incident.score}`}
       className="max-w-full rounded-lg border border-border bg-muted/30 px-3 py-3 text-sm"
     >
       <div className="flex items-center justify-between gap-3">
         <span className="text-xs font-semibold leading-4 text-muted-foreground">
-          Attention
+          Review score
         </span>
         <Badge
           className="h-6 rounded-full px-2.5 text-xs font-bold tabular-nums"
@@ -184,6 +193,81 @@ const InlineState = ({
   </span>
 );
 
+const isPostLocked = (incident: Incident) =>
+  incident.postState?.locked ?? incident.status === 'locked';
+
+const PostStateBadges = ({ incident }: { incident: Incident }) => {
+  const state = incident.postState;
+  if (!state) return null;
+
+  return (
+    <>
+      {state.flair ? <PostFlairChip state={state.flair} /> : null}
+      {state.nsfw ? <PostLabelChip tone="danger">NSFW</PostLabelChip> : null}
+      {state.spoiler ? <PostLabelChip>Spoiler</PostLabelChip> : null}
+      {state.locked && incident.status !== 'locked' ? (
+        <PostLabelChip>Locked</PostLabelChip>
+      ) : null}
+      {state.ignoringReports ? (
+        <PostLabelChip>Reports ignored</PostLabelChip>
+      ) : null}
+      {state.removed || state.spam ? (
+        <PostLabelChip tone="danger">
+          {state.spam ? 'Spam' : 'Removed'}
+        </PostLabelChip>
+      ) : state.approved ? (
+        <PostLabelChip tone="success">Approved</PostLabelChip>
+      ) : null}
+    </>
+  );
+};
+
+const PostFlairChip = ({
+  state,
+}: {
+  state: NonNullable<Incident['postState']>['flair'];
+}) => {
+  if (!state?.text) return null;
+
+  const style: CSSProperties | undefined = state.backgroundColor
+    ? {
+        backgroundColor: state.backgroundColor,
+        color: state.textColor === 'light' ? '#ffffff' : '#181c1f',
+      }
+    : undefined;
+
+  return (
+    <span
+      className="inline-flex h-5 max-w-full items-center rounded px-1.5 text-xs font-bold leading-none text-secondary-foreground"
+      style={style}
+      title={`Post flair: ${state.text}`}
+    >
+      <span className="truncate">{state.text}</span>
+    </span>
+  );
+};
+
+const PostLabelChip = ({
+  children,
+  tone = 'neutral',
+}: {
+  children: ReactNode;
+  tone?: 'danger' | 'neutral' | 'success';
+}) => (
+  <span
+    className={cn(
+      'inline-flex h-5 items-center rounded px-1.5 text-xs font-bold leading-none',
+      tone === 'danger'
+        ? 'border border-destructive/40 text-destructive'
+        : tone === 'success'
+          ? 'border border-[#008a10]/35 text-[#008a10] dark:border-[#46d160]/35 dark:text-[#46d160]'
+          : 'border border-border text-muted-foreground'
+    )}
+  >
+    {children}
+  </span>
+);
+
 const PostMetricPill = ({
   ariaLabel,
   icon,
@@ -219,9 +303,14 @@ export const IncidentHero = ({
   incident: Incident;
   onAction: ActionRunner;
 }) => {
+  const [showStickyPrep, setShowStickyPrep] = useState(false);
+  const [stickyText, setStickyText] = useState(config.reminderText);
   const terminal = isTerminalStatus(incident.status);
   const reminderAlreadyPosted = incident.status === 'cooldown';
-  const postLocked = incident.status === 'locked';
+  const postLocked = isPostLocked(incident);
+  const canToggleLock = postLocked
+    ? config.actionControls.unlockPost
+    : config.actionControls.lockPost;
   const permalink = incident.permalink;
   const unresolvedCount = incident.flaggedComments.filter(
     (comment) => !comment.removed && !comment.reviewed
@@ -238,7 +327,7 @@ export const IncidentHero = ({
         </div>
 
         <div className="flex flex-col gap-3 border-t border-border pt-3">
-          <PanelLabel>PRIMARY ACTIONS</PanelLabel>
+          <PanelLabel>QUICK ACTIONS</PanelLabel>
           <div className="flex flex-wrap items-center gap-2">
             <PlaybookButton
               disabled={
@@ -260,41 +349,77 @@ export const IncidentHero = ({
                   reminderAlreadyPosted
                 }
                 icon={<RedditPinIcon data-icon="inline-start" />}
-                label={reminderAlreadyPosted ? 'Reminder added' : 'Sticky'}
+                label={reminderAlreadyPosted ? 'Sticky posted' : 'Add sticky'}
                 loading={busyAction === 'cool-down'}
                 variant="secondary"
-                onClick={() =>
-                  onAction(
-                    'cool-down',
-                    `/api/incidents/${incident.postId}/cool-down`
-                  )
-                }
+                onClick={() => {
+                  setStickyText(config.reminderText);
+                  setShowStickyPrep(true);
+                }}
               />
             ) : null}
-            {config.actionControls.lockPost ? (
+            {canToggleLock ? (
               <PlaybookButton
-                disabled={Boolean(busyAction) || terminal || postLocked}
+                disabled={Boolean(busyAction) || terminal}
                 icon={<RedditLockIcon data-icon="inline-start" />}
-                label={postLocked ? 'Locked' : 'Lock'}
-                loading={busyAction === 'lock'}
-                variant="destructive"
+                label={postLocked ? 'Unlock' : 'Lock'}
+                loading={busyAction === (postLocked ? 'post:unlock' : 'lock')}
+                variant={postLocked ? 'outline' : 'destructive'}
                 onClick={() =>
-                  onAction('lock', `/api/incidents/${incident.postId}/lock`)
+                  postLocked
+                    ? onAction(
+                        'post:unlock',
+                        `/api/incidents/${incident.postId}/post-action`,
+                        { action: 'unlock' }
+                      )
+                    : onAction(
+                        'lock',
+                        `/api/incidents/${incident.postId}/lock`
+                      )
                 }
               />
             ) : null}
           </div>
+          {showStickyPrep ? (
+            <ActionPrepPanel
+              busy={busyAction === 'cool-down'}
+              description="Review the mod sticky before posting."
+              disabled={stickyText.trim().length === 0}
+              primaryIcon={<RedditPinIcon data-icon="inline-start" />}
+              primaryLabel="Post sticky"
+              title="Add sticky comment"
+              onCancel={() => setShowStickyPrep(false)}
+              onSubmit={() => {
+                void onAction(
+                  'cool-down',
+                  `/api/incidents/${incident.postId}/cool-down`,
+                  { reminderText: stickyText }
+                ).then((updatedIncident) => {
+                  if (updatedIncident) setShowStickyPrep(false);
+                });
+              }}
+            >
+              <ActionTextArea
+                description="Posted as a distinguished sticky comment."
+                id="fw-sticky-reminder"
+                label="Comment text"
+                rows={4}
+                value={stickyText}
+                onChange={setStickyText}
+              />
+            </ActionPrepPanel>
+          ) : null}
         </div>
 
         <div className="flex flex-col gap-3 border-t border-border pt-3">
-          <PanelLabel>CLOSE OUT</PanelLabel>
+          <PanelLabel>MOD NOTES</PanelLabel>
           <div className="flex flex-wrap items-center gap-2">
             <PlaybookButton
               disabled={
                 Boolean(busyAction) || !config.actionControls.handoffNotes
               }
               icon={<RedditShieldIcon data-icon="inline-start" />}
-              label="Handoff"
+              label="Save handoff"
               loading={busyAction === 'escalate'}
               variant="secondary"
               onClick={() =>
@@ -323,7 +448,7 @@ export const IncidentHero = ({
                   ? 'Handled'
                   : unresolvedCount > 0
                     ? 'Review comments'
-                    : 'Handled'
+                    : 'Mark handled'
               }
               loading={busyAction === 'resolve'}
               variant="ghost"
@@ -342,26 +467,45 @@ export const NativePostControlsCard = ({
   busyAction,
   config,
   incident,
+  postFlairOptions,
   onAction,
 }: {
   busyAction: string | undefined;
   config: FirewatchConfig;
   incident: Incident;
+  postFlairOptions: PostFlairOption[];
   onAction: ActionRunner;
 }) => {
+  const [activePrep, setActivePrep] = useState<NativePostAction | undefined>();
   const [reason, setReason] = useState('Rule-breaking post');
   const [flairText, setFlairText] = useState('Needs mod review');
+  const [flairTemplateId, setFlairTemplateId] = useState('');
   const [crowdControlLevel, setCrowdControlLevel] =
     useState<CrowdControlLevel>('MEDIUM');
   const controls = config.actionControls;
   const disabled = Boolean(busyAction);
-  const postLocked = incident.status === 'locked';
-  const hasRemovalActions = controls.removePosts || controls.markPostSpam;
+  const postState = incident.postState;
+  const postApproved = Boolean(
+    postState?.approved && !postState.removed && !postState.spam
+  );
+  const postRemoved = Boolean(postState?.removed || postState?.spam);
+  const postSpam = Boolean(postState?.spam);
+  const postNsfw = Boolean(postState?.nsfw);
+  const postSpoiler = Boolean(postState?.spoiler);
+  const postIgnoringReports = Boolean(postState?.ignoringReports);
+  const nsfwAction: NativePostAction = postNsfw
+    ? 'unmark-nsfw'
+    : 'mark-nsfw';
+  const spoilerAction: NativePostAction = postSpoiler
+    ? 'unmark-spoiler'
+    : 'mark-spoiler';
+  const reportsAction: NativePostAction = postIgnoringReports
+    ? 'unignore-reports'
+    : 'ignore-reports';
   const hasPrimaryActions =
     controls.approvePosts ||
     controls.removePosts ||
-    controls.markPostSpam ||
-    (controls.unlockPost && postLocked);
+    controls.markPostSpam;
   const hasAdvancedActions =
     controls.markPostNsfw ||
     controls.markPostSpoiler ||
@@ -371,8 +515,8 @@ export const NativePostControlsCard = ({
   const runPostAction = (
     action: NativePostAction,
     body: Record<string, unknown> = {}
-  ) =>
-    onAction(
+  ) => {
+    void onAction(
       `post:${action}`,
       `/api/incidents/${incident.postId}/post-action`,
       {
@@ -380,198 +524,233 @@ export const NativePostControlsCard = ({
         reason,
         ...body,
       }
-    );
+    ).then((updatedIncident) => {
+      if (updatedIncident) setActivePrep(undefined);
+    });
+  };
+  const selectFlairTemplate = (value: string) => {
+    setFlairTemplateId(value);
+    const selected = postFlairOptions.find((option) => option.id === value);
+    if (selected) setFlairText(selected.text);
+  };
+  const selectedFlair = postFlairOptions.find(
+    (option) => option.id === flairTemplateId
+  );
 
   if (!hasPrimaryActions && !hasAdvancedActions) return null;
 
   return (
     <section className="rounded-lg border border-border bg-background">
       <div className="border-b border-border px-3 py-3 sm:px-4">
-        <h3 className="text-base font-bold leading-5">Post tools</h3>
+        <h3 className="text-base font-bold leading-5">Post actions</h3>
         <p className="mt-1 text-xs leading-5 text-muted-foreground">
-          Reddit actions for the selected post.
+          Actions for this post.
         </p>
       </div>
       <div className="flex flex-col gap-3 p-3 sm:p-4">
-        {hasRemovalActions ? (
-          <FieldInput
-            label="Removal reason"
-            value={reason}
-            onChange={setReason}
-          />
-        ) : null}
-
         {hasPrimaryActions ? (
-          <div className="flex flex-wrap gap-2">
-            {controls.approvePosts ? (
-              <PlaybookButton
-                disabled={disabled}
-                icon={<RedditApproveIcon data-icon="inline-start" />}
-                label="Approve"
-                loading={busyAction === 'post:approve'}
-                variant="secondary"
-                onClick={() => runPostAction('approve')}
-              />
-            ) : null}
-            {controls.removePosts ? (
-              <PlaybookButton
-                disabled={disabled}
-                icon={<RedditRemoveIcon data-icon="inline-start" />}
-                label="Remove"
-                loading={busyAction === 'post:remove'}
+          <div>
+            <div className="flex flex-wrap gap-2">
+              {controls.approvePosts ? (
+                <PlaybookButton
+                  disabled={disabled || postApproved}
+                  icon={<RedditApproveIcon data-icon="inline-start" />}
+                  label={postApproved ? 'Approved' : 'Approve'}
+                  loading={busyAction === 'post:approve'}
+                  variant="secondary"
+                  onClick={() => runPostAction('approve')}
+                />
+              ) : null}
+              {controls.removePosts ? (
+                <PlaybookButton
+                  disabled={disabled || postRemoved}
+                  icon={<RedditRemoveIcon data-icon="inline-start" />}
+                  label={postRemoved ? 'Removed' : 'Remove'}
+                  loading={busyAction === 'post:remove'}
+                  variant="destructive"
+                  onClick={() => setActivePrep('remove')}
+                />
+              ) : null}
+              {controls.markPostSpam ? (
+                <PlaybookButton
+                  disabled={disabled || postSpam}
+                  icon={<RedditSpamIcon data-icon="inline-start" />}
+                  label={postSpam ? 'Spam' : 'Spam post'}
+                  loading={busyAction === 'post:spam'}
+                  variant="destructive"
+                  onClick={() => setActivePrep('spam')}
+                />
+              ) : null}
+            </div>
+            {activePrep === 'remove' || activePrep === 'spam' ? (
+              <ActionPrepPanel
+                busy={busyAction === `post:${activePrep}`}
+                description={
+                  activePrep === 'spam'
+                    ? 'Remove this post as spam and add an optional removal note.'
+                    : 'Remove this post and add an optional removal note.'
+                }
+                primaryIcon={
+                  activePrep === 'spam' ? (
+                    <RedditSpamIcon data-icon="inline-start" />
+                  ) : (
+                    <RedditRemoveIcon data-icon="inline-start" />
+                  )
+                }
+                primaryLabel={activePrep === 'spam' ? 'Spam post' : 'Remove'}
+                title={activePrep === 'spam' ? 'Spam post' : 'Remove post'}
                 variant="destructive"
-                onClick={() => runPostAction('remove')}
-              />
-            ) : null}
-            {controls.markPostSpam ? (
-              <PlaybookButton
-                disabled={disabled}
-                icon={<RedditSpamIcon data-icon="inline-start" />}
-                label="Spam post"
-                loading={busyAction === 'post:spam'}
-                variant="destructive"
-                onClick={() => runPostAction('spam')}
-              />
-            ) : null}
-            {controls.unlockPost && postLocked ? (
-              <PlaybookButton
-                disabled={disabled}
-                icon={<RedditLockIcon data-icon="inline-start" />}
-                label="Unlock post"
-                loading={busyAction === 'post:unlock'}
-                variant="outline"
-                onClick={() => runPostAction('unlock')}
-              />
+                onCancel={() => setActivePrep(undefined)}
+                onSubmit={() => runPostAction(activePrep)}
+              >
+                <ActionTextArea
+                  description="Saved to the mod log and removal note."
+                  id="fw-post-removal-reason"
+                  label="Reason"
+                  value={reason}
+                  onChange={setReason}
+                />
+              </ActionPrepPanel>
             ) : null}
           </div>
         ) : null}
 
         {hasAdvancedActions ? (
           <DisclosurePanel
-            description="Flair, report handling, labels, and Crowd Control."
-            title="More post actions"
+            description="Flair, reports, tags, and Crowd Control."
+            title="More actions"
           >
             <div className="flex flex-col gap-3">
               <div className="grid min-w-0 gap-2 sm:grid-cols-2">
                 {controls.markPostNsfw ? (
-                  <>
-                    <PlaybookButton
-                      disabled={disabled}
-                      icon={<RedditHideIcon data-icon="inline-start" />}
-                      label="Mark NSFW"
-                      loading={busyAction === 'post:mark-nsfw'}
-                      variant="outline"
-                      onClick={() => runPostAction('mark-nsfw')}
-                    />
-                    <PlaybookButton
-                      disabled={disabled}
-                      icon={<RedditHideIcon data-icon="inline-start" />}
-                      label="Clear NSFW"
-                      loading={busyAction === 'post:unmark-nsfw'}
-                      variant="ghost"
-                      onClick={() => runPostAction('unmark-nsfw')}
-                    />
-                  </>
+                  <PlaybookButton
+                    disabled={disabled}
+                    icon={<RedditHideIcon data-icon="inline-start" />}
+                    label={postNsfw ? 'Clear NSFW' : 'Mark NSFW'}
+                    loading={busyAction === `post:${nsfwAction}`}
+                    variant={postNsfw ? 'ghost' : 'outline'}
+                    onClick={() => runPostAction(nsfwAction)}
+                  />
                 ) : null}
                 {controls.markPostSpoiler ? (
-                  <>
-                    <PlaybookButton
-                      disabled={disabled}
-                      icon={<RedditReportIcon data-icon="inline-start" />}
-                      label="Mark spoiler"
-                      loading={busyAction === 'post:mark-spoiler'}
-                      variant="outline"
-                      onClick={() => runPostAction('mark-spoiler')}
-                    />
-                    <PlaybookButton
-                      disabled={disabled}
-                      icon={<RedditReportIcon data-icon="inline-start" />}
-                      label="Clear spoiler"
-                      loading={busyAction === 'post:unmark-spoiler'}
-                      variant="ghost"
-                      onClick={() => runPostAction('unmark-spoiler')}
-                    />
-                  </>
+                  <PlaybookButton
+                    disabled={disabled}
+                    icon={<RedditReportIcon data-icon="inline-start" />}
+                    label={postSpoiler ? 'Clear spoiler' : 'Mark spoiler'}
+                    loading={busyAction === `post:${spoilerAction}`}
+                    variant={postSpoiler ? 'ghost' : 'outline'}
+                    onClick={() => runPostAction(spoilerAction)}
+                  />
                 ) : null}
                 {controls.ignoreReports ? (
-                  <>
-                    <PlaybookButton
-                      disabled={disabled}
-                      icon={<RedditReportIcon data-icon="inline-start" />}
-                      label="Ignore reports"
-                      loading={busyAction === 'post:ignore-reports'}
-                      variant="outline"
-                      onClick={() => runPostAction('ignore-reports')}
-                    />
-                    <PlaybookButton
-                      disabled={disabled}
-                      icon={<RedditReportIcon data-icon="inline-start" />}
-                      label="Watch reports"
-                      loading={busyAction === 'post:unignore-reports'}
-                      variant="ghost"
-                      onClick={() => runPostAction('unignore-reports')}
-                    />
-                  </>
+                  <PlaybookButton
+                    disabled={disabled}
+                    icon={<RedditReportIcon data-icon="inline-start" />}
+                    label={
+                      postIgnoringReports
+                        ? 'Unignore reports'
+                        : 'Ignore reports'
+                    }
+                    loading={busyAction === `post:${reportsAction}`}
+                    variant={postIgnoringReports ? 'ghost' : 'outline'}
+                    onClick={() => runPostAction(reportsAction)}
+                  />
+                ) : null}
+                {controls.setPostFlair ? (
+                  <PlaybookButton
+                    disabled={disabled}
+                    icon={<RedditTagIcon data-icon="inline-start" />}
+                    label="Set flair"
+                    loading={busyAction === 'post:set-flair'}
+                    variant="outline"
+                    onClick={() => setActivePrep('set-flair')}
+                  />
+                ) : null}
+                {controls.crowdControl ? (
+                  <PlaybookButton
+                    disabled={disabled}
+                    icon={<RedditListIcon data-icon="inline-start" />}
+                    label="Crowd Control"
+                    loading={busyAction === 'post:crowd-control'}
+                    variant="outline"
+                    onClick={() => setActivePrep('crowd-control')}
+                  />
                 ) : null}
               </div>
 
-              {controls.setPostFlair ? (
-                <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_140px]">
-                  <FieldInput
-                    label="Post flair"
+              {activePrep === 'set-flair' ? (
+                <ActionPrepPanel
+                  busy={busyAction === 'post:set-flair'}
+                  description="Choose a post flair or enter custom text."
+                  disabled={flairText.trim().length === 0 && !selectedFlair}
+                  primaryIcon={<RedditTagIcon data-icon="inline-start" />}
+                  primaryLabel="Set flair"
+                  title="Set post flair"
+                  variant="outline"
+                  onCancel={() => setActivePrep(undefined)}
+                  onSubmit={() =>
+                    runPostAction('set-flair', {
+                      flairTemplateId: selectedFlair?.id,
+                      flairText,
+                    })
+                  }
+                >
+                  <ActionSelect
+                    description={
+                      postFlairOptions.length === 0
+                        ? 'No post flair templates found. Enter custom text.'
+                        : 'Post flair templates from this subreddit.'
+                    }
+                    id="fw-post-flair-template"
+                    label="Flair template"
+                    value={flairTemplateId}
+                    onChange={selectFlairTemplate}
+                  >
+                    <option value="">Custom flair text</option>
+                    {postFlairOptions.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.text}
+                      </option>
+                    ))}
+                  </ActionSelect>
+                  <ActionInput
+                    description="Use the template text or enter a custom flair."
+                    id="fw-post-flair-text"
+                    label="Flair text"
                     value={flairText}
                     onChange={setFlairText}
                   />
-                  <div className="flex items-end">
-                    <PlaybookButton
-                      disabled={disabled}
-                      icon={<RedditTagIcon data-icon="inline-start" />}
-                      label="Set flair"
-                      loading={busyAction === 'post:set-flair'}
-                      variant="outline"
-                      onClick={() => runPostAction('set-flair', { flairText })}
-                    />
-                  </div>
-                </div>
+                </ActionPrepPanel>
               ) : null}
 
-              {controls.crowdControl ? (
-                <div className="flex flex-col gap-2 rounded-lg border bg-card p-3">
-                  <label
-                    className="text-[13px] font-semibold leading-none"
-                    htmlFor="fw-crowd-control"
+              {activePrep === 'crowd-control' ? (
+                <ActionPrepPanel
+                  busy={busyAction === 'post:crowd-control'}
+                  description="Choose how strongly Reddit should filter comments on this post."
+                  primaryIcon={<RedditListIcon data-icon="inline-start" />}
+                  primaryLabel="Apply"
+                  title="Set Crowd Control"
+                  variant="outline"
+                  onCancel={() => setActivePrep(undefined)}
+                  onSubmit={() =>
+                    runPostAction('crowd-control', { crowdControlLevel })
+                  }
+                >
+                  <ActionSelect
+                    id="fw-crowd-control"
+                    label="Crowd Control level"
+                    value={crowdControlLevel}
+                    onChange={(value) =>
+                      setCrowdControlLevel(parseCrowdControlLevel(value))
+                    }
                   >
-                    Crowd Control
-                  </label>
-                  <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_120px]">
-                    <select
-                      id="fw-crowd-control"
-                      className="h-9 w-full min-w-0 rounded-full border border-transparent bg-secondary px-4 text-sm outline-none hover:bg-accent focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/25"
-                      value={crowdControlLevel}
-                      onChange={(event) =>
-                        setCrowdControlLevel(
-                          parseCrowdControlLevel(event.target.value)
-                        )
-                      }
-                    >
-                      {CROWD_CONTROL_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                    <PlaybookButton
-                      disabled={disabled}
-                      icon={<RedditListIcon data-icon="inline-start" />}
-                      label="Apply"
-                      loading={busyAction === 'post:crowd-control'}
-                      variant="outline"
-                      onClick={() =>
-                        runPostAction('crowd-control', { crowdControlLevel })
-                      }
-                    />
-                  </div>
-                </div>
+                    {CROWD_CONTROL_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </ActionSelect>
+                </ActionPrepPanel>
               ) : null}
             </div>
           </DisclosurePanel>
@@ -581,25 +760,10 @@ export const NativePostControlsCard = ({
   );
 };
 
-const FieldInput = ({
-  label,
-  onChange,
-  value,
-}: {
-  label: string;
-  onChange: (value: string) => void;
-  value: string;
-}) => (
-  <label className="flex min-w-0 flex-col gap-2">
-    <span className="text-[13px] font-semibold leading-none">{label}</span>
-    <Input value={value} onChange={(event) => onChange(event.target.value)} />
-  </label>
-);
-
 export const ResponseCard = ({ incident }: { incident: Incident }) => (
   <Card>
     <CardHeader>
-      <CardTitle>Suggested action</CardTitle>
+      <CardTitle>Recommended next step</CardTitle>
       <CardDescription>{incident.responseSuggestion.label}</CardDescription>
     </CardHeader>
     <CardContent className="flex flex-col gap-3">
@@ -646,9 +810,9 @@ export const ImpactSnapshotCard = ({ incident }: { incident: Incident }) => {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Moderator impact</CardTitle>
+        <CardTitle>Mod actions taken</CardTitle>
         <CardDescription>
-          Actions taken and remaining review work for this post.
+          What mods have already handled on this post.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
@@ -674,7 +838,7 @@ export const ImpactSnapshotCard = ({ incident }: { incident: Incident }) => {
           <Badge variant="outline">
             Open {formatDuration(impact.timeOpenMinutes)}
           </Badge>
-          <Badge variant="outline">Peak {impact.peakAttention}/100</Badge>
+          <Badge variant="outline">Peak score {impact.peakAttention}/100</Badge>
           {impact.handoffSaved ? (
             <Badge variant="secondary">Handoff saved</Badge>
           ) : null}
@@ -690,9 +854,9 @@ export const ImpactSnapshotCard = ({ incident }: { incident: Incident }) => {
 export const RiskReasonsCard = ({ incident }: { incident: Incident }) => (
   <Card>
     <CardHeader>
-      <CardTitle>Why this post is here</CardTitle>
+      <CardTitle>Why this is in review</CardTitle>
       <CardDescription>
-        Based on user comments, reports, watched words, links, and mod actions.
+        Based on reports, comments, watched words, links, and mod actions.
       </CardDescription>
     </CardHeader>
     <CardContent>
@@ -729,9 +893,9 @@ export const RiskReasonsCard = ({ incident }: { incident: Incident }) => (
 export const TrendCard = ({ incident }: { incident: Incident }) => (
   <Card>
     <CardHeader>
-      <CardTitle>Activity trend</CardTitle>
+      <CardTitle>Activity</CardTitle>
       <CardDescription>
-        Current attention from recent user comments, reports, and watched words.
+        Recent comment, report, and watched-word activity.
       </CardDescription>
     </CardHeader>
     <CardContent>
@@ -743,7 +907,7 @@ export const TrendCard = ({ incident }: { incident: Incident }) => (
             <div
               key={point.timestamp}
               className="flex min-w-0 flex-1 flex-col gap-2"
-              title={`${formatTime(point.timestamp)} attention score ${point.score}`}
+              title={`${formatTime(point.timestamp)} review score ${point.score}`}
             >
               <div className="flex min-h-0 flex-1 items-end">
                 <div

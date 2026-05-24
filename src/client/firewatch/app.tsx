@@ -93,6 +93,7 @@ export const App = () => {
           busyAction={busyAction}
           config={data.config}
           incident={selectedIncident}
+          postFlairOptions={data.postFlairOptions}
           onAction={runAction}
           onEditRules={() => setActiveView('automations')}
         />

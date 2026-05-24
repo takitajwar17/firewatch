@@ -243,7 +243,7 @@ export const userActionDetail = ({
     case 'mute':
       return `Muted u/${username} from modmail${note ? `: ${note}` : ''}`;
     case 'add-mod-note':
-      return `Added native mod note for u/${username}${note ? `: ${note}` : ''}`;
+      return `Added Reddit mod note for u/${username}${note ? `: ${note}` : ''}`;
     case 'remove-recent-content':
       return `Removed ${count} recent item${count === 1 ? '' : 's'} from u/${username}`;
   }

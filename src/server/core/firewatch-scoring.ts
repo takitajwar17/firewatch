@@ -2,6 +2,7 @@ import type {
   FirewatchConfig,
   FlaggedComment,
   Incident,
+  IncidentPostState,
   IncidentImpactSnapshot,
   IncidentActionType,
   IncidentLevel,
@@ -38,6 +39,7 @@ type PostSnapshot = {
   subredditName: string;
   numberOfReports: number;
   createdAt?: number;
+  postState?: IncidentPostState;
 };
 
 const isValidTimestamp = (timestamp: number | undefined): timestamp is number =>
@@ -196,7 +198,7 @@ export const getResponseSuggestion = (
       steps: [
         'Open the Comments tab.',
         'Approve acceptable comments or remove comments that break the rules.',
-        'Mark handled after the review queue is clear.',
+        'Mark handled after comment review is clear.',
       ],
     };
   }
@@ -210,7 +212,7 @@ export const getResponseSuggestion = (
       steps: [
         'Review the final mod note.',
         'Open the post if you need to check Reddit state.',
-        'No further action is needed unless the thread heats up again.',
+        'No further action is needed unless new reports or comments come in.',
       ],
     };
   }
@@ -219,7 +221,7 @@ export const getResponseSuggestion = (
     return {
       label: 'Save final note',
       detail:
-        'The post is locked and the comment review queue is clear. Save the final mod note to close it out.',
+        'The post is locked and comment review is clear. Save the final mod note to close it out.',
       level,
       steps: [
         'Save a handoff note if another mod may need context.',
@@ -231,7 +233,7 @@ export const getResponseSuggestion = (
 
   return {
     label: 'Monitor',
-    detail: `Current attention is ${score}/100. Keep an eye on reports, comment volume, and repeated user wording.`,
+    detail: `Review score is ${score}/100. Keep an eye on reports, comment volume, and repeated user wording.`,
     level,
     steps: [
       'Leave the post open.',
@@ -858,7 +860,11 @@ export const calculateIncident = (
   const level = getLevel(score, config);
   const peakScore = Math.max(incident.peakScore ?? 0, score);
   const peakLevel = getLevel(peakScore, config);
-  const status = deriveIncidentStatus(incident, activeFlaggedComments.length);
+  const status = deriveIncidentStatus(
+    incident,
+    activeFlaggedComments.length,
+    postSnapshot.postState?.locked
+  );
   const involvedUsers = buildParticipants(userSignals, activeFlaggedComments);
   const fallbackCreatedAt =
     minTimestamp(
@@ -917,6 +923,7 @@ export const calculateIncident = (
     peakScore,
     peakLevel,
     status,
+    postState: postSnapshot.postState,
     reasons: reasons.sort((a, b) => b.points - a.points),
     flaggedComments,
     involvedUsers,

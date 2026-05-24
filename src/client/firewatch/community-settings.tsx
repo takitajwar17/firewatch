@@ -76,7 +76,7 @@ export const CommunitySettingsPage = ({
     <div className="flex min-w-0 flex-col gap-4 sm:gap-5">
       <SectionHeader
         title="Settings"
-        description="Watched terms, thresholds, mod actions, and demo tools."
+        description="Watched words, domains, scores, mod actions, and demo posts."
       />
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 sm:gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         <CommunityFiltersCard
@@ -144,8 +144,8 @@ export const ResponseRulesCard = ({
         <CardTitle>Automations</CardTitle>
         <CardDescription>
           Create automations that watch posts, comments, reports, user strikes,
-          and incident scores. Firewatch can suggest actions, prepare actions
-          for approval, or run safe actions automatically.
+          and review scores. Firewatch can suggest actions, prepare actions for
+          approval, or run safe actions automatically.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
@@ -332,7 +332,7 @@ const RULE_CONDITION_OPTIONS: {
   { label: 'Author has Firewatch strikes', value: 'user_strikes' },
   { label: 'Author has removed comments', value: 'user_removed_comments' },
   { label: 'Post has reports', value: 'post_reports' },
-  { label: 'Incident score is at least', value: 'incident_score' },
+  { label: 'Review score is at least', value: 'incident_score' },
 ];
 
 const RULE_ACTION_OPTIONS: {
@@ -341,10 +341,10 @@ const RULE_ACTION_OPTIONS: {
 }[] = [
   { label: 'Add strike and mod note', value: 'strike_and_note' },
   { label: 'Prepare comment removal', value: 'remove_comment' },
-  { label: 'Add native mod note', value: 'add_native_mod_note' },
+  { label: 'Add Reddit mod note', value: 'add_native_mod_note' },
   { label: 'Prepare 1-day ban', value: 'temp_ban' },
   { label: 'Save handoff draft', value: 'generate_handoff' },
-  { label: 'Prepare sticky reminder', value: 'sticky_reminder' },
+  { label: 'Draft sticky comment', value: 'sticky_reminder' },
 ];
 
 const RULE_MODE_OPTIONS: {
@@ -787,7 +787,7 @@ const RuleLogPreview = ({ logs }: { logs: RuleExecutionLog[] }) => (
               {log.ruleName} matched {log.targetType} {log.targetId}.
             </p>
             <p className="text-xs leading-5 text-muted-foreground">
-              Prepared {log.preparedActions.join(', ') || 'no actions'}.
+              Actions: {log.preparedActions.join(', ') || 'none'}.
             </p>
           </div>
         ))}
@@ -837,14 +837,14 @@ const CommunityFiltersCard = ({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>What Firewatch watches</CardTitle>
+        <CardTitle>Watched words and domains</CardTitle>
         <CardDescription>
           These words and domains are the main subreddit-wide triggers.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
         <FieldBlock
-          description={`${splitList(keywords).length} active terms. Comma-separated words or phrases that should raise mod attention.`}
+          description={`${splitList(keywords).length} active terms. Comma-separated words or phrases that send posts to review.`}
           htmlFor="fw-keywords"
           label="Watched words"
         >
@@ -870,17 +870,17 @@ const CommunityFiltersCard = ({
         </FieldBlock>
 
         <DisclosurePanel
-          description="Thresholds, signal weights, and the sticky reminder copy."
-          title="Scoring and reminder"
+          description="Review scores, signal weights, and sticky comment text."
+          title="Scores and sticky"
         >
           <div className="flex flex-col gap-5">
             <div className="flex flex-col gap-3">
               <p className="text-sm font-semibold leading-5">
-                Attention thresholds
+                Review thresholds
               </p>
               <p className="text-xs leading-5 text-muted-foreground">
-                Firewatch uses these scores to label posts for review, action,
-                and lockdown-level attention.
+                Firewatch uses these scores to move posts from review to action
+                to lock.
               </p>
               <div className="grid min-w-0 gap-3 md:grid-cols-3">
                 <ThresholdInput
@@ -907,8 +907,8 @@ const CommunityFiltersCard = ({
             <div className="flex flex-col gap-3">
               <p className="text-sm font-semibold leading-5">Signal weights</p>
               <p className="text-xs leading-5 text-muted-foreground">
-                Set a weight to 0 to ignore that signal. Higher weights make
-                Firewatch raise attention faster.
+                Set a weight to 0 to ignore that signal. Higher weights send
+                posts to review sooner.
               </p>
               <div className="grid min-w-0 gap-3 md:grid-cols-2">
                 {CONFIG_SIGNAL_WEIGHT_FIELDS.map((field) => (
@@ -931,9 +931,9 @@ const CommunityFiltersCard = ({
             </div>
 
             <FieldBlock
-              description="Posted as a distinguished sticky comment when mods use Sticky reminder."
+              description="Posted as a distinguished sticky comment."
               htmlFor="fw-reminder-text"
-              label="Sticky reminder text"
+              label="Sticky comment text"
             >
               <SettingsTextarea
                 id="fw-reminder-text"
@@ -1010,7 +1010,7 @@ const ActionPermissionsControl = ({
       <div>
         <p className="text-sm font-semibold leading-5">Allowed mod actions</p>
         <p className="mt-1 text-xs leading-5 text-muted-foreground">
-          Choose which Reddit actions appear in post and comment review.
+          Choose which actions mods can use from Firewatch.
         </p>
       </div>
 
@@ -1021,8 +1021,8 @@ const ActionPermissionsControl = ({
       />
 
       <DisclosurePanel
-        description="Post, comment, and user tools shown in contextual action menus."
-        title="Advanced Reddit permissions"
+        description="Post, comment, and user actions shown in Firewatch."
+        title="More Reddit actions"
       >
         <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
           {CONFIG_ACTION_CONTROL_GROUPS.slice(1).map((group) => (
@@ -1151,9 +1151,9 @@ const CommunityToolsCard = ({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Demo tools</CardTitle>
+        <CardTitle>Demo posts</CardTitle>
         <CardDescription>
-          Create or clear demo incidents for this subreddit.
+          Create or clear demo posts for this subreddit.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
