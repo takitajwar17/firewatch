@@ -1,0 +1,378 @@
+import { context, redis } from '@devvit/web/server';
+import type {
+  Incident,
+  IncidentSignal,
+  RuleTrigger,
+  SignalSource,
+} from '../../../shared/api';
+import { sortIncidentsByPriority } from '../../../shared/incidents';
+import { MAX_RECENT_SIGNALS } from '../firewatch-constants';
+import { normalizeDetectionText } from '../firewatch-detection';
+import { attachRuleContext, recordRuleMatches } from '../firewatch-rules';
+import {
+  calculateIncident,
+  getResponseSuggestion,
+  makeEmptyImpact,
+  makeEmptyStats,
+} from '../firewatch-scoring';
+import { runRuleAutomationActions } from './automation';
+import { appendAction, getPostSnapshot, refreshIncident } from './incidents';
+import {
+  getConfig,
+  getIncident,
+  getIndex,
+  saveIncident,
+  saveIndex,
+  shouldShowInQueue,
+} from './store';
+import {
+  boardPostKey,
+  claimKey,
+  incidentKey,
+  inferSignalSource,
+  makeId,
+  normalizeCommentId,
+  normalizePostId,
+  normalizeStatus,
+  normalizeUsername,
+  now,
+} from '../firewatch-utils';
+import { externalModActionDetail, externalModActionType } from '../mod-actions';
+
+
+// Signal input and recent-signal dedupe
+export type SignalInput = Omit<IncidentSignal, 'id' | 'createdAt' | 'source'> & {
+  createdAt?: number;
+  source?: SignalSource;
+};
+
+const DEDUPED_SIGNAL_TYPES = new Set<IncidentSignal['type']>([
+  'post_create',
+  'post_update',
+  'comment_create',
+  'mod_action',
+  'automod_filter',
+]);
+
+const signalMetadataSignature = (signal: IncidentSignal) => {
+  if (!signal.metadata) return '';
+
+  return Object.entries(signal.metadata)
+    .filter(([, value]) => value !== undefined)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, value]) => `${key}:${String(value)}`)
+    .join(',');
+};
+
+const signalDedupeKey = (signal: IncidentSignal) => {
+  if (!DEDUPED_SIGNAL_TYPES.has(signal.type)) return undefined;
+
+  return [
+    signal.type,
+    signal.postId,
+    signal.commentId ?? '',
+    signal.parentId ?? '',
+    normalizeDetectionText(signal.author ?? ''),
+    normalizeDetectionText(signal.reason ?? ''),
+    normalizeDetectionText(signal.body ?? '').slice(0, 500),
+    signalMetadataSignature(signal),
+  ].join('|');
+};
+
+export const mergeRecentSignal = (
+  signal: IncidentSignal,
+  recentSignals: Incident['recentSignals']
+) => {
+  const dedupeKey = signalDedupeKey(signal);
+  if (!dedupeKey) {
+    return [signal, ...recentSignals].slice(0, MAX_RECENT_SIGNALS);
+  }
+
+  const duplicateIndex = recentSignals.findIndex(
+    (recentSignal) => signalDedupeKey(recentSignal) === dedupeKey
+  );
+  if (duplicateIndex === -1) {
+    return [signal, ...recentSignals].slice(0, MAX_RECENT_SIGNALS);
+  }
+
+  const duplicate = recentSignals[duplicateIndex];
+  if (!duplicate) {
+    return [signal, ...recentSignals].slice(0, MAX_RECENT_SIGNALS);
+  }
+
+  const mergedSignal: IncidentSignal = {
+    ...duplicate,
+    ...signal,
+    id: duplicate.id,
+    createdAt: Math.max(duplicate.createdAt, signal.createdAt),
+  };
+
+  return [
+    mergedSignal,
+    ...recentSignals.filter((_, index) => index !== duplicateIndex),
+  ].slice(0, MAX_RECENT_SIGNALS);
+};
+
+
+
+// Signal writer and scorer
+const signalRuleTrigger = (signal: IncidentSignal): RuleTrigger['type'] => {
+  if (signal.type === 'comment_create') return 'new_comment';
+  if (signal.type === 'post_create') return 'new_post';
+  if (signal.type === 'comment_report') return 'comment_report';
+  if (signal.type === 'post_report') return 'post_report';
+  if (signal.type === 'mod_action') {
+    if (
+      signal.metadata?.action === 'removecomment' ||
+      signal.metadata?.action === 'spamcomment'
+    ) {
+      return 'comment_removed';
+    }
+    if (
+      signal.metadata?.action === 'removelink' ||
+      signal.metadata?.action === 'spamlink'
+    ) {
+      return 'post_removed';
+    }
+  }
+  return 'incident_score_changed';
+};
+
+export const recordIncidentSignal = async (input: SignalInput) => {
+  const postId = normalizePostId(input.postId);
+  const commentId = input.commentId
+    ? normalizeCommentId(input.commentId)
+    : undefined;
+  const parentId =
+    input.parentId && input.parentId.startsWith('t1_')
+      ? normalizeCommentId(input.parentId)
+      : input.parentId
+        ? normalizePostId(input.parentId)
+        : undefined;
+  const postSnapshot = await getPostSnapshot(postId);
+  const existing = await getIncident(postId);
+  const signal: IncidentSignal = {
+    ...input,
+    postId,
+    commentId,
+    parentId,
+    author: normalizeUsername(input.author),
+    source: inferSignalSource(input),
+    id: makeId('sig'),
+    createdAt: input.createdAt ?? now(),
+  };
+  const baseIncident: Incident = existing ?? {
+    postId,
+    subredditName: postSnapshot.subredditName,
+    title: postSnapshot.title,
+    permalink: postSnapshot.permalink,
+    score: 0,
+    postAuthor: postSnapshot.authorName,
+    postScore: postSnapshot.score,
+    postCommentCount: postSnapshot.numberOfComments,
+    level: 'watch',
+    peakScore: 0,
+    peakLevel: 'watch',
+    status: 'open',
+    createdAt: postSnapshot.createdAt ?? signal.createdAt,
+    openedAt: signal.createdAt,
+    updatedAt: signal.createdAt,
+    reasons: [],
+    flaggedComments: [],
+    recentSignals: [],
+    involvedUsers: [],
+    repeatedPhrases: [],
+    stats: makeEmptyStats(),
+    impact: makeEmptyImpact(),
+    trend: [],
+    responseSuggestion: getResponseSuggestion(0, 'watch', 'open'),
+    actions: [],
+  };
+  const shouldReopen =
+    signal.type === 'manual_escalation' ||
+    signal.source === 'user' ||
+    signal.source === 'report';
+  const nextStatus =
+    shouldReopen &&
+    (baseIncident.status === 'resolved' || baseIncident.status === 'handled')
+      ? 'open'
+      : normalizeStatus(baseIncident.status);
+  const config = await getConfig(postSnapshot.subredditName);
+  const calculatedIncident = calculateIncident(
+    {
+      ...baseIncident,
+      status: nextStatus,
+      resolvedAt: shouldReopen ? undefined : baseIncident.resolvedAt,
+      summary: shouldReopen ? undefined : baseIncident.summary,
+      recentSignals: mergeRecentSignal(signal, baseIncident.recentSignals),
+    },
+    config,
+    postSnapshot
+  );
+  const nextIncident = await attachRuleContext(calculatedIncident, config);
+
+  await saveIncident(nextIncident);
+  return {
+    config,
+    incident: nextIncident,
+    triggerType: signalRuleTrigger(signal),
+  };
+};
+
+
+
+// Incident ingest and lookup API
+export const deleteStoredPostContent = async (postId: string) => {
+  const normalizedPostId = normalizePostId(postId);
+  const index = await getIndex();
+  await redis.del(incidentKey(normalizedPostId), claimKey(normalizedPostId));
+  await saveIndex(index.filter((id) => id !== normalizedPostId));
+
+  if (context.subredditName) {
+    const boardPostId = await redis.get(boardPostKey(context.subredditName));
+    if (boardPostId === normalizedPostId) {
+      await redis.del(boardPostKey(context.subredditName));
+    }
+  }
+};
+
+export const deleteStoredCommentContent = async (
+  postId: string,
+  commentId: string
+) => {
+  const normalizedPostId = normalizePostId(postId);
+  const normalizedCommentId = normalizeCommentId(commentId);
+  const incident = await getIncident(normalizedPostId);
+  if (!incident) return;
+
+  const sanitizedSignals = incident.recentSignals.filter(
+    (signal) => signal.commentId !== normalizedCommentId
+  );
+  const sanitizedActions = incident.actions.map((action) => {
+    if (
+      !action.targetIds?.includes(normalizedCommentId) &&
+      !action.detail.includes(normalizedCommentId)
+    ) {
+      return action;
+    }
+
+    return {
+      ...action,
+      detail: 'Action referenced a comment that was later deleted on Reddit',
+      targetIds: action.targetIds?.filter((id) => id !== normalizedCommentId),
+      summary: undefined,
+    };
+  });
+  const sanitizedIncident: Incident = {
+    ...incident,
+    actions: sanitizedActions,
+    escalationSummary: undefined,
+    flaggedComments: incident.flaggedComments.filter(
+      (comment) => comment.id !== normalizedCommentId
+    ),
+    involvedUsers: [],
+    reasons: [],
+    recentSignals: sanitizedSignals,
+    repeatedPhrases: [],
+    summary: undefined,
+    trend: [],
+    updatedAt: now(),
+  };
+
+  try {
+    const refreshed = await refreshIncident(sanitizedIncident);
+    await saveIncident(refreshed);
+  } catch (error) {
+    console.error(
+      `Failed to refresh sanitized incident ${normalizedPostId}`,
+      error
+    );
+    await saveIncident(sanitizedIncident);
+  }
+};
+
+
+
+export const upsertIncidentSignal = async (input: SignalInput) => {
+  const { config, incident, triggerType } = await recordIncidentSignal(input);
+  const ruleLogs = await recordRuleMatches({
+    config,
+    incident,
+    triggerType,
+  });
+  return runRuleAutomationActions(incident, ruleLogs);
+};
+
+export const getIncidents = async () => {
+  const index = await getIndex();
+  const incidents = (
+    await Promise.all(
+      index.map(async (postId) => {
+        const incident = await getIncident(postId);
+        if (!incident) return undefined;
+
+        try {
+          const refreshed = await refreshIncident(incident);
+          await saveIncident(refreshed);
+          return refreshed;
+        } catch (error) {
+          console.error(`Failed to refresh incident ${postId}`, error);
+          return incident;
+        }
+      })
+    )
+  ).filter((incident): incident is Incident => Boolean(incident));
+  const visibleIncidents = incidents.filter(shouldShowInQueue);
+  await saveIndex(visibleIncidents.map((incident) => incident.postId));
+
+  return sortIncidentsByPriority(visibleIncidents).slice(0, 25);
+};
+
+export const getIncidentById = async (postId: string) => {
+  const normalizedPostId = normalizePostId(postId);
+  const incident = await getIncident(normalizedPostId);
+  if (!incident) return undefined;
+
+  try {
+    const refreshed = await refreshIncident(incident);
+    await saveIncident(refreshed);
+    return refreshed;
+  } catch (error) {
+    console.error(`Failed to refresh incident ${normalizedPostId}`, error);
+    return incident;
+  }
+};
+
+export const recordExternalModAction = async ({
+  action,
+  moderatorName,
+  postId,
+  targetCommentId,
+  targetPostId,
+}: {
+  action: string;
+  moderatorName?: string;
+  postId: string;
+  targetCommentId?: string;
+  targetPostId?: string;
+}) => {
+  const targetKind = targetCommentId ? 'comment' : 'post';
+  const type = externalModActionType({ action, targetKind });
+  if (!type) return undefined;
+
+  const normalizedPostId = normalizePostId(postId);
+  const incident = await getIncident(normalizedPostId);
+  if (!incident) return undefined;
+
+  const targetIds =
+    targetKind === 'comment'
+      ? [normalizeCommentId(targetCommentId ?? '')]
+      : [normalizePostId(targetPostId ?? normalizedPostId)];
+
+  return appendAction(normalizedPostId, {
+    type,
+    actor: moderatorName ?? 'mod',
+    detail: externalModActionDetail({ action, moderatorName, targetKind }),
+    targetIds,
+  });
+};

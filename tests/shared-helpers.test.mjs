@@ -466,9 +466,12 @@ test('all automation actions are represented in shared and server handlers', () 
 });
 
 test('prepared action runner explicitly handles every automation action', () => {
-  const source = readFileSync('src/server/core/firewatch.ts', 'utf8');
+  const source = readFileSync(
+    'src/server/core/firewatch/automation.ts',
+    'utf8'
+  );
   const runnerStart = source.indexOf('export const runPreparedRuleActions');
-  const runnerEnd = source.indexOf('const buildSummary', runnerStart);
+  const runnerEnd = source.indexOf('const ruleAutomationErrorMessage', runnerStart);
   const runnerSource = source.slice(runnerStart, runnerEnd);
 
   for (const actionType of ruleActionTypesFromApi()) {
@@ -481,16 +484,30 @@ test('prepared action runner explicitly handles every automation action', () => 
 });
 
 test('prepared action runner uses documented native APIs for sticky and ban actions', () => {
-  const source = readFileSync('src/server/core/firewatch.ts', 'utf8');
-  const stickyStart = source.indexOf('export const coolDownIncident');
-  const stickyEnd = source.indexOf('export const lockIncident', stickyStart);
-  const stickySource = source.slice(stickyStart, stickyEnd);
-  const banStart = source.indexOf('const banPreparedRuleUser');
-  const banEnd = source.indexOf('export const applyNativePostAction', banStart);
-  const banSource = source.slice(banStart, banEnd);
+  const incidentActionSource = readFileSync(
+    'src/server/core/firewatch/incidents.ts',
+    'utf8'
+  );
+  const userActionSource = readFileSync(
+    'src/server/core/firewatch/actions.ts',
+    'utf8'
+  );
+  const stickyStart = incidentActionSource.indexOf('export const coolDownIncident');
+  const stickyEnd = incidentActionSource.indexOf(
+    'export const lockIncident',
+    stickyStart
+  );
+  const stickySource = incidentActionSource.slice(stickyStart, stickyEnd);
+  const banStart = userActionSource.indexOf('export const banPreparedRuleUser');
+  const banEnd = userActionSource.indexOf(
+    'export const applyNativeUserAction',
+    banStart
+  );
+  const banSource = userActionSource.slice(banStart, banEnd);
 
   assert.match(stickySource, /await post\.addComment\(\{/);
   assert.match(stickySource, /await comment\.distinguish\(true\)/);
+  assert.match(stickySource, /await upsertIncidentSignal\(\{/);
   assert.match(stickySource, /source: 'firewatch_notice'/);
   assert.match(banSource, /await reddit\.banUser\(\{/);
   assert.match(banSource, /duration: durationDays \?\? 0/);
@@ -498,9 +515,12 @@ test('prepared action runner uses documented native APIs for sticky and ban acti
 });
 
 test('mute automation actions do not promise unsupported native durations', () => {
-  const source = readFileSync('src/server/core/firewatch.ts', 'utf8');
+  const source = readFileSync(
+    'src/server/core/firewatch/automation.ts',
+    'utf8'
+  );
   const runnerStart = source.indexOf('export const runPreparedRuleActions');
-  const runnerEnd = source.indexOf('const buildSummary', runnerStart);
+  const runnerEnd = source.indexOf('const ruleAutomationErrorMessage', runnerStart);
   const runnerSource = source.slice(runnerStart, runnerEnd);
 
   assert.match(runnerSource, /const muteReason = action\.durationDays/);
@@ -512,12 +532,15 @@ test('mute automation actions do not promise unsupported native durations', () =
 });
 
 test('auto-run safe automation actions mutate Firewatch state and avoid double execution', () => {
-  const source = readFileSync('src/server/core/firewatch.ts', 'utf8');
+  const source = readFileSync(
+    'src/server/core/firewatch/automation.ts',
+    'utf8'
+  );
   const autoRunStart = source.indexOf('const runAutoSafeRuleActions');
   const autoRunEnd = source.indexOf('export const runPreparedRuleActions', autoRunStart);
   const autoRunSource = source.slice(autoRunStart, autoRunEnd);
   const runnerStart = source.indexOf('export const runPreparedRuleActions');
-  const runnerEnd = source.indexOf('const buildSummary', runnerStart);
+  const runnerEnd = source.indexOf('const ruleAutomationErrorMessage', runnerStart);
   const runnerSource = source.slice(runnerStart, runnerEnd);
 
   assert.match(autoRunSource, /action\.type === 'add_firewatch_strike'/);
@@ -529,13 +552,16 @@ test('auto-run safe automation actions mutate Firewatch state and avoid double e
 });
 
 test('auto-run all mode dispatches selected actions and records failures', () => {
-  const firewatchSource = readFileSync('src/server/core/firewatch.ts', 'utf8');
+  const firewatchSource = readFileSync(
+    'src/server/core/firewatch/automation.ts',
+    'utf8'
+  );
   const rulesSource = readFileSync('src/server/core/firewatch-rules.ts', 'utf8');
   const autoAllStart = firewatchSource.indexOf('const runAutoAllRuleActions');
   const autoAllEnd = firewatchSource.indexOf('const runRuleAutomationActions', autoAllStart);
   const autoAllSource = firewatchSource.slice(autoAllStart, autoAllEnd);
   const automationStart = firewatchSource.indexOf('const runRuleAutomationActions');
-  const automationEnd = firewatchSource.indexOf('const buildSummary', automationStart);
+  const automationEnd = firewatchSource.length;
   const automationSource = firewatchSource.slice(automationStart, automationEnd);
 
   assert.match(rulesSource, /mode === 'auto_run_all_selected_actions'/);
@@ -548,10 +574,8 @@ test('auto-run all mode dispatches selected actions and records failures', () =>
 });
 
 test('server stores real post metadata for post-header consistency', () => {
-  const source = readFileSync('src/server/core/firewatch.ts', 'utf8');
-  const snapshotStart = source.indexOf('const getPostSnapshot');
-  const snapshotEnd = source.indexOf('const refreshIncident', snapshotStart);
-  const snapshotSource = source.slice(snapshotStart, snapshotEnd);
+  const source = readFileSync('src/server/core/firewatch/incidents.ts', 'utf8');
+  const snapshotSource = source;
 
   assert.match(snapshotSource, /authorName: normalizeUsername\(post\.authorName\)/);
   assert.match(snapshotSource, /score: post\.score/);
@@ -559,7 +583,10 @@ test('server stores real post metadata for post-header consistency', () => {
 });
 
 test('cooldown action persists cooldown status instead of only appending an action', () => {
-  const source = readFileSync('src/server/core/firewatch.ts', 'utf8');
+  const source = readFileSync(
+    'src/server/core/firewatch/incidents.ts',
+    'utf8'
+  );
   const cooldownStart = source.indexOf('export const coolDownIncident');
   const cooldownEnd = source.indexOf('export const lockIncident', cooldownStart);
   const cooldownSource = source.slice(cooldownStart, cooldownEnd);
@@ -569,7 +596,9 @@ test('cooldown action persists cooldown status instead of only appending an acti
 
 test('comment review cards hydrate and display native Reddit comment state', () => {
   const apiSource = readFileSync('src/shared/api.ts', 'utf8');
-  const serverSource = readFileSync('src/server/core/firewatch.ts', 'utf8');
+  const serverSource = [
+    readFileSync('src/server/core/firewatch/incidents.ts', 'utf8'),
+  ].join('\n');
   const clientSource = readFileSync(
     'src/client/firewatch/incident-comments.tsx',
     'utf8'
@@ -590,7 +619,10 @@ test('comment review cards hydrate and display native Reddit comment state', () 
 });
 
 test('user content removal refreshes and skips content already approved on Reddit', () => {
-  const source = readFileSync('src/server/core/firewatch.ts', 'utf8');
+  const source = readFileSync(
+    'src/server/core/firewatch/actions.ts',
+    'utf8'
+  );
   const banStart = source.indexOf('export const banUserAndRemoveComments');
   const userActionStart = source.indexOf('export const applyNativeUserAction');
   const banSource = source.slice(banStart, userActionStart);
@@ -613,7 +645,9 @@ test('scoring keeps open review comments durable and report counts stable', () =
 });
 
 test('incident ingest dedupes retried content events but keeps reports additive', () => {
-  const source = readFileSync('src/server/core/firewatch.ts', 'utf8');
+  const source = [
+    readFileSync('src/server/core/firewatch/signals.ts', 'utf8'),
+  ].join('\n');
 
   assert.match(source, /const DEDUPED_SIGNAL_TYPES = new Set/);
   assert.match(source, /'comment_create'/);
@@ -626,13 +660,12 @@ test('incident ingest dedupes retried content events but keeps reports additive'
 });
 
 test('demo creation keeps repeated judge walkthroughs clean', () => {
-  const source = readFileSync('src/server/core/firewatch.ts', 'utf8');
+  const source = readFileSync('src/server/core/firewatch/demo.ts', 'utf8');
   const createStart = source.indexOf('export const createDemoIncident');
   const createEnd = source.indexOf('export const resetDemoIncidents', createStart);
   const createSource = source.slice(createStart, createEnd);
   const resetStart = source.indexOf('export const resetDemoIncidents');
-  const resetEnd = source.indexOf('export const createFirewatchPost', resetStart);
-  const resetSource = source.slice(resetStart, resetEnd);
+  const resetSource = source.slice(resetStart);
 
   assert.match(createSource, /await resetDemoIncidents\(\)/);
   assert.match(resetSource, /clearUserStrikes\(context\.subredditName, username\)/);
@@ -653,7 +686,10 @@ test('automation matching filters by trigger and source scope', () => {
 });
 
 test('automation runner can execute the selected matched target', () => {
-  const serverSource = readFileSync('src/server/core/firewatch.ts', 'utf8');
+  const serverSource = readFileSync(
+    'src/server/core/firewatch/automation.ts',
+    'utf8'
+  );
   const apiSource = readFileSync('src/server/routes/api.ts', 'utf8');
   const clientSource = readFileSync('src/client/firewatch/incident-rules.tsx', 'utf8');
 
