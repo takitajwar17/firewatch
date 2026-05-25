@@ -31,6 +31,13 @@ import {
   ruleActionLabel,
   summarizeRule,
 } from '../dist/types/shared/automation-rules.js';
+import {
+  extractDomains,
+  linkCount,
+  textContainsTerm,
+  watchedDomainMatches,
+  watchedWordMatches,
+} from '../dist/types/server/core/firewatch-detection.js';
 
 const configFormDefaults = {
   keywords: DEFAULT_CONFIG.keywords.join(', '),
@@ -70,6 +77,78 @@ test('empty client config preserves numeric defaults but not watched lists', () 
   assert.equal(
     EMPTY_CONFIG.actionControls.removeUserContent,
     DEFAULT_CONFIG.actionControls.removeUserContent
+  );
+});
+
+test('detection matches watched words without substring false positives', () => {
+  const matches = watchedWordMatches(
+    'Classical giveaways: scammers ask for an admin fee.',
+    ['ass', 'scam', 'admin fee']
+  );
+
+  assert.deepEqual(
+    matches.map((match) => [match.term, match.count]),
+    [
+      ['scam', 1],
+      ['admin fee', 1],
+    ]
+  );
+});
+
+test('detection parses domains and matches exact hosts or subdomains', () => {
+  const text =
+    'Go to hxxps://sub.bit.ly/claim, not orbit.ly, bit.ly-example.com, or example.com.';
+
+  assert.deepEqual(extractDomains(text), [
+    'sub.bit.ly',
+    'orbit.ly',
+    'bit.ly-example.com',
+    'example.com',
+  ]);
+  assert.deepEqual(
+    watchedDomainMatches(text, ['bit.ly', 'it.ly', 'example.com']).map(
+      (match) => [match.term, match.count]
+    ),
+    [
+      ['bit.ly', 1],
+      ['example.com', 1],
+    ]
+  );
+  assert.equal(linkCount(text), 4);
+});
+
+test('automation text conditions use explicit match semantics', () => {
+  assert.equal(
+    textContainsTerm({
+      match: 'exact',
+      text: 'The admin fee unlocks nothing.',
+      value: 'admin fee',
+    }),
+    true
+  );
+  assert.equal(
+    textContainsTerm({
+      match: 'exact',
+      text: 'A scammer is posting again.',
+      value: 'scam',
+    }),
+    false
+  );
+  assert.equal(
+    textContainsTerm({
+      match: 'contains',
+      text: 'A scammer is posting again.',
+      value: 'scam',
+    }),
+    true
+  );
+  assert.equal(
+    textContainsTerm({
+      match: 'regex',
+      text: 'Message me for free money.',
+      value: 'free\\s+money',
+    }),
+    true
   );
 });
 
@@ -531,6 +610,19 @@ test('scoring keeps open review comments durable and report counts stable', () =
   assert.match(source, /MAX_FLAGGED_COMMENTS - openFlaggedComments\.length/);
   assert.match(source, /reportSignals: Math\.max\(totalReportCount, incident\.stats\.reportSignals\)/);
   assert.match(source, /action\.type === 'user_banned' \? 0 : 1/);
+});
+
+test('incident ingest dedupes retried content events but keeps reports additive', () => {
+  const source = readFileSync('src/server/core/firewatch.ts', 'utf8');
+
+  assert.match(source, /const DEDUPED_SIGNAL_TYPES = new Set/);
+  assert.match(source, /'comment_create'/);
+  assert.match(source, /'automod_filter'/);
+  assert.match(source, /const signalDedupeKey/);
+  assert.match(source, /if \(!DEDUPED_SIGNAL_TYPES\.has\(signal\.type\)\)/);
+  assert.match(source, /return undefined/);
+  assert.match(source, /mergeRecentSignal\(signal, baseIncident\.recentSignals\)/);
+  assert.doesNotMatch(source, /'comment_report',\s*\n\s*'post_report'/);
 });
 
 test('automation matching filters by trigger and source scope', () => {

@@ -1,6 +1,6 @@
-# Firewatch: Posts To Review
+# Firewatch: Hot Thread Queue
 
-One Reddit post can turn into 40 comments, 7 reports, and three mods opening
+One Reddit post can turn into 420 comments, 69 reports, and three mods opening
 the same thread. Firewatch puts that post in one queue, shows why it needs
 review, lets one mod claim it, and keeps the cleanup trail in one place.
 

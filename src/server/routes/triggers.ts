@@ -24,6 +24,10 @@ import {
   upsertIncidentSignal,
 } from '../core/firewatch';
 import {
+  watchedDomainMatches,
+  watchedWordMatches,
+} from '../core/firewatch-detection';
+import {
   COMMENT_MOD_ACTIONS,
   POST_MOD_ACTIONS,
   modActionSignalReason,
@@ -39,12 +43,11 @@ const getPostBody = (post: {
 
 const getFilterMatches = async (text: string) => {
   const config = await getConfig();
-  const lowered = text.toLowerCase();
-  const keywords = config.keywords.filter((keyword) =>
-    lowered.includes(keyword.toLowerCase())
+  const keywords = watchedWordMatches(text, config.keywords).map(
+    (match) => match.term
   );
-  const domains = config.suspiciousDomains.filter((domain) =>
-    lowered.includes(domain.toLowerCase())
+  const domains = watchedDomainMatches(text, config.suspiciousDomains).map(
+    (match) => match.term
   );
 
   return { domains, keywords };

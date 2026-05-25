@@ -39,6 +39,7 @@ import {
   MAX_ACTIONS,
   MAX_RECENT_SIGNALS,
 } from './firewatch-constants';
+import { normalizeDetectionText } from './firewatch-detection';
 import {
   calculateIncident,
   makeEmptyImpact,
@@ -83,6 +84,73 @@ type SignalInput = Omit<IncidentSignal, 'id' | 'createdAt' | 'source'> & {
 };
 
 type IncidentClaim = NonNullable<Incident['claim']>;
+
+const DEDUPED_SIGNAL_TYPES = new Set<IncidentSignal['type']>([
+  'post_create',
+  'post_update',
+  'comment_create',
+  'mod_action',
+  'automod_filter',
+]);
+
+const signalMetadataSignature = (signal: IncidentSignal) => {
+  if (!signal.metadata) return '';
+
+  return Object.entries(signal.metadata)
+    .filter(([, value]) => value !== undefined)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, value]) => `${key}:${String(value)}`)
+    .join(',');
+};
+
+const signalDedupeKey = (signal: IncidentSignal) => {
+  if (!DEDUPED_SIGNAL_TYPES.has(signal.type)) return undefined;
+
+  return [
+    signal.type,
+    signal.postId,
+    signal.commentId ?? '',
+    signal.parentId ?? '',
+    normalizeDetectionText(signal.author ?? ''),
+    normalizeDetectionText(signal.reason ?? ''),
+    normalizeDetectionText(signal.body ?? '').slice(0, 500),
+    signalMetadataSignature(signal),
+  ].join('|');
+};
+
+const mergeRecentSignal = (
+  signal: IncidentSignal,
+  recentSignals: Incident['recentSignals']
+) => {
+  const dedupeKey = signalDedupeKey(signal);
+  if (!dedupeKey) {
+    return [signal, ...recentSignals].slice(0, MAX_RECENT_SIGNALS);
+  }
+
+  const duplicateIndex = recentSignals.findIndex(
+    (recentSignal) => signalDedupeKey(recentSignal) === dedupeKey
+  );
+  if (duplicateIndex === -1) {
+    return [signal, ...recentSignals].slice(0, MAX_RECENT_SIGNALS);
+  }
+
+  const duplicate = recentSignals[duplicateIndex];
+  if (!duplicate) {
+    return [signal, ...recentSignals].slice(0, MAX_RECENT_SIGNALS);
+  }
+
+  const mergedSignal: IncidentSignal = {
+    ...duplicate,
+    ...signal,
+    id: duplicate.id,
+    createdAt: Math.max(duplicate.createdAt, signal.createdAt),
+  };
+
+  return [
+    mergedSignal,
+    ...recentSignals.filter((_, index) => index !== duplicateIndex),
+  ].slice(0, MAX_RECENT_SIGNALS);
+};
 
 const parseStoredClaim = (
   value: string,
@@ -511,10 +579,7 @@ export const upsertIncidentSignal = async (input: SignalInput) => {
       status: nextStatus,
       resolvedAt: shouldReopen ? undefined : baseIncident.resolvedAt,
       summary: shouldReopen ? undefined : baseIncident.summary,
-      recentSignals: [signal, ...baseIncident.recentSignals].slice(
-        0,
-        MAX_RECENT_SIGNALS
-      ),
+      recentSignals: mergeRecentSignal(signal, baseIncident.recentSignals),
     },
     config,
     postSnapshot

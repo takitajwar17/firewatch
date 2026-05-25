@@ -20,6 +20,12 @@ import {
   preparedRuleAction,
 } from '../../shared/automation-rules';
 import {
+  linkCount,
+  textContainsTerm,
+  watchedDomainMatches,
+  watchedWordMatches,
+} from './firewatch-detection';
+import {
   makeId,
   normalizeCommentId,
   normalizePostId,
@@ -32,7 +38,6 @@ import {
 const MAX_RULE_LOGS = 80;
 const MAX_STRIKES_PER_USER = 100;
 const DEFAULT_STRIKE_WINDOW_DAYS = 7;
-const LINK_PATTERN = /\b(?:https?:\/\/|www\.|[a-z0-9-]+\.[a-z]{2,})(?:\S*)/gi;
 
 export const responseRulesKey = (subredditName: string) =>
   `fw:subreddit:${subredditName}:rules`;
@@ -442,18 +447,18 @@ const signalText = (
 };
 
 const watchedWordHits = (text: string, keywords: string[]) => {
-  const lowered = text.toLowerCase();
-  return keywords.filter((keyword) => lowered.includes(keyword.toLowerCase()))
-    .length;
+  return watchedWordMatches(text, keywords).reduce(
+    (total, match) => total + match.count,
+    0
+  );
 };
 
 const watchedDomainHits = (text: string, domains: string[]) => {
-  const lowered = text.toLowerCase();
-  return domains.filter((domain) => lowered.includes(domain.toLowerCase()))
-    .length;
+  return watchedDomainMatches(text, domains).reduce(
+    (total, match) => total + match.count,
+    0
+  );
 };
-
-const linkHits = (text: string) => text.match(LINK_PATTERN)?.length ?? 0;
 
 const inWindow = (timestamp: number, windowMinutes?: number) => {
   if (!windowMinutes) return true;
@@ -696,32 +701,12 @@ const textConditionReason = (
   condition: Extract<RuleCondition, { type: 'text_contains' }>,
   text: string
 ) => {
-  const haystack = condition.caseSensitive ? text : text.toLowerCase();
-  const needle = condition.caseSensitive
-    ? condition.value
-    : condition.value.toLowerCase();
-
-  if (condition.match === 'regex') {
-    try {
-      const regex = new RegExp(
-        condition.value,
-        condition.caseSensitive ? '' : 'i'
-      );
-      return regex.test(text) ? `text matched /${condition.value}/` : undefined;
-    } catch {
-      return undefined;
-    }
-  }
-
-  if (condition.match === 'exact') {
-    return haystack.includes(needle)
+  if (!textContainsTerm({ ...condition, text })) return undefined;
+  return condition.match === 'regex'
+    ? `text matched /${condition.value}/`
+    : condition.match === 'exact'
       ? `text contains exact phrase "${condition.value}"`
-      : undefined;
-  }
-
-  return haystack.includes(needle)
-    ? `text contains "${condition.value}"`
-    : undefined;
+      : `text contains "${condition.value}"`;
 };
 
 const conditionReason = ({
@@ -756,7 +741,7 @@ const conditionReason = ({
       : undefined;
   }
   if (condition.type === 'has_link') {
-    const hits = linkHits(candidate.text);
+    const hits = linkCount(candidate.text);
     return hits >= condition.minLinks
       ? `${hits} link${hits === 1 ? '' : 's'} found`
       : undefined;

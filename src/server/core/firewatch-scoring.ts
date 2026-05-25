@@ -24,6 +24,11 @@ import {
   VELOCITY_BASELINE_COMMENTS,
 } from './firewatch-constants';
 import {
+  detectionTokens,
+  watchedDomainMatches,
+  watchedWordMatches,
+} from './firewatch-detection';
+import {
   clamp,
   deriveIncidentStatus,
   isAppUsername,
@@ -68,22 +73,21 @@ const getLevel = (score: number, config: FirewatchConfig): IncidentLevel => {
 };
 
 const countKeywordHits = (text: string, keywords: string[]) => {
-  const lowered = text.toLowerCase();
-  return keywords.filter((keyword) => lowered.includes(keyword)).length;
+  return watchedWordMatches(text, keywords).reduce(
+    (total, match) => total + match.count,
+    0
+  );
 };
 
 const countSuspiciousDomainHits = (text: string, domains: string[]) => {
-  const lowered = text.toLowerCase();
-  return domains.filter((domain) => lowered.includes(domain)).length;
+  return watchedDomainMatches(text, domains).reduce(
+    (total, match) => total + match.count,
+    0
+  );
 };
 
 const tokenize = (text: string) =>
-  text
-    .toLowerCase()
-    .replace(/https?:\/\/\S+/g, ' ')
-    .replace(/[^a-z0-9'\s]/g, ' ')
-    .split(/\s+/)
-    .map((word) => word.trim())
+  detectionTokens(text)
     .filter(
       (word) => word.length > 2 && !STOP_WORDS.has(word) && !/^\d+$/.test(word)
     );
@@ -768,34 +772,37 @@ export const calculateIncident = (
   }
 
   if (keywordPoints > 0) {
+    const matchedWords = new Set(
+      scoreSignals.flatMap((signal) =>
+        watchedWordMatches(signal.body ?? '', config.keywords).map(
+          (match) => match.term
+        )
+      )
+    );
     reasons.push({
       key: 'keywords',
       label: 'Watched words',
       detail: `${keywordHits} watched word match${keywordHits > 1 ? 'es' : ''}`,
       points: keywordPoints,
-      evidence: config.keywords
-        .filter((keyword) =>
-          scoreSignals.some((signal) =>
-            (signal.body ?? '').toLowerCase().includes(keyword)
-          )
-        )
-        .slice(0, 5),
+      evidence: Array.from(matchedWords).slice(0, 5),
     });
   }
 
   if (suspiciousPoints > 0) {
+    const matchedDomains = new Set(
+      scoreSignals.flatMap((signal) =>
+        watchedDomainMatches(
+          signal.body ?? '',
+          config.suspiciousDomains
+        ).map((match) => match.term)
+      )
+    );
     reasons.push({
       key: 'links',
       label: 'Watched domains',
       detail: `${suspiciousHits} watched domain match${suspiciousHits > 1 ? 'es' : ''}`,
       points: suspiciousPoints,
-      evidence: config.suspiciousDomains
-        .filter((domain) =>
-          scoreSignals.some((signal) =>
-            (signal.body ?? '').toLowerCase().includes(domain)
-          )
-        )
-        .slice(0, 5),
+      evidence: Array.from(matchedDomains).slice(0, 5),
     });
   }
 
