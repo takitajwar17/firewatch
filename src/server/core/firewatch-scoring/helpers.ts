@@ -24,6 +24,7 @@ import {
   watchedDomainMatches,
   watchedWordMatches,
 } from '../firewatch-detection';
+import { detectSafetyMatchesInText } from '../firewatch-safety';
 import {
   clamp,
   isAppUsername,
@@ -260,6 +261,7 @@ export const scoreComment = (
     signal.body,
     config.suspiciousDomains
   );
+  const safetyMatches = detectSafetyMatchesInText(signal.body);
 
   if (keywordHits > 0) {
     score += keywordHits * config.signalWeights.watchedWords;
@@ -285,6 +287,12 @@ export const scoreComment = (
     reasons.push(
       signal.reason ? `AutoModerator: ${signal.reason}` : 'AutoModerator filter'
     );
+  }
+
+  const firstSafetyMatch = safetyMatches[0];
+  if (firstSafetyMatch) {
+    score += 18;
+    reasons.push(`Safety review: ${firstSafetyMatch.label}`);
   }
 
   if (score === 0) return undefined;

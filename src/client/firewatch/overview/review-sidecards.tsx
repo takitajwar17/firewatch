@@ -89,8 +89,17 @@ const evidenceRowsFrom = (incident: Incident) => {
   const signals = signalSummary(incident);
   const openWork = openWorkSummary(incident);
   const automation = preparedAutomationSummary(incident);
+  const safetyReview = incident.safetyReview;
 
   const rows: EvidenceRow[] = [];
+
+  if (safetyReview) {
+    rows.push({
+      label: 'Safety review',
+      meta: 'Advisory',
+      value: safetyReview.summary,
+    });
+  }
 
   if (signals || topReason) {
     const reasonRow: EvidenceRow = {
@@ -191,6 +200,62 @@ export const ResponseCard = ({ incident }: { incident: Incident }) => (
     </CardContent>
   </Card>
 );
+
+export const SafetyReviewCard = ({ incident }: { incident: Incident }) => {
+  if (!incident.safetyReview) return null;
+
+  return (
+    <Card size="sm">
+      <CardHeader>
+        <div className="flex items-center justify-between gap-3">
+          <CardTitle>Safety review</CardTitle>
+          <Badge variant="outline">Advisory</Badge>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="rounded-md border bg-background">
+          <div className="border-b px-3 py-2.5">
+            <p className="text-sm font-semibold leading-5">
+              Review before routine cleanup.
+            </p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              Firewatch found narrow safety language. It will not auto-act from
+              this signal alone.
+            </p>
+          </div>
+          {incident.safetyReview.matches.map((match) => (
+            <div
+              key={`${match.category}-${match.matchedText}-${match.createdAt}`}
+              className="border-b px-3 py-2.5 last:border-b-0"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold leading-5">
+                    {match.label}
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    {match.author ? `${formatUsername(match.author)} · ` : ''}
+                    {formatTime(match.createdAt)}
+                  </p>
+                </div>
+                <Badge
+                  className="max-w-[9rem] truncate"
+                  title={match.matchedText}
+                  variant="secondary"
+                >
+                  {match.matchedText}
+                </Badge>
+              </div>
+              <p className="mt-1 text-sm leading-5 text-muted-foreground">
+                {match.detail}
+              </p>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
 
 export const RiskReasonsCard = ({ incident }: { incident: Incident }) => (
   <Card size="sm">

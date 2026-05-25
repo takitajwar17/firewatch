@@ -80,6 +80,9 @@ export const IncidentIntro = ({ incident }: { incident: Incident }) => {
                 Claimed by {formatUsername(incident.claim.username)}
               </InlineState>
             ) : null}
+            {incident.safetyReview ? (
+              <InlineState variant="workflow">Safety review</InlineState>
+            ) : null}
             {incident.demo ? <InlineState>Demo</InlineState> : null}
           </div>
         </article>

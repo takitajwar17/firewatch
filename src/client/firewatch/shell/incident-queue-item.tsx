@@ -6,6 +6,7 @@ import {
   RedditCommentIcon,
   RedditLockIcon,
   RedditRemoveIcon,
+  RedditShieldIcon,
 } from '../reddit-icons';
 import type { Incident } from '../../../shared/api';
 
@@ -121,6 +122,10 @@ export const IncidentQueueItem = ({
     (comment) => !comment.removed && !comment.reviewed
   ).length;
   const postState = incident.postState;
+  const needsSafetyReview =
+    Boolean(incident.safetyReview) &&
+    incident.status !== 'handled' &&
+    incident.status !== 'resolved';
   const stateLabel = postState?.spam
     ? 'Spam'
     : postState?.removed
@@ -129,7 +134,9 @@ export const IncidentQueueItem = ({
         ? 'Approved'
         : postState?.locked
           ? 'Locked'
-          : formatStatus(incident.status);
+          : needsSafetyReview
+            ? 'Safety review'
+            : formatStatus(incident.status);
   const firstReason = incident.reasons[0]?.label;
   const secondReason = incident.reasons[1]?.label;
   const signalParts = [
@@ -188,6 +195,8 @@ export const IncidentQueueItem = ({
             <RedditRemoveIcon className="size-3.5" />
           ) : postState?.locked ? (
             <RedditLockIcon className="size-3.5" />
+          ) : needsSafetyReview ? (
+            <RedditShieldIcon className="size-3.5" />
           ) : (
             <RedditCommentIcon className="size-3.5" />
           )}

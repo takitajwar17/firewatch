@@ -395,6 +395,28 @@ export type FirewatchDemoScenario = {
   description: string;
 };
 
+export type SafetyReviewCategory =
+  | 'self_harm'
+  | 'personal_info'
+  | 'threat'
+  | 'minor_safety';
+
+export type SafetyReviewMatch = {
+  category: SafetyReviewCategory;
+  label: string;
+  detail: string;
+  matchedText: string;
+  author?: string;
+  commentId?: string;
+  createdAt: number;
+};
+
+export type SafetyReview = {
+  summary: string;
+  matches: SafetyReviewMatch[];
+  updatedAt: number;
+};
+
 export type RiskReason = {
   key: string;
   label: string;
@@ -522,6 +544,7 @@ export type Incident = {
   peakLevel: IncidentLevel;
   peakReasons?: RiskReason[];
   peakRepeatedPhrases?: RepeatedPhrase[];
+  safetyReview?: SafetyReview;
   status: IncidentStatus;
   postState?: IncidentPostState;
   createdAt: number;

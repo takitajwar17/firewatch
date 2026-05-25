@@ -118,6 +118,21 @@ test('detection parses domains and matches exact hosts or subdomains', () => {
   assert.equal(linkCount(text), 4);
 });
 
+test('safety lane uses narrow high-risk patterns instead of broad sentiment claims', () => {
+  const source = readFileSync('src/server/core/firewatch-safety.ts', 'utf8');
+
+  assert.match(source, /\\brecovery code\\b/);
+  assert.match(source, /\\bhome address\\b/);
+  assert.match(source, /passwords\?/);
+  assert.match(source, /\\b2fa code\\b/);
+  assert.match(source, /\\bkill myself\\b/);
+  assert.match(source, /track\|hunt/);
+  assert.match(source, /child sexual abuse material/);
+  assert.doesNotMatch(source, /\\bfind you\\b/);
+  assert.doesNotMatch(source, /\\bunderage\\b\/i/);
+  assert.doesNotMatch(source, /heated/);
+});
+
 test('automation text conditions use explicit match semantics', () => {
   assert.equal(
     textContainsTerm({
@@ -674,6 +689,57 @@ test('bulk comment review is a single typed server action with queue selection U
   assert.match(clientSource, /bulk-comments:remove/);
   assert.match(clientSource, /Select all/);
   assert.match(clientSource, /Confirm remove/);
+});
+
+test('safety lane is typed, scored, queued, and displayed as advisory', () => {
+  const apiTypesSource = readFileSync('src/shared/api.ts', 'utf8');
+  const safetySource = readFileSync(
+    'src/server/core/firewatch-safety.ts',
+    'utf8'
+  );
+  const scoringSource = readFileSync(
+    'src/server/core/firewatch-scoring.ts',
+    'utf8'
+  );
+  const commentScoringSource = readFileSync(
+    'src/server/core/firewatch-scoring/helpers.ts',
+    'utf8'
+  );
+  const sortingSource = readFileSync('src/shared/incidents.ts', 'utf8');
+  const overviewSource = readFileSync(
+    'src/client/firewatch/overview/review-sidecards.tsx',
+    'utf8'
+  );
+  const headerSource = readFileSync(
+    'src/client/firewatch/overview/post-header.tsx',
+    'utf8'
+  );
+  const queueSource = readFileSync(
+    'src/client/firewatch/shell/incident-queue-item.tsx',
+    'utf8'
+  );
+
+  assert.match(apiTypesSource, /export type SafetyReview/);
+  assert.match(apiTypesSource, /safetyReview\?: SafetyReview/);
+  assert.match(safetySource, /export const detectSafetyReview/);
+  assert.match(safetySource, /category: 'self_harm'/);
+  assert.match(safetySource, /category: 'personal_info'/);
+  assert.match(safetySource, /category: 'threat'/);
+  assert.match(safetySource, /category: 'minor_safety'/);
+  assert.match(scoringSource, /const safetyPoints = safetyReview \? 35 : 0/);
+  assert.match(scoringSource, /label: 'Safety review'/);
+  assert.match(
+    commentScoringSource,
+    /Safety review: \$\{firstSafetyMatch\.label\}/
+  );
+  assert.match(sortingSource, /incident\.safetyReview \? 160 : 0/);
+  assert.match(overviewSource, /Review before routine cleanup/);
+  assert.match(
+    overviewSource,
+    /It will not auto-act from\s+this signal alone/
+  );
+  assert.match(headerSource, /Safety review/);
+  assert.match(queueSource, /RedditShieldIcon/);
 });
 
 test('latest reversible action can be undone through one server endpoint', () => {

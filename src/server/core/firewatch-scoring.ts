@@ -11,6 +11,7 @@ import {
   VELOCITY_BASELINE_COMMENTS,
 } from './firewatch-constants';
 import { watchedDomainMatches, watchedWordMatches } from './firewatch-detection';
+import { detectSafetyReview } from './firewatch-safety';
 import {
   clamp,
   deriveIncidentStatus,
@@ -241,6 +242,8 @@ export const calculateIncident = (
   );
   const manualPoints =
     manualEscalations.length > 0 ? config.signalWeights.manualSend : 0;
+  const safetyReview = detectSafetyReview(scoreSignals);
+  const safetyPoints = safetyReview ? 35 : 0;
 
   if (velocityPoints > 0) {
     reasons.push({
@@ -348,6 +351,22 @@ export const calculateIncident = (
     });
   }
 
+  if (safetyReview) {
+    reasons.push({
+      key: 'safety',
+      label: 'Safety review',
+      detail: safetyReview.summary,
+      points: safetyPoints,
+      evidence: safetyReview.matches
+        .slice(0, 3)
+        .map((match) =>
+          match.author
+            ? `${match.label}: ${match.matchedText} (${normalizeUsername(match.author)})`
+            : `${match.label}: ${match.matchedText}`
+        ),
+    });
+  }
+
   const score = clamp(
     velocityPoints +
       reportPoints +
@@ -356,7 +375,8 @@ export const calculateIncident = (
       pileOnPoints +
       phrasePoints +
       removalPoints +
-      manualPoints,
+      manualPoints +
+      safetyPoints,
     0,
     100
   );
@@ -534,6 +554,7 @@ export const calculateIncident = (
     peakLevel,
     peakReasons: nextPeakReasons,
     peakRepeatedPhrases: nextPeakRepeatedPhrases,
+    safetyReview,
     status,
     postState: postSnapshot.postState,
     reasons: sortedReasons,

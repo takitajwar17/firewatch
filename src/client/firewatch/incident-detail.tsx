@@ -17,6 +17,7 @@ import {
   ParticipantsCard,
   ResponseCard,
   RiskReasonsCard,
+  SafetyReviewCard,
 } from './overview/review-sidecards';
 import { MatchedRulesCard } from './incident-rules';
 import type { ActionRunner } from './types';
@@ -130,6 +131,7 @@ export const IncidentDetail = ({
             <RiskReasonsCard incident={incident} />
           </div>
           <div className="flex flex-col gap-3">
+            <SafetyReviewCard incident={incident} />
             <ResponseCard incident={incident} />
             <ParticipantsCard
               busyAction={busyAction}

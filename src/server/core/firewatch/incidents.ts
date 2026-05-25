@@ -132,6 +132,19 @@ export const ruleDraftSummary = (
     ...match.preparedActions.map((action) => `- ${action.label}`),
   ].join('\n');
 
+const safetyReviewSummary = (incident: Incident) => {
+  if (!incident.safetyReview) return undefined;
+
+  return incident.safetyReview.matches
+    .slice(0, 3)
+    .map((match) =>
+      match.author
+        ? `${match.label} from ${formatUserHandle(match.author)}`
+        : match.label
+    )
+    .join(', ');
+};
+
 export const buildSummary = (incident: Incident) => {
   const handler = incident.claim?.username;
   const topReasons = (
@@ -169,6 +182,7 @@ export const buildSummary = (incident: Incident) => {
     incident.resolvedAt && (incident.openedAt ?? incident.createdAt)
       ? `${Math.max(1, Math.round((incident.resolvedAt - (incident.openedAt ?? incident.createdAt)) / 60000))}m`
       : 'unresolved';
+  const safetySummary = safetyReviewSummary(incident);
 
   return [
     `Final mod note for ${incident.title}`,
@@ -178,6 +192,7 @@ export const buildSummary = (incident: Incident) => {
     `Time open: ${resolutionTime}`,
     `Impact: ${incident.impact.reportsGrouped} reports grouped, ${incident.impact.commentsReviewed} comments reviewed, ${incident.impact.actionsTaken} mod actions recorded`,
     `Why this needed review: ${topReasons || 'No active review reasons'}`,
+    safetySummary ? `Safety review: ${safetySummary}` : undefined,
     `Comments reviewed: ${incident.impact.commentsReviewed}`,
     `Comments still waiting: ${incident.impact.commentsAwaitingReview}`,
     `Handled by: ${handler ? formatUserHandle(handler) : 'unclaimed'}`,
@@ -187,7 +202,9 @@ export const buildSummary = (incident: Incident) => {
     matchedRules || '- No active automations matched',
     'Recent actions:',
     actionLines || '- No mod actions yet',
-  ].join('\n');
+  ]
+    .filter((line): line is string => Boolean(line))
+    .join('\n');
 };
 
 export const buildEscalationSummary = (incident: Incident) => {
@@ -215,12 +232,14 @@ export const buildEscalationSummary = (incident: Incident) => {
           .join(', ')}`
     )
     .join('\n');
+  const safetySummary = safetyReviewSummary(incident);
 
   return [
     `Mod handoff note: ${incident.title}`,
     `Review score: ${incident.score}/100 (${formatLevel(incident.level)}); peak score: ${incident.peakScore}/100; next mod move: ${incident.responseSuggestion.label}`,
     `Post: ${incident.permalink ?? incident.postId}`,
     `Handled by: ${handler ? formatUserHandle(handler) : 'unclaimed'}`,
+    safetySummary ? `Safety review: ${safetySummary}` : undefined,
     `Impact so far: ${incident.impact.reportsGrouped} reports grouped, ${incident.impact.commentsReviewed} comments reviewed, ${incident.impact.commentsAwaitingReview} comments still waiting`,
     'Why this is here:',
     topReasons || '- No active reasons recorded',
@@ -228,7 +247,9 @@ export const buildEscalationSummary = (incident: Incident) => {
     topComments || '- No unresolved comments',
     'Matched automations:',
     matchedRules || '- No active automations matched',
-  ].join('\n');
+  ]
+    .filter((line): line is string => Boolean(line))
+    .join('\n');
 };
 
 

@@ -7,6 +7,7 @@ const openCommentCount = (incident: Incident) =>
 
 const reviewWorkScore = (incident: Incident) =>
   openCommentCount(incident) * 100 +
+  (incident.safetyReview ? 160 : 0) +
   incident.stats.reportSignals * 12 +
   incident.stats.suspiciousLinkHits * 8 +
   incident.stats.keywordHits * 4 +
