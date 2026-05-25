@@ -42,12 +42,16 @@ const isPostLocked = (incident: Incident) =>
   incident.postState?.locked ?? incident.status === 'locked';
 
 export const NativePostControlsCard = ({
+  actionLocked,
+  actionLockReason,
   busyAction,
   config,
   incident,
   postFlairOptions,
   onAction,
 }: {
+  actionLocked: boolean;
+  actionLockReason: string;
   busyAction: string | undefined;
   config: FirewatchConfig;
   incident: Incident;
@@ -62,7 +66,7 @@ export const NativePostControlsCard = ({
   const [crowdControlLevel, setCrowdControlLevel] =
     useState<CrowdControlLevel>('MEDIUM');
   const controls = config.actionControls;
-  const disabled = Boolean(busyAction);
+  const disabled = Boolean(busyAction) || actionLocked;
   const terminal = isTerminalStatus(incident.status);
   const postState = incident.postState;
   const postApproved = Boolean(
@@ -102,6 +106,8 @@ export const NativePostControlsCard = ({
     action: NativePostAction,
     body: Record<string, unknown> = {}
   ) => {
+    if (actionLocked) return;
+
     void onAction(
       `post:${action}`,
       `/api/incidents/${incident.postId}/post-action`,
@@ -115,6 +121,8 @@ export const NativePostControlsCard = ({
     });
   };
   const toggleLock = () => {
+    if (actionLocked) return;
+
     if (postLocked) {
       void onAction(
         'post:unlock',
@@ -127,6 +135,8 @@ export const NativePostControlsCard = ({
     void onAction('lock', `/api/incidents/${incident.postId}/lock`);
   };
   const postStickyComment = () => {
+    if (actionLocked) return;
+
     void onAction('cool-down', `/api/incidents/${incident.postId}/cool-down`, {
       reminderText: stickyText,
     }).then((updatedIncident) => {
@@ -159,6 +169,7 @@ export const NativePostControlsCard = ({
                   icon={<RedditApproveIcon data-icon="inline-start" />}
                   label={postApproved ? 'Approved' : postRemoved ? 'Restore' : 'Approve'}
                   loading={busyAction === 'post:approve'}
+                  title={actionLocked ? actionLockReason : undefined}
                   variant="secondary"
                   onClick={() => runPostAction('approve')}
                 />
@@ -169,6 +180,7 @@ export const NativePostControlsCard = ({
                   icon={<RedditRemoveIcon data-icon="inline-start" />}
                   label={postRemoved ? 'Removed' : 'Remove'}
                   loading={busyAction === 'post:remove'}
+                  title={actionLocked ? actionLockReason : undefined}
                   variant="destructive"
                   onClick={() => setActivePrep('remove')}
                 />
@@ -179,6 +191,7 @@ export const NativePostControlsCard = ({
                   icon={<RedditSpamIcon data-icon="inline-start" />}
                   label={postSpam ? 'Spam' : 'Spam post'}
                   loading={busyAction === 'post:spam'}
+                  title={actionLocked ? actionLockReason : undefined}
                   variant="destructive"
                   onClick={() => setActivePrep('spam')}
                 />
@@ -189,6 +202,7 @@ export const NativePostControlsCard = ({
                   icon={<RedditLockIcon data-icon="inline-start" />}
                   label={postLocked ? 'Unlock' : 'Lock'}
                   loading={busyAction === (postLocked ? 'post:unlock' : 'lock')}
+                  title={actionLocked ? actionLockReason : undefined}
                   variant={postLocked ? 'outline' : 'secondary'}
                   onClick={toggleLock}
                 />
@@ -199,6 +213,7 @@ export const NativePostControlsCard = ({
                   icon={<RedditTagIcon data-icon="inline-start" />}
                   label={postState?.flair?.text ? 'Change flair' : 'Set flair'}
                   loading={busyAction === 'post:set-flair'}
+                  title={actionLocked ? actionLockReason : undefined}
                   variant="secondary"
                   onClick={() => setActivePrep('set-flair')}
                 />
@@ -207,6 +222,8 @@ export const NativePostControlsCard = ({
             {activePrep === 'remove' || activePrep === 'spam' ? (
               <ActionPrepPanel
                 busy={busyAction === `post:${activePrep}`}
+                description={actionLocked ? actionLockReason : undefined}
+                disabled={actionLocked}
                 primaryIcon={
                   activePrep === 'spam' ? (
                     <RedditSpamIcon data-icon="inline-start" />
@@ -231,7 +248,11 @@ export const NativePostControlsCard = ({
             {activePrep === 'set-flair' ? (
               <ActionPrepPanel
                 busy={busyAction === 'post:set-flair'}
-                disabled={flairText.trim().length === 0 && !selectedFlair}
+                description={actionLocked ? actionLockReason : undefined}
+                disabled={
+                  actionLocked ||
+                  (flairText.trim().length === 0 && !selectedFlair)
+                }
                 primaryIcon={<RedditTagIcon data-icon="inline-start" />}
                 primaryLabel="Set flair"
                 title="Set post flair"
@@ -280,6 +301,7 @@ export const NativePostControlsCard = ({
                       ? 'Sticky comment posted'
                       : 'Add sticky comment'
                   }
+                  description={actionLocked ? actionLockReason : undefined}
                   onSelect={() => {
                     setStickyText(config.reminderText);
                     setActivePrep('sticky');
@@ -291,6 +313,7 @@ export const NativePostControlsCard = ({
                   disabled={disabled}
                   icon={<RedditNsfwIcon />}
                   label={postNsfw ? 'Remove NSFW tag' : 'Add NSFW tag'}
+                  description={actionLocked ? actionLockReason : undefined}
                   onSelect={() => runPostAction(nsfwAction)}
                 />
               ) : null}
@@ -299,6 +322,7 @@ export const NativePostControlsCard = ({
                   disabled={disabled}
                   icon={<RedditCautionIcon />}
                   label={postSpoiler ? 'Remove spoiler tag' : 'Add spoiler tag'}
+                  description={actionLocked ? actionLockReason : undefined}
                   onSelect={() => runPostAction(spoilerAction)}
                 />
               ) : null}
@@ -311,6 +335,7 @@ export const NativePostControlsCard = ({
                       ? 'Unignore reports'
                       : 'Ignore reports'
                   }
+                  description={actionLocked ? actionLockReason : undefined}
                   onSelect={() => runPostAction(reportsAction)}
                 />
               ) : null}
@@ -319,6 +344,7 @@ export const NativePostControlsCard = ({
                   disabled={disabled}
                   icon={<RedditCrowdControlIcon />}
                   label="Adjust Crowd Control"
+                  description={actionLocked ? actionLockReason : undefined}
                   onSelect={() => setActivePrep('crowd-control')}
                 />
               ) : null}
@@ -331,6 +357,7 @@ export const NativePostControlsCard = ({
                       ? 'Working'
                       : 'Remove flair'
                   }
+                  description={actionLocked ? actionLockReason : undefined}
                   onSelect={() => runPostAction('clear-flair')}
                 />
               ) : null}
@@ -340,7 +367,8 @@ export const NativePostControlsCard = ({
         {activePrep === 'sticky' ? (
           <ActionPrepPanel
             busy={busyAction === 'cool-down'}
-            disabled={stickyText.trim().length === 0}
+            description={actionLocked ? actionLockReason : undefined}
+            disabled={actionLocked || stickyText.trim().length === 0}
             primaryIcon={<RedditPinIcon data-icon="inline-start" />}
             primaryLabel="Post sticky"
             title="Add sticky comment"
@@ -361,6 +389,8 @@ export const NativePostControlsCard = ({
         {activePrep === 'crowd-control' ? (
           <ActionPrepPanel
             busy={busyAction === 'post:crowd-control'}
+            description={actionLocked ? actionLockReason : undefined}
+            disabled={actionLocked}
             primaryIcon={<RedditCrowdControlIcon data-icon="inline-start" />}
             primaryLabel="Apply"
             title="Set Crowd Control"

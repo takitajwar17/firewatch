@@ -38,11 +38,15 @@ import {
 } from './comment-state';
 
 export const FlaggedCommentsCard = ({
+  actionLocked,
+  actionLockReason,
   busyAction,
   config,
   incident,
   onAction,
 }: {
+  actionLocked: boolean;
+  actionLockReason: string;
   busyAction: string | undefined;
   config: FirewatchConfig;
   incident: Incident;
@@ -75,6 +79,7 @@ export const FlaggedCommentsCard = ({
       ? bulkReviewState.removeOpen
       : false;
   const selectionEnabled =
+    !actionLocked &&
     needsReview.length > 1 &&
     (controls.approveComments || controls.removeComments);
   const selectedOpenCommentIds = useMemo(
@@ -107,6 +112,8 @@ export const FlaggedCommentsCard = ({
   };
 
   const toggleSelectedComment = (commentId: string) => {
+    if (actionLocked) return;
+
     setBulkReviewState((current) => {
       const currentSelection =
         current.postId === incident.postId
@@ -128,6 +135,8 @@ export const FlaggedCommentsCard = ({
   };
 
   const toggleAllSelectedComments = () => {
+    if (actionLocked) return;
+
     setBulkReviewState({
       postId: incident.postId,
       removeOpen: false,
@@ -138,6 +147,8 @@ export const FlaggedCommentsCard = ({
   };
 
   const updateBulkRemoveOpen = (removeOpen: boolean) => {
+    if (actionLocked) return;
+
     setBulkReviewState((current) => ({
       postId: incident.postId,
       removeOpen,
@@ -149,6 +160,8 @@ export const FlaggedCommentsCard = ({
   };
 
   const runBulkReview = (action: 'approve' | 'remove') => {
+    if (actionLocked) return;
+
     const commentIds = selectedOpenCommentIds;
     if (commentIds.length === 0) return;
 
@@ -225,17 +238,23 @@ export const FlaggedCommentsCard = ({
                       <RedditActionButton
                         action={bulkApproveAction}
                         busyAction={busyAction}
-                        disabled={selectedCount === 0}
+                        disabled={actionLocked || selectedCount === 0}
                         icon={<RedditApproveIcon data-icon="inline-start" />}
                         label="Approve selected"
+                        title={actionLocked ? actionLockReason : undefined}
                         variant="secondary"
                         onClick={() => runBulkReview('approve')}
                       />
                     ) : null}
                     {controls.removeComments ? (
                       <Button
-                        disabled={Boolean(busyAction) || selectedCount === 0}
+                        disabled={
+                          Boolean(busyAction) ||
+                          actionLocked ||
+                          selectedCount === 0
+                        }
                         size="sm"
+                        title={actionLocked ? actionLockReason : undefined}
                         variant={bulkRemoveOpen ? 'destructive' : 'secondary'}
                         onClick={() => updateBulkRemoveOpen(true)}
                       >
@@ -250,15 +269,17 @@ export const FlaggedCommentsCard = ({
                     <Input
                       aria-label="Removal reason for selected comments"
                       className="sm:flex-1"
+                      disabled={actionLocked}
                       value={reason}
                       onChange={(event) => setReason(event.target.value)}
                     />
                     <RedditActionButton
                       action={bulkRemoveAction}
                       busyAction={busyAction}
-                      disabled={selectedCount === 0}
+                      disabled={actionLocked || selectedCount === 0}
                       icon={<RedditRemoveIcon data-icon="inline-start" />}
                       label={`Confirm remove ${selectedCount}`}
+                      title={actionLocked ? actionLockReason : undefined}
                       variant="destructive"
                       onClick={() => runBulkReview('remove')}
                     />
@@ -314,7 +335,8 @@ export const FlaggedCommentsCard = ({
                   commentAuthorKey(comment.author)
                 ) === comment.id;
               const threadContext = contextByCommentId.get(comment.id);
-              const selected = selectedCommentIds.has(comment.id);
+              const selected =
+                !actionLocked && selectedCommentIds.has(comment.id);
 
               return (
                 <article
@@ -434,11 +456,12 @@ export const FlaggedCommentsCard = ({
                           <RedditActionButton
                             action={approveAction}
                             busyAction={busyAction}
-                            disabled={!commentOpen}
+                            disabled={actionLocked || !commentOpen}
                             icon={<RedditApproveIcon data-icon="inline-start" />}
                             label={
                               commentState.reviewed ? 'Approved' : 'Approve'
                             }
+                            title={actionLocked ? actionLockReason : undefined}
                             variant="secondary"
                             onClick={() =>
                               onAction(
@@ -452,9 +475,10 @@ export const FlaggedCommentsCard = ({
                           <RedditActionButton
                             action={removeAction}
                             busyAction={busyAction}
-                            disabled={!commentOpen}
+                            disabled={actionLocked || !commentOpen}
                             icon={<RedditRemoveIcon data-icon="inline-start" />}
                             label={commentState.removed ? 'Removed' : 'Remove'}
+                            title={actionLocked ? actionLockReason : undefined}
                             variant="secondary"
                             onClick={() =>
                               setActivePrep({
@@ -468,9 +492,12 @@ export const FlaggedCommentsCard = ({
                           <RedditActionButton
                             action={banAction}
                             busyAction={busyAction}
-                            disabled={!canBanAuthor || !commentOpen}
+                            disabled={
+                              actionLocked || !canBanAuthor || !commentOpen
+                            }
                             icon={<RedditBanIcon data-icon="inline-start" />}
                             label="Remove and ban"
+                            title={actionLocked ? actionLockReason : undefined}
                             variant="destructive"
                             onClick={() =>
                               setActivePrep({
@@ -492,7 +519,14 @@ export const FlaggedCommentsCard = ({
                                     <RedditMenuItem
                                       destructive
                                       disabled={
-                                        Boolean(busyAction) || !commentOpen
+                                        Boolean(busyAction) ||
+                                        actionLocked ||
+                                        !commentOpen
+                                      }
+                                      description={
+                                        actionLocked
+                                          ? actionLockReason
+                                          : undefined
                                       }
                                       icon={<RedditSpamIcon />}
                                       label={
@@ -515,7 +549,14 @@ export const FlaggedCommentsCard = ({
                                     <RedditMenuItem
                                       destructive
                                       disabled={
-                                        Boolean(busyAction) || !commentOpen
+                                        Boolean(busyAction) ||
+                                        actionLocked ||
+                                        !commentOpen
+                                      }
+                                      description={
+                                        actionLocked
+                                          ? actionLockReason
+                                          : undefined
                                       }
                                       icon={<RedditRemoveIcon />}
                                       label={
@@ -534,7 +575,14 @@ export const FlaggedCommentsCard = ({
                                   {controls.lockComments ? (
                                     <RedditMenuItem
                                       disabled={
-                                        Boolean(busyAction) || !commentOpen
+                                        Boolean(busyAction) ||
+                                        actionLocked ||
+                                        !commentOpen
+                                      }
+                                      description={
+                                        actionLocked
+                                          ? actionLockReason
+                                          : undefined
                                       }
                                       icon={<RedditLockIcon />}
                                       label={
@@ -556,7 +604,14 @@ export const FlaggedCommentsCard = ({
                                   {controls.ignoreCommentReports ? (
                                     <RedditMenuItem
                                       disabled={
-                                        Boolean(busyAction) || !commentOpen
+                                        Boolean(busyAction) ||
+                                        actionLocked ||
+                                        !commentOpen
+                                      }
+                                      description={
+                                        actionLocked
+                                          ? actionLockReason
+                                          : undefined
                                       }
                                       icon={<RedditReportIcon />}
                                       label={
@@ -579,8 +634,14 @@ export const FlaggedCommentsCard = ({
                                     <RedditMenuItem
                                       disabled={
                                         Boolean(busyAction) ||
+                                        actionLocked ||
                                         !commentOpen ||
                                         commentState.shown
+                                      }
+                                      description={
+                                        actionLocked
+                                          ? actionLockReason
+                                          : undefined
                                       }
                                       icon={<RedditHideIcon />}
                                       label={
@@ -611,7 +672,14 @@ export const FlaggedCommentsCard = ({
                                   {controls.approveUsers ? (
                                     <RedditMenuItem
                                       disabled={
-                                        Boolean(busyAction) || !canBanAuthor
+                                        Boolean(busyAction) ||
+                                        actionLocked ||
+                                        !canBanAuthor
+                                      }
+                                      description={
+                                        actionLocked
+                                          ? actionLockReason
+                                          : undefined
                                       }
                                       icon={<RedditUsersIcon />}
                                       label={
@@ -631,7 +699,14 @@ export const FlaggedCommentsCard = ({
                                   {controls.muteUsers ? (
                                     <RedditMenuItem
                                       disabled={
-                                        Boolean(busyAction) || !canBanAuthor
+                                        Boolean(busyAction) ||
+                                        actionLocked ||
+                                        !canBanAuthor
+                                      }
+                                      description={
+                                        actionLocked
+                                          ? actionLockReason
+                                          : undefined
                                       }
                                       icon={<RedditUsersIcon />}
                                       label={
@@ -650,7 +725,14 @@ export const FlaggedCommentsCard = ({
                                   {controls.addModNotes ? (
                                     <RedditMenuItem
                                       disabled={
-                                        Boolean(busyAction) || !canBanAuthor
+                                        Boolean(busyAction) ||
+                                        actionLocked ||
+                                        !canBanAuthor
+                                      }
+                                      description={
+                                        actionLocked
+                                          ? actionLockReason
+                                          : undefined
                                       }
                                       icon={<RedditReportIcon />}
                                       label={
@@ -670,7 +752,14 @@ export const FlaggedCommentsCard = ({
                                     <RedditMenuItem
                                       destructive
                                       disabled={
-                                        Boolean(busyAction) || !canBanAuthor
+                                        Boolean(busyAction) ||
+                                        actionLocked ||
+                                        !canBanAuthor
+                                      }
+                                      description={
+                                        actionLocked
+                                          ? actionLockReason
+                                          : undefined
                                       }
                                       icon={<RedditBanIcon />}
                                       label={
@@ -695,6 +784,8 @@ export const FlaggedCommentsCard = ({
                       {activePrep?.commentId === comment.id ? (
                         <CommentActionPrepPanel
                           activePrep={activePrep.kind}
+                          actionLocked={actionLocked}
+                          actionLockReason={actionLockReason}
                           banDuration={banDuration}
                           busyAction={busyAction}
                           comment={comment}
@@ -785,8 +876,10 @@ export const FlaggedCommentsCard = ({
                           <RedditActionButton
                             action={approveAction}
                             busyAction={busyAction}
+                            disabled={actionLocked}
                             icon={<RedditApproveIcon data-icon="inline-start" />}
                             label="Restore"
+                            title={actionLocked ? actionLockReason : undefined}
                             variant="secondary"
                             onClick={() =>
                               onAction(
@@ -800,8 +893,10 @@ export const FlaggedCommentsCard = ({
                           <RedditActionButton
                             action={removeAction}
                             busyAction={busyAction}
+                            disabled={actionLocked}
                             icon={<RedditRemoveIcon data-icon="inline-start" />}
                             label="Remove"
+                            title={actionLocked ? actionLockReason : undefined}
                             variant="secondary"
                             onClick={() =>
                               setActivePrep({
@@ -827,7 +922,12 @@ export const FlaggedCommentsCard = ({
                             <>
                               {controls.lockComments ? (
                                 <RedditMenuItem
-                                  disabled={Boolean(busyAction)}
+                                  disabled={Boolean(busyAction) || actionLocked}
+                                  description={
+                                    actionLocked
+                                      ? actionLockReason
+                                      : undefined
+                                  }
                                   icon={<RedditLockIcon />}
                                   label={
                                     busyAction === lockAction
@@ -847,7 +947,12 @@ export const FlaggedCommentsCard = ({
                               ) : null}
                               {controls.ignoreCommentReports ? (
                                 <RedditMenuItem
-                                  disabled={Boolean(busyAction)}
+                                  disabled={Boolean(busyAction) || actionLocked}
+                                  description={
+                                    actionLocked
+                                      ? actionLockReason
+                                      : undefined
+                                  }
                                   icon={<RedditReportIcon />}
                                   label={
                                     busyAction === reportsAction
@@ -868,7 +973,14 @@ export const FlaggedCommentsCard = ({
                               {controls.showComments ? (
                                 <RedditMenuItem
                                   disabled={
-                                    Boolean(busyAction) || commentState.shown
+                                    Boolean(busyAction) ||
+                                    actionLocked ||
+                                    commentState.shown
+                                  }
+                                  description={
+                                    actionLocked
+                                      ? actionLockReason
+                                      : undefined
                                   }
                                   icon={<RedditHideIcon />}
                                   label={
@@ -895,6 +1007,8 @@ export const FlaggedCommentsCard = ({
                     {activePrep?.commentId === comment.id ? (
                       <CommentActionPrepPanel
                         activePrep={activePrep.kind}
+                        actionLocked={actionLocked}
+                        actionLockReason={actionLockReason}
                         banDuration={banDuration}
                         busyAction={busyAction}
                         comment={comment}

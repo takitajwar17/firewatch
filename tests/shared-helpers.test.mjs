@@ -66,6 +66,9 @@ const ruleActionTypesFromApi = () => {
   ).sort();
 };
 
+const escapeRegExp = (value) =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 test('empty client config preserves numeric defaults but not watched lists', () => {
   assert.deepEqual(EMPTY_CONFIG.keywords, []);
   assert.deepEqual(EMPTY_CONFIG.suspiciousDomains, []);
@@ -593,8 +596,10 @@ test('auto-run safe automation actions mutate Firewatch state and avoid double e
   assert.match(autoRunSource, /action\.type === 'generate_handoff'/);
   assert.match(autoRunSource, /action\.type === 'save_firewatch_log'/);
   assert.match(autoRunSource, /action\.type === 'queue_incident'/);
+  assert.match(autoRunSource, /if \(!incident\.claim\?\.username\) return incident/);
   assert.match(autoRunSource, /await saveIncident\(refreshedIncident\)/);
   assert.match(runnerSource, /alreadyExecuted\.has\(prepared\.label\)/);
+  assert.match(runnerSource, /requireAutomationClaim\(incident, actor\)/);
 });
 
 test('auto-run all mode dispatches selected actions and records failures', () => {
@@ -615,7 +620,11 @@ test('auto-run all mode dispatches selected actions and records failures', () =>
 
   assert.match(rulesSource, /mode === 'auto_run_all_selected_actions'/);
   assert.match(rulesSource, /Auto-run all selected actions queued/);
+  assert.match(rulesSource, /Waiting for a moderator claim before auto-running actions/);
+  assert.match(rulesSource, /const incidentClaimed = Boolean\(incident\.claim\?\.username\)/);
+  assert.match(rulesSource, /log\.skippedActions\.includes\(AUTO_RUN_CLAIM_REQUIRED\)/);
   assert.match(autoAllSource, /await runPreparedRuleActions\(/);
+  assert.match(autoAllSource, /skippedActions\.includes\(AUTO_RUN_ALL_QUEUED\)/);
   assert.match(autoAllSource, /'firewatch'/);
   assert.match(autoAllSource, /triggerType: 'auto_run_all_failed'/);
   assert.match(automationSource, /runAutoSafeRuleActions/);
@@ -809,7 +818,8 @@ test('state actions expose unclaim and post flair removal without fake undo butt
   assert.match(incidentsSource, /redis\.del\(claimKey\(normalizedPostId\)\)/);
   assert.match(postActionSource, /removePostFlair/);
   assert.match(postActionSource, /postFlairBefore/);
-  assert.match(heroSource, /label=\{incident\.claim \? 'Unclaim' : 'Claim'\}/);
+  assert.match(heroSource, /claimedByCurrentUser\s*\?\s*'Unclaim'/);
+  assert.match(heroSource, /claimedByAnotherMod/);
   assert.match(postToolsSource, /Remove flair/);
   assert.match(commentsSource, /label="Restore"/);
   assert.match(commentsSource, /commentState\.locked\s*\?\s*'Unlock'/);
@@ -945,4 +955,84 @@ test('automation editor preserves existing scope counters and extra actions', ()
   assert.match(source, /mergeExistingActions\(builtActions, rule\.actions\)/);
   assert.match(source, /\.\.\.\(rule\?\.counter \? \{ counter: rule\.counter \} : \{\}\)/);
   assert.match(source, /\.\.\.\(rule\?\.scope \?\? \{\}\)/);
+});
+
+test('incident mutations require the current moderator claim', () => {
+  const apiSource = readFileSync('src/server/routes/api.ts', 'utf8');
+  const protectedRoutes = [
+    '/incidents/:postId/unclaim',
+    '/incidents/:postId/cool-down',
+    '/incidents/:postId/lock',
+    '/incidents/:postId/post-action',
+    '/incidents/:postId/escalate',
+    '/incidents/:postId/resolve',
+    '/incidents/:postId/actions/:actionId/undo',
+    '/incidents/:postId/comments/:commentId/remove',
+    '/incidents/:postId/comments/:commentId/approve',
+    '/incidents/:postId/comments/bulk-review',
+    '/incidents/:postId/comments/:commentId/native-action',
+    '/incidents/:postId/users/:username/ban',
+    '/incidents/:postId/users/:username/native-action',
+    '/incidents/:postId/rules/:ruleId/run',
+    '/incidents/:postId/users/:username/strikes/clear',
+  ];
+
+  assert.match(
+    apiSource,
+    /api\.post\('\/incidents\/:postId\/claim'[\s\S]*?return incidentAction\(c, \(\) => claimIncident/
+  );
+  for (const route of protectedRoutes) {
+    assert.match(
+      apiSource,
+      new RegExp(
+        `api\\.post\\('${escapeRegExp(route)}'[\\s\\S]*?return claimedIncidentAction`
+      )
+    );
+  }
+  assert.match(apiSource, /const requireIncidentClaim = async/);
+  assert.match(apiSource, /const currentModeratorName = async/);
+  assert.match(apiSource, /currentModeratorName\(\)/);
+  assert.match(apiSource, /Claim this post before taking mod actions/);
+  assert.match(apiSource, /Only that mod can take actions/);
+  assert.match(apiSource, /claimKeyFor\(claimOwner\) !== claimKeyFor\(actor\)/);
+});
+
+test('claim ownership rejects duplicate ownership and release by another mod', () => {
+  const source = readFileSync(
+    'src/server/core/firewatch/incidents.ts',
+    'utf8'
+  );
+
+  assert.match(source, /const claimActorKey/);
+  assert.match(source, /const claimActorName = async/);
+  assert.match(source, /Could not identify the current moderator/);
+  assert.match(source, /Ask them to unclaim before acting/);
+  assert.match(source, /Only that mod can release claim/);
+  assert.match(source, /return incident/);
+  assert.match(source, /type: 'claimed'/);
+  assert.match(source, /type: 'unclaimed'/);
+});
+
+test('client action surfaces disable post actions without the current claim', () => {
+  const source = [
+    readFileSync('src/client/firewatch/incident-detail.tsx', 'utf8'),
+    readFileSync('src/client/firewatch/overview/mod-actions-card.tsx', 'utf8'),
+    readFileSync('src/client/firewatch/overview/post-tools-card.tsx', 'utf8'),
+    readFileSync('src/client/firewatch/comments/flagged-comments-card.tsx', 'utf8'),
+    readFileSync('src/client/firewatch/comments/comment-action-prep.tsx', 'utf8'),
+    readFileSync('src/client/firewatch/incident-rules.tsx', 'utf8'),
+    readFileSync('src/client/firewatch/incident-activity.tsx', 'utf8'),
+    readFileSync('src/client/firewatch/overview/review-sidecards.tsx', 'utf8'),
+  ].join('\n');
+
+  assert.match(source, /const actionLocked = !isIncidentClaimedByCurrentUser/);
+  assert.match(source, /A moderator needs to claim this before actions/);
+  assert.match(source, /Claim this post to perform removals/);
+  assert.match(source, /label=\{[\s\S]*?'Claim post'/);
+  assert.match(source, /claimedByAnotherMod/);
+  assert.match(source, /disabled=\{actionLocked \|\| !commentOpen\}/);
+  assert.match(source, /disabled=\{!canRun \|\| Boolean\(busyAction\) \|\| actionLocked\}/);
+  assert.match(source, /Boolean\(busyAction\) \|\| actionLocked \|\| !canSaveHandoff/);
+  assert.match(source, /description=\{actionLocked \? actionLockReason : undefined\}/);
+  assert.match(source, /title=\{actionLocked \? actionLockReason : undefined\}/);
 });

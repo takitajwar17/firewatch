@@ -7,7 +7,7 @@ import { RedditChevronDownIcon, RedditRefreshIcon } from './reddit-icons';
 type ActionPrepPanelProps = {
   busy?: boolean;
   children?: ReactNode;
-  description?: string;
+  description?: string | undefined;
   disabled?: boolean;
   onCancel: () => void;
   onSubmit: () => void;

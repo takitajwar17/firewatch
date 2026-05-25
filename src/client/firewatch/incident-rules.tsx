@@ -12,10 +12,14 @@ import {
 } from './reddit-icons';
 
 export const MatchedRulesCard = ({
+  actionLocked,
+  actionLockReason,
   busyAction,
   incident,
   onAction,
 }: {
+  actionLocked: boolean;
+  actionLockReason: string;
   busyAction: string | undefined;
   incident: Incident;
   onAction: ActionRunner;
@@ -38,6 +42,8 @@ export const MatchedRulesCard = ({
         {matchedRules.map((rule) => (
           <MatchedRuleItem
             key={rule.id}
+            actionLocked={actionLocked}
+            actionLockReason={actionLockReason}
             busyAction={busyAction}
             incident={incident}
             rule={rule}
@@ -87,12 +93,16 @@ const readableRuleReason = (reason: string) => {
 };
 
 const MatchedRuleItem = ({
+  actionLocked,
+  actionLockReason,
   busyAction,
   incident,
   rule,
   onDismiss,
   onRun,
 }: {
+  actionLocked: boolean;
+  actionLockReason: string;
   busyAction: string | undefined;
   incident: Incident;
   rule: MatchedAutomationRule;
@@ -168,7 +178,7 @@ const MatchedRuleItem = ({
           </p>
         ) : null}
         <PlaybookButton
-          disabled={!canRun || Boolean(busyAction)}
+          disabled={!canRun || Boolean(busyAction) || actionLocked}
           icon={<RedditApproveIcon data-icon="inline-start" />}
           label={
             canRun
@@ -178,6 +188,7 @@ const MatchedRuleItem = ({
               : 'Suggestion only'
           }
           loading={busyAction === actionId}
+          title={actionLocked ? actionLockReason : undefined}
           variant={confirmRun ? 'destructive' : 'default'}
           onClick={runActions}
         />

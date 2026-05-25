@@ -1,5 +1,6 @@
 import type {
   FirewatchConfig,
+  Incident,
   IncidentLevel,
   IncidentSignal,
 } from '../../shared/api';
@@ -53,6 +54,29 @@ export const formatUsername = (username: string | undefined) => {
   }
   return `u/${normalized}`;
 };
+
+export const usernameKey = (username: string | undefined) => {
+  const normalized = username?.trim().replace(/^u\//i, '');
+  if (
+    !normalized ||
+    normalized.startsWith('t2_') ||
+    normalized === 'unknown user'
+  ) {
+    return undefined;
+  }
+
+  return normalized.toLowerCase();
+};
+
+export const isIncidentClaimedByCurrentUser = (
+  incident: Incident,
+  username: string
+) => usernameKey(incident.claim?.username) === usernameKey(username);
+
+export const claimGateMessage = (incident: Incident) =>
+  incident.claim
+    ? `Claimed by ${formatUsername(incident.claim.username)}. Only that mod can take actions.`
+    : 'Claim this post before taking mod actions.';
 
 const isHandledStatus = (status: string) =>
   status === 'handled' || status === 'resolved';

@@ -88,11 +88,15 @@ export const SummariesCard = ({ incident }: { incident: Incident }) => (
 );
 
 export const HandoffActionCard = ({
+  actionLocked,
+  actionLockReason,
   busyAction,
   canSaveHandoff,
   incident,
   onAction,
 }: {
+  actionLocked: boolean;
+  actionLockReason: string;
   busyAction: string | undefined;
   canSaveHandoff: boolean;
   incident: Incident;
@@ -109,13 +113,14 @@ export const HandoffActionCard = ({
       </p>
       <PlaybookButton
         className="w-full sm:w-fit"
-        disabled={Boolean(busyAction) || !canSaveHandoff}
+        disabled={Boolean(busyAction) || actionLocked || !canSaveHandoff}
         icon={<RedditShieldIcon data-icon="inline-start" />}
         label={
           incident.escalationSummary ? 'Refresh handoff' : 'Generate handoff'
         }
         loading={busyAction === 'escalate'}
         loadingLabel="Generating"
+        title={actionLocked ? actionLockReason : undefined}
         variant="secondary"
         onClick={() =>
           onAction('escalate', `/api/incidents/${incident.postId}/escalate`)
@@ -157,11 +162,15 @@ const SummaryBlock = ({ label, value }: { label: string; value: string }) => {
 };
 
 export const ActionLogCard = ({
+  actionLocked = false,
+  actionLockReason,
   busyAction,
   compact,
   incident,
   onAction,
 }: {
+  actionLocked?: boolean;
+  actionLockReason?: string;
   busyAction?: string | undefined;
   compact?: boolean;
   incident: Incident;
@@ -215,9 +224,11 @@ export const ActionLogCard = ({
                       {canUndo && onAction ? (
                         <Button
                           className="shrink-0"
-                          disabled={Boolean(busyAction)}
+                          disabled={Boolean(busyAction) || actionLocked}
                           size="sm"
-                          title={undoLabel}
+                          title={
+                            actionLocked ? actionLockReason : undoLabel
+                          }
                           variant={confirmUndo ? 'destructive' : 'ghost'}
                           onClick={() => {
                             if (!confirmUndo) {

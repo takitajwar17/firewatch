@@ -183,7 +183,7 @@ export const RedditMenuItem = ({
   label,
   onSelect,
 }: {
-  description?: string;
+  description?: string | undefined;
   destructive?: boolean;
   disabled?: boolean;
   icon?: ReactNode;

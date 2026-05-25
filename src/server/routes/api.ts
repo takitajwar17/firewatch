@@ -55,8 +55,14 @@ import {
   saveAutomation,
 } from '../core/firewatch-rules/store';
 import { testAutomation } from '../core/firewatch-rules/matching';
+import { normalizeUsername } from '../core/firewatch-utils';
 
 export const api = new Hono();
+
+const currentModeratorName = async () =>
+  normalizeUsername(
+    context.username ?? (await reddit.getCurrentUsername()) ?? undefined
+  );
 
 const loadDashboardData = async (): Promise<DashboardInitResponse> => {
   const contextSelectedPostId =
@@ -68,7 +74,7 @@ const loadDashboardData = async (): Promise<DashboardInitResponse> => {
     await Promise.all([
       getIncidents(),
       getConfig(),
-      reddit.getCurrentUsername(),
+      currentModeratorName(),
       getPostFlairOptions(subredditName),
       getAutomations(subredditName),
       getRuleExecutionLogs(subredditName),
@@ -147,22 +153,22 @@ api.post('/incidents/:postId/claim', async (c) => {
 });
 
 api.post('/incidents/:postId/unclaim', async (c) => {
-  return incidentAction(c, () => unclaimIncident(c.req.param('postId')));
+  return claimedIncidentAction(c, () => unclaimIncident(c.req.param('postId')));
 });
 
 api.post('/incidents/:postId/cool-down', async (c) => {
-  return incidentAction(c, async () => {
+  return claimedIncidentAction(c, async () => {
     const body = await readOptionalJson<{ reminderText: string }>(c);
     return coolDownIncident(c.req.param('postId'), body.reminderText);
   });
 });
 
 api.post('/incidents/:postId/lock', async (c) => {
-  return incidentAction(c, () => lockIncident(c.req.param('postId')));
+  return claimedIncidentAction(c, () => lockIncident(c.req.param('postId')));
 });
 
 api.post('/incidents/:postId/post-action', async (c) => {
-  return incidentAction(c, async () => {
+  return claimedIncidentAction(c, async () => {
     const body: {
       action: NativePostAction;
       crowdControlLevel?: CrowdControlLevel;
@@ -175,15 +181,19 @@ api.post('/incidents/:postId/post-action', async (c) => {
 });
 
 api.post('/incidents/:postId/escalate', async (c) => {
-  return incidentAction(c, () => escalateIncident(c.req.param('postId')));
+  return claimedIncidentAction(c, () =>
+    escalateIncident(c.req.param('postId'))
+  );
 });
 
 api.post('/incidents/:postId/resolve', async (c) => {
-  return incidentAction(c, () => resolveIncident(c.req.param('postId')));
+  return claimedIncidentAction(c, () =>
+    resolveIncident(c.req.param('postId'))
+  );
 });
 
 api.post('/incidents/:postId/actions/:actionId/undo', async (c) => {
-  return incidentAction(c, () =>
+  return claimedIncidentAction(c, () =>
     undoIncidentAction(c.req.param('postId'), c.req.param('actionId'))
   );
 });
@@ -287,7 +297,7 @@ api.post('/rules/:ruleId/test', async (c) => {
 });
 
 api.post('/incidents/:postId/comments/:commentId/remove', async (c) => {
-  return incidentAction(c, async () => {
+  return claimedIncidentAction(c, async () => {
     const body = await readOptionalJson<{ reason: string }>(c);
     return removeFlaggedComment(
       c.req.param('postId'),
@@ -298,20 +308,20 @@ api.post('/incidents/:postId/comments/:commentId/remove', async (c) => {
 });
 
 api.post('/incidents/:postId/comments/:commentId/approve', async (c) => {
-  return incidentAction(c, () =>
+  return claimedIncidentAction(c, () =>
     approveFlaggedComment(c.req.param('postId'), c.req.param('commentId'))
   );
 });
 
 api.post('/incidents/:postId/comments/bulk-review', async (c) => {
-  return incidentAction(c, async () => {
+  return claimedIncidentAction(c, async () => {
     const body = await readOptionalJson<BulkCommentReviewInput>(c);
     return bulkReviewComments(c.req.param('postId'), body);
   });
 });
 
 api.post('/incidents/:postId/comments/:commentId/native-action', async (c) => {
-  return incidentAction(c, async () => {
+  return claimedIncidentAction(c, async () => {
     const body: { action: NativeCommentAction; reason?: string } =
       await c.req.json();
     return applyNativeCommentAction(
@@ -323,7 +333,7 @@ api.post('/incidents/:postId/comments/:commentId/native-action', async (c) => {
 });
 
 api.post('/incidents/:postId/users/:username/ban', async (c) => {
-  return incidentAction(c, async () => {
+  return claimedIncidentAction(c, async () => {
     const body = await readOptionalJson<{
       durationDays: number;
       reason: string;
@@ -338,7 +348,7 @@ api.post('/incidents/:postId/users/:username/ban', async (c) => {
 });
 
 api.post('/incidents/:postId/users/:username/native-action', async (c) => {
-  return incidentAction(c, async () => {
+  return claimedIncidentAction(c, async () => {
     const body: { action: NativeUserAction; note?: string; reason?: string } =
       await c.req.json();
     return applyNativeUserAction(
@@ -350,7 +360,7 @@ api.post('/incidents/:postId/users/:username/native-action', async (c) => {
 });
 
 api.post('/incidents/:postId/rules/:ruleId/run', async (c) => {
-  return incidentAction(c, async () => {
+  return claimedIncidentAction(c, async () => {
     const body = await readOptionalJson<{ targetId: string }>(c);
     return runPreparedRuleActions(
       c.req.param('postId'),
@@ -362,10 +372,48 @@ api.post('/incidents/:postId/rules/:ruleId/run', async (c) => {
 });
 
 api.post('/incidents/:postId/users/:username/strikes/clear', async (c) => {
-  return incidentAction(c, () =>
+  return claimedIncidentAction(c, () =>
     clearIncidentUserStrikes(c.req.param('postId'), c.req.param('username'))
   );
 });
+
+const claimKeyFor = (username: string | undefined) =>
+  normalizeUsername(username)?.toLowerCase();
+
+const requireIncidentClaim = async (postId: string) => {
+  const incident = await getIncidentById(postId);
+  if (!incident) throw new Error('Post is not in Firewatch yet');
+
+  const actor = await currentModeratorName();
+  if (!actor) throw new Error('Could not identify the current moderator');
+
+  const claimOwner = incident.claim?.username;
+  if (!claimOwner) {
+    throw new Error('Claim this post before taking mod actions.');
+  }
+
+  if (claimKeyFor(claimOwner) !== claimKeyFor(actor)) {
+    throw new Error(
+      `Claimed by u/${claimOwner}. Only that mod can take actions.`
+    );
+  }
+};
+
+const claimedIncidentAction = async (
+  c: HonoContext,
+  run: () => Promise<Incident>
+) => {
+  try {
+    const postId = c.req.param('postId');
+    if (!postId) throw new Error('Missing post id');
+
+    await requireIncidentClaim(postId);
+    const incident = await run();
+    return c.json<ActionResponse>({ type: 'action', incident });
+  } catch (error) {
+    return incidentActionError(c, error);
+  }
+};
 
 const incidentAction = async (c: HonoContext, run: () => Promise<Incident>) => {
   try {

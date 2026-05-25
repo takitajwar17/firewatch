@@ -4,6 +4,7 @@ import { PlaybookButton } from '../common';
 import {
   formatTime,
   formatUsername,
+  isIncidentClaimedByCurrentUser,
   isTerminalStatus,
 } from '../format';
 import { openRedditUrlInNewTab } from '../navigation';
@@ -20,21 +21,32 @@ import type { FirewatchConfig, Incident } from '../../../shared/api';
 import { undoActionLabel } from '../../../shared/reddit-actions';
 
 export const IncidentHero = ({
+  actionLocked,
+  actionLockReason,
   busyAction,
   config,
   incident,
+  username,
   onReviewComments,
   onAction,
 }: {
+  actionLocked: boolean;
+  actionLockReason: string;
   busyAction: string | undefined;
   config: FirewatchConfig;
   incident: Incident;
+  username: string;
   onReviewComments: () => void;
   onAction: ActionRunner;
 }) => {
   const terminal = isTerminalStatus(incident.status);
   const permalink = incident.permalink;
-  const claimAction = incident.claim ? 'unclaim' : 'claim';
+  const claimedByCurrentUser = isIncidentClaimedByCurrentUser(
+    incident,
+    username
+  );
+  const claimedByAnotherMod = Boolean(incident.claim) && !claimedByCurrentUser;
+  const claimAction = claimedByCurrentUser ? 'unclaim' : 'claim';
   const unresolvedCount = incident.flaggedComments.filter(
     (comment) => !comment.removed && !comment.reviewed
   ).length;
@@ -88,10 +100,17 @@ export const IncidentHero = ({
             </Button>
           ) : null}
           <PlaybookButton
-            disabled={Boolean(busyAction) || terminal}
+            disabled={Boolean(busyAction) || terminal || claimedByAnotherMod}
             icon={<RedditUsersIcon data-icon="inline-start" />}
-            label={incident.claim ? 'Unclaim' : 'Claim'}
+            label={
+              claimedByAnotherMod
+                ? `Claimed by ${formatUsername(incident.claim?.username)}`
+                : claimedByCurrentUser
+                  ? 'Unclaim'
+                  : 'Claim'
+            }
             loading={busyAction === claimAction}
+            title={claimedByAnotherMod ? actionLockReason : undefined}
             onClick={() =>
               onAction(
                 claimAction,
@@ -100,10 +119,15 @@ export const IncidentHero = ({
             }
           />
           <PlaybookButton
-            disabled={Boolean(busyAction) || !config.actionControls.handoffNotes}
+            disabled={
+              Boolean(busyAction) ||
+              actionLocked ||
+              !config.actionControls.handoffNotes
+            }
             icon={<RedditShieldIcon data-icon="inline-start" />}
             label="Save handoff note"
             loading={busyAction === 'escalate'}
+            title={actionLocked ? actionLockReason : undefined}
             variant="secondary"
             onClick={() =>
               onAction(
@@ -115,6 +139,7 @@ export const IncidentHero = ({
           <PlaybookButton
             disabled={
               Boolean(busyAction) ||
+              actionLocked ||
               terminal ||
               unresolvedCount > 0 ||
               !config.actionControls.markHandled
@@ -128,6 +153,7 @@ export const IncidentHero = ({
                   : 'Mark handled'
             }
             loading={busyAction === 'resolve'}
+            title={actionLocked ? actionLockReason : undefined}
             variant="ghost"
             onClick={() =>
               onAction('resolve', `/api/incidents/${incident.postId}/resolve`)
@@ -152,9 +178,9 @@ export const IncidentHero = ({
               {undoLabel && undoActionId ? (
                 <Button
                   className="shrink-0"
-                  disabled={Boolean(busyAction)}
+                  disabled={Boolean(busyAction) || actionLocked}
                   size="sm"
-                  title={undoLabel}
+                  title={actionLocked ? actionLockReason : undoLabel}
                   variant={confirmUndo ? 'destructive' : 'ghost'}
                   onClick={undoLatestAction}
                 >

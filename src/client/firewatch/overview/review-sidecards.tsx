@@ -297,10 +297,14 @@ export const RiskReasonsCard = ({ incident }: { incident: Incident }) => (
 );
 
 export const ParticipantsCard = ({
+  actionLocked = false,
+  actionLockReason,
   busyAction,
   incident,
   onAction,
 }: {
+  actionLocked?: boolean;
+  actionLockReason?: string;
   busyAction?: string | undefined;
   incident: Incident;
   onAction?: ActionRunner | undefined;
@@ -377,7 +381,11 @@ export const ParticipantsCard = ({
                             className="mt-1 text-xs font-semibold text-primary hover:underline disabled:text-muted-foreground"
                             disabled={
                               Boolean(busyAction) ||
+                              actionLocked ||
                               busyAction === `clear-strikes:${user.username}`
+                            }
+                            title={
+                              actionLocked ? actionLockReason : undefined
                             }
                             type="button"
                             onClick={() =>

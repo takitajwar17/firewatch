@@ -6,6 +6,7 @@ import {
   LatestSignalsCard,
   SummariesCard,
 } from './incident-activity';
+import { PlaybookButton } from './common';
 import { FlaggedCommentsCard } from './comments/flagged-comments-card';
 import { RepeatedPhrasesCard } from './comments/repeated-phrases-card';
 import { IncidentHero } from './overview/mod-actions-card';
@@ -20,6 +21,12 @@ import {
   SafetyReviewCard,
 } from './overview/review-sidecards';
 import { MatchedRulesCard } from './incident-rules';
+import {
+  claimGateMessage,
+  formatUsername,
+  isIncidentClaimedByCurrentUser,
+} from './format';
+import { RedditUsersIcon } from './reddit-icons';
 import type { ActionRunner } from './types';
 import type {
   FirewatchConfig,
@@ -32,12 +39,14 @@ export const IncidentDetail = ({
   config,
   incident,
   postFlairOptions,
+  username,
   onAction,
 }: {
   busyAction: string | undefined;
   config: FirewatchConfig;
   incident: Incident;
   postFlairOptions: PostFlairOption[];
+  username: string;
   onAction: ActionRunner;
 }) => {
   const unresolvedComments = useMemo(
@@ -48,6 +57,9 @@ export const IncidentDetail = ({
     [incident.flaggedComments]
   );
   const [activeTab, setActiveTab] = useState('overview');
+  const actionLocked = !isIncidentClaimedByCurrentUser(incident, username);
+  const actionLockReason = claimGateMessage(incident);
+  const claimedByAnotherMod = Boolean(incident.claim) && actionLocked;
 
   const runModAction: ActionRunner = useCallback(
     async (action, endpoint, body) => {
@@ -81,6 +93,39 @@ export const IncidentDetail = ({
     <div className="flex min-w-0 flex-col gap-3 sm:gap-4">
       <IncidentIntro incident={incident} />
 
+      {actionLocked ? (
+        <section className="flex flex-col gap-3 rounded-md border border-border bg-muted/25 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold leading-5">
+              A moderator needs to claim this before actions.
+            </p>
+            <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
+              {claimedByAnotherMod
+                ? `${formatUsername(incident.claim?.username)} has the claim. Only that moderator can perform actions.`
+                : 'Claim this post to perform removals, approvals, automations, handoff, or undo.'}
+            </p>
+          </div>
+          <PlaybookButton
+            className="w-full shrink-0 sm:w-fit"
+            disabled={Boolean(busyAction) || claimedByAnotherMod}
+            icon={<RedditUsersIcon data-icon="inline-start" />}
+            label={
+              claimedByAnotherMod
+                ? `Claimed by ${formatUsername(incident.claim?.username)}`
+                : 'Claim post'
+            }
+            loading={busyAction === 'claim'}
+            title={claimedByAnotherMod ? actionLockReason : undefined}
+            onClick={() =>
+              runModAction(
+                'claim',
+                `/api/incidents/${incident.postId}/claim`
+              )
+            }
+          />
+        </section>
+      ) : null}
+
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList
           aria-label="Post review sections"
@@ -110,13 +155,18 @@ export const IncidentDetail = ({
           <div className="flex flex-col gap-3">
             <EvidenceCapsuleCard incident={incident} />
             <IncidentHero
+              actionLocked={actionLocked}
+              actionLockReason={actionLockReason}
               busyAction={busyAction}
               config={config}
               incident={incident}
+              username={username}
               onReviewComments={() => setActiveTab('comments')}
               onAction={runModAction}
             />
             <NativePostControlsCard
+              actionLocked={actionLocked}
+              actionLockReason={actionLockReason}
               busyAction={busyAction}
               config={config}
               incident={incident}
@@ -124,6 +174,8 @@ export const IncidentDetail = ({
               onAction={runModAction}
             />
             <MatchedRulesCard
+              actionLocked={actionLocked}
+              actionLockReason={actionLockReason}
               busyAction={busyAction}
               incident={incident}
               onAction={runModAction}
@@ -134,6 +186,8 @@ export const IncidentDetail = ({
             <SafetyReviewCard incident={incident} />
             <ResponseCard incident={incident} />
             <ParticipantsCard
+              actionLocked={actionLocked}
+              actionLockReason={actionLockReason}
               busyAction={busyAction}
               incident={incident}
               onAction={runModAction}
@@ -146,6 +200,8 @@ export const IncidentDetail = ({
           value="comments"
         >
           <FlaggedCommentsCard
+            actionLocked={actionLocked}
+            actionLockReason={actionLockReason}
             busyAction={busyAction}
             config={config}
             incident={incident}
@@ -161,6 +217,8 @@ export const IncidentDetail = ({
           <LatestSignalsCard incident={incident} />
           <ImpactSnapshotCard incident={incident} />
           <ActionLogCard
+            actionLocked={actionLocked}
+            actionLockReason={actionLockReason}
             busyAction={busyAction}
             incident={incident}
             onAction={runModAction}
@@ -172,6 +230,8 @@ export const IncidentDetail = ({
           value="notes"
         >
           <HandoffActionCard
+            actionLocked={actionLocked}
+            actionLockReason={actionLockReason}
             busyAction={busyAction}
             canSaveHandoff={config.actionControls.handoffNotes}
             incident={incident}

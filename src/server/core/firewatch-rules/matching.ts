@@ -71,6 +71,9 @@ const triggerTypesForIncident = (incident: Incident) => {
   return triggerTypes;
 };
 
+const AUTO_RUN_CLAIM_REQUIRED =
+  'Waiting for a moderator claim before auto-running actions';
+
 type Candidate = {
   targetId: string;
   targetType: MatchedAutomationRule['targetType'];
@@ -545,28 +548,43 @@ export const recordRuleMatches = async ({
   const newLogs: RuleExecutionLog[] = [];
 
   for (const match of matches) {
-    const alreadyLogged = existingLogs.some(
-      (log) =>
+    const mode = modeOverride ?? match.mode;
+    const incidentClaimed = Boolean(incident.claim?.username);
+    const alreadyLogged = existingLogs.some((log) => {
+      const sameMatch =
         log.ruleId === match.ruleId &&
         log.targetId === match.targetId &&
         log.triggerType === triggerType &&
-        log.mode === (modeOverride ?? match.mode) &&
+        log.mode === mode &&
         log.matchedConditions.join('|') === match.why.join('|') &&
         log.preparedActions.join('|') ===
-          match.preparedActions.map((action) => action.label).join('|')
-    );
+          match.preparedActions.map((action) => action.label).join('|');
+      if (!sameMatch) return false;
+
+      return !(
+        incidentClaimed &&
+        log.skippedActions.includes(AUTO_RUN_CLAIM_REQUIRED)
+      );
+    });
     if (alreadyLogged) continue;
 
     const executedActions: string[] = [];
     const skippedActions: string[] = [];
-    const mode = modeOverride ?? match.mode;
     if (mode === 'auto_run_safe_actions') {
-      for (const action of match.preparedActions) {
-        if (action.risk === 'safe') executedActions.push(action.label);
-        else skippedActions.push(`${action.label} requires mod approval`);
+      if (!incident.claim?.username) {
+        skippedActions.push(AUTO_RUN_CLAIM_REQUIRED);
+      } else {
+        for (const action of match.preparedActions) {
+          if (action.risk === 'safe') executedActions.push(action.label);
+          else skippedActions.push(`${action.label} requires mod approval`);
+        }
       }
     } else if (mode === 'auto_run_all_selected_actions') {
-      skippedActions.push('Auto-run all selected actions queued');
+      skippedActions.push(
+        incident.claim?.username
+          ? 'Auto-run all selected actions queued'
+          : AUTO_RUN_CLAIM_REQUIRED
+      );
     } else if (mode === 'suggest_only' || mode === 'prepare_for_approval') {
       skippedActions.push('Waiting for moderator approval');
     }

@@ -27,10 +27,36 @@ import {
   ruleDraftSummary,
 } from './incidents';
 import { actorName, getConfig, saveIncident } from './store';
-import { formatUserHandle, normalizePostId, now } from '../firewatch-utils';
+import {
+  formatUserHandle,
+  normalizePostId,
+  normalizeUsername,
+  now,
+} from '../firewatch-utils';
 
 
 // Automation action runner
+const AUTO_RUN_ALL_QUEUED = 'Auto-run all selected actions queued';
+
+const automationActorKey = (username: string | undefined) =>
+  normalizeUsername(username)?.toLowerCase();
+
+const requireAutomationClaim = (incident: Incident, actor: string) => {
+  const claimOwner = incident.claim?.username;
+  if (!claimOwner) {
+    throw new Error('Claim this post before running automation actions.');
+  }
+
+  if (
+    actor !== 'firewatch' &&
+    automationActorKey(claimOwner) !== automationActorKey(actor)
+  ) {
+    throw new Error(
+      `Claimed by u/${claimOwner}. Only that mod can run automation actions.`
+    );
+  }
+};
+
 const runAutoSafeRuleActions = async (
   incident: Incident,
   logs: RuleExecutionLog[]
@@ -40,6 +66,7 @@ const runAutoSafeRuleActions = async (
       log.mode === 'auto_run_safe_actions' && log.executedActions.length > 0
   );
   if (autoRunLogs.length === 0) return incident;
+  if (!incident.claim?.username) return incident;
 
   let currentIncident = incident;
 
@@ -131,6 +158,8 @@ export const runPreparedRuleActions = async (
   if (!match) throw new Error('Response rule no longer matches this incident');
 
   const actor = actorOverride ?? (await actorName());
+  requireAutomationClaim(incident, actor);
+
   const executedActions: string[] = [];
   const skippedActions: string[] = [];
   let currentIncident = incident;
@@ -450,7 +479,9 @@ const runAutoAllRuleActions = async (
   logs: RuleExecutionLog[]
 ) => {
   const autoRunLogs = logs.filter(
-    (log) => log.mode === 'auto_run_all_selected_actions'
+    (log) =>
+      log.mode === 'auto_run_all_selected_actions' &&
+      log.skippedActions.includes(AUTO_RUN_ALL_QUEUED)
   );
   if (autoRunLogs.length === 0) return incident;
 

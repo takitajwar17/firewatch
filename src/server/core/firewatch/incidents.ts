@@ -309,6 +309,14 @@ export const getIncidentOrThrow = async (postId: string) => {
 // Incident-level actions
 type IncidentClaim = NonNullable<Incident['claim']>;
 
+const claimActorKey = (username: string | undefined) =>
+  normalizeUsername(username)?.toLowerCase();
+
+const claimActorName = async () =>
+  normalizeUsername(
+    context.username ?? (await reddit.getCurrentUsername()) ?? undefined
+  );
+
 const parseStoredClaim = (
   value: string,
   fallback: IncidentClaim
@@ -336,31 +344,32 @@ export const claimIncident = async (postId: string) => {
   const incident = await getIncident(normalizedPostId);
   if (!incident) throw new Error('Post is not in Firewatch yet');
 
-  const actor = await actorName();
+  const actor = await claimActorName();
+  if (!actor) throw new Error('Could not identify the current moderator');
+
+  const actorKey = claimActorKey(actor);
+
   const claimedAt = now();
+  if (incident.claim) {
+    if (claimActorKey(incident.claim.username) !== actorKey) {
+      throw new Error(
+        `Claimed by u/${incident.claim.username}. Ask them to unclaim before acting.`
+      );
+    }
+
+    return incident;
+  }
+
   const existingClaim = incident.claim ?? {
     username: actor,
     claimedAt,
   };
 
-  if (incident.claim) {
-    await redis.set(
-      claimKey(normalizedPostId),
-      JSON.stringify(incident.claim),
-      {
-        expiration: retentionExpiration(),
-        nx: true,
-      }
-    );
-  }
-
   const claimValue = JSON.stringify(existingClaim);
-  const createdClaim = incident.claim
-    ? undefined
-    : await redis.set(claimKey(normalizedPostId), claimValue, {
-        expiration: retentionExpiration(),
-        nx: true,
-      });
+  const createdClaim = await redis.set(claimKey(normalizedPostId), claimValue, {
+    expiration: retentionExpiration(),
+    nx: true,
+  });
   const storedClaim = createdClaim
     ? existingClaim
     : parseStoredClaim(
@@ -374,13 +383,16 @@ export const claimIncident = async (postId: string) => {
   };
 
   await saveIncident(claimed);
+  if (claimActorKey(storedClaim.username) !== actorKey) {
+    throw new Error(
+      `Claimed by u/${storedClaim.username}. Ask them to unclaim before acting.`
+    );
+  }
+
   return appendAction(normalizedPostId, {
     type: 'claimed',
     actor,
-    detail:
-      storedClaim.username !== actor
-        ? `Already claimed by u/${storedClaim.username}`
-        : `Claimed by u/${actor}`,
+    detail: `Claimed by u/${actor}`,
   });
 };
 
@@ -390,7 +402,15 @@ export const unclaimIncident = async (postId: string) => {
   if (!incident) throw new Error('Post is not in Firewatch yet');
   if (!incident.claim) throw new Error('Post is not claimed');
 
-  const actor = await actorName();
+  const actor = await claimActorName();
+  if (!actor) throw new Error('Could not identify the current moderator');
+
+  if (claimActorKey(incident.claim.username) !== claimActorKey(actor)) {
+    throw new Error(
+      `Claimed by u/${incident.claim.username}. Only that mod can release claim.`
+    );
+  }
+
   const releasedUsername = incident.claim.username;
   await redis.del(claimKey(normalizedPostId));
 

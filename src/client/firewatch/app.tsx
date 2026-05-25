@@ -98,6 +98,7 @@ export const App = () => {
           config={data.config}
           incident={selectedIncident}
           postFlairOptions={data.postFlairOptions}
+          username={data.username}
           onAction={runAction}
         />
       ) : (

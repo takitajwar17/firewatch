@@ -16,6 +16,8 @@ import {
 
 export const CommentActionPrepPanel = ({
   activePrep,
+  actionLocked,
+  actionLockReason,
   banDuration,
   busyAction,
   comment,
@@ -29,6 +31,8 @@ export const CommentActionPrepPanel = ({
   onUserNoteChange,
 }: {
   activePrep: CommentPrepKind;
+  actionLocked: boolean;
+  actionLockReason: string;
   banDuration: string;
   busyAction: string | undefined;
   comment: FlaggedComment;
@@ -60,6 +64,8 @@ export const CommentActionPrepPanel = ({
     return (
       <ActionPrepPanel
         busy={busyAction === removeAction}
+        description={actionLocked ? actionLockReason : undefined}
+        disabled={actionLocked}
         primaryIcon={<RedditRemoveIcon data-icon="inline-start" />}
         primaryLabel="Remove"
         title="Remove comment"
@@ -87,6 +93,8 @@ export const CommentActionPrepPanel = ({
     return (
       <ActionPrepPanel
         busy={busyAction === banAction}
+        description={actionLocked ? actionLockReason : undefined}
+        disabled={actionLocked}
         primaryIcon={<RedditBanIcon data-icon="inline-start" />}
         primaryLabel="Remove and ban"
         title={`Ban ${formatUsername(comment.author)}`}
@@ -131,6 +139,8 @@ export const CommentActionPrepPanel = ({
     return (
       <ActionPrepPanel
         busy={busyAction === commentAction}
+        description={actionLocked ? actionLockReason : undefined}
+        disabled={actionLocked}
         primaryIcon={
           activePrep === 'spam' ? (
             <RedditSpamIcon data-icon="inline-start" />
@@ -169,6 +179,8 @@ export const CommentActionPrepPanel = ({
     return (
       <ActionPrepPanel
         busy={busyAction === userAction}
+        description={actionLocked ? actionLockReason : undefined}
+        disabled={actionLocked}
         primaryIcon={<RedditUsersIcon data-icon="inline-start" />}
         primaryLabel={activePrep === 'mute' ? 'Mute' : 'Add note'}
         title={
@@ -202,6 +214,8 @@ export const CommentActionPrepPanel = ({
   return (
     <ActionPrepPanel
       busy={busyAction === userAction}
+      description={actionLocked ? actionLockReason : undefined}
+      disabled={actionLocked}
       primaryIcon={<RedditBanIcon data-icon="inline-start" />}
       primaryLabel="Remove content"
       title={`Remove recent content from ${formatUsername(comment.author)}`}
