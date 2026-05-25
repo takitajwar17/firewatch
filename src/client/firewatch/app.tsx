@@ -63,6 +63,7 @@ export const App = () => {
       selectedPostId={selectedIncident?.postId ?? selectedPostId}
       subredditName={data.subredditName}
       username={data.username}
+      loading={loadState.status === 'loading'}
       onRefresh={refresh}
       onSelectIncident={selectIncident}
       onViewChange={setActiveView}

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import type { Incident } from '../../shared/api';
 import { PanelLabel, ScoreBadge } from './common';
@@ -23,6 +24,7 @@ export const FirewatchShell = ({
   activeView,
   children,
   incidents,
+  loading = false,
   notice,
   selectedPostId,
   subredditName,
@@ -34,6 +36,7 @@ export const FirewatchShell = ({
   activeView: FirewatchView;
   children: ReactNode;
   incidents: Incident[];
+  loading?: boolean;
   notice: Notice | undefined;
   selectedPostId: string | undefined;
   subredditName: string;
@@ -48,6 +51,7 @@ export const FirewatchShell = ({
       <CommandPanel
         activeView={activeView}
         incidents={incidents}
+        loading={loading}
         selectedPostId={selectedPostId}
         subredditName={subredditName}
         username={username}
@@ -67,6 +71,7 @@ export const FirewatchShell = ({
             {activeView === 'queue' ? (
               <MobileIncidentStrip
                 incidents={incidents}
+                loading={loading}
                 selectedPostId={selectedPostId}
                 onSelectIncident={onSelectIncident}
               />
@@ -82,6 +87,7 @@ export const FirewatchShell = ({
 const CommandPanel = ({
   activeView,
   incidents,
+  loading,
   selectedPostId,
   subredditName,
   username,
@@ -90,6 +96,7 @@ const CommandPanel = ({
 }: {
   activeView: FirewatchView;
   incidents: Incident[];
+  loading: boolean;
   selectedPostId: string | undefined;
   subredditName: string;
   username: string;
@@ -119,11 +126,30 @@ const CommandPanel = ({
           <div className="min-w-0">
             <PanelLabel surface="sidebar">POSTS TO REVIEW</PanelLabel>
           </div>
-          <span className="text-xs font-semibold tabular-nums text-sidebar-foreground/60">
-            {incidents.length}
-          </span>
+          {loading ? (
+            <Skeleton className="h-4 w-5 bg-sidebar-accent" />
+          ) : (
+            <span className="text-xs font-semibold tabular-nums text-sidebar-foreground/60">
+              {incidents.length}
+            </span>
+          )}
         </div>
-        {incidents.length === 0 ? (
+        {loading ? (
+          <ScrollArea className="min-h-0 flex-1">
+            <div
+              aria-busy="true"
+              aria-label="Loading posts to review"
+              className="flex flex-col border-t border-sidebar-border"
+            >
+              {Array.from({ length: 5 }, (_, index) => (
+                <IncidentQueueItemSkeleton
+                  key={index}
+                  surface="dark"
+                />
+              ))}
+            </div>
+          </ScrollArea>
+        ) : incidents.length === 0 ? (
           <p className="border-t border-sidebar-border px-1 py-3 text-xs leading-5 text-sidebar-foreground/70">
             No posts need review right now.
           </p>
@@ -375,10 +401,12 @@ const SubredditAvatar = ({ size = 'default' }: { size?: 'default' | 'sm' }) => (
 
 const MobileIncidentStrip = ({
   incidents,
+  loading,
   selectedPostId,
   onSelectIncident,
 }: {
   incidents: Incident[];
+  loading: boolean;
   selectedPostId: string | undefined;
   onSelectIncident: (postId: string) => void;
 }) => (
@@ -387,12 +415,31 @@ const MobileIncidentStrip = ({
       <div>
         <PanelLabel>POSTS TO REVIEW</PanelLabel>
         <p className="mt-1 text-sm leading-6 text-muted-foreground">
-          {pluralize(incidents.length, 'post')} waiting
+          {loading ? 'Loading posts' : `${pluralize(incidents.length, 'post')} waiting`}
         </p>
       </div>
-      <Badge variant="outline">{incidents.length}</Badge>
+      {loading ? (
+        <Skeleton className="h-7 w-9 rounded-full" />
+      ) : (
+        <Badge variant="outline">{incidents.length}</Badge>
+      )}
     </div>
-    {incidents.length ? (
+    {loading ? (
+      <div className="no-scrollbar -mx-2 overflow-x-auto overscroll-x-contain px-2 pb-2 sm:-mx-5 sm:px-5">
+        <div
+          aria-busy="true"
+          aria-label="Loading posts to review"
+          className="flex w-max max-w-none snap-x snap-mandatory gap-2"
+        >
+          {Array.from({ length: 3 }, (_, index) => (
+            <IncidentQueueItemSkeleton
+              key={index}
+              surface="light"
+            />
+          ))}
+        </div>
+      </div>
+    ) : incidents.length ? (
       <div className="no-scrollbar -mx-2 overflow-x-auto overscroll-x-contain px-2 pb-2 sm:-mx-5 sm:px-5">
         <div className="flex w-max max-w-none snap-x snap-mandatory gap-2">
           {incidents.map((incident) => (
@@ -407,6 +454,59 @@ const MobileIncidentStrip = ({
         </div>
       </div>
     ) : null}
+  </div>
+);
+
+const IncidentQueueItemSkeleton = ({
+  surface,
+}: {
+  surface: 'dark' | 'light';
+}) => (
+  <div
+    className={cn(
+      'content-visibility-list-item border',
+      surface === 'dark'
+        ? 'border-x-0 border-t-0 border-sidebar-border bg-transparent px-2 py-2.5'
+        : 'w-[min(18.5rem,calc(100vw-1rem))] snap-start rounded-md border-border bg-card p-3'
+    )}
+  >
+    <div className="flex items-start justify-between gap-3">
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+        <Skeleton
+          className={cn(
+            'h-4 w-full',
+            surface === 'dark' ? 'bg-sidebar-accent' : undefined
+          )}
+        />
+        <Skeleton
+          className={cn(
+            'h-4 w-4/5',
+            surface === 'dark' ? 'bg-sidebar-accent' : undefined
+          )}
+        />
+      </div>
+      <Skeleton
+        className={cn(
+          'h-7 w-10 rounded-full',
+          surface === 'dark' ? 'bg-sidebar-accent' : undefined
+        )}
+      />
+    </div>
+    <div className="mt-2 flex items-center gap-2">
+      <Skeleton
+        className={cn(
+          'h-3.5 w-20',
+          surface === 'dark' ? 'bg-sidebar-accent' : undefined
+        )}
+      />
+      <Skeleton
+        className={cn(
+          'h-3.5 w-12',
+          surface === 'dark' ? 'bg-sidebar-accent' : undefined
+        )}
+      />
+    </div>
+    {surface === 'light' ? <Skeleton className="mt-2 h-3.5 w-44" /> : null}
   </div>
 );
 
