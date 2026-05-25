@@ -8,15 +8,17 @@
 - `npm run dev:edge`
 - Open the playtest URL and verify:
   - queue loads
-  - each demo drill can be created
+  - each demo drill can be created as a clean single-demo queue item
   - demo incidents can be reset from the dashboard
+  - creating a new demo clears old demo queue state and demo strikes
   - combined filter settings save and update
-  - moderator impact numbers update after actions
+  - review progress numbers update after actions
   - comment approve works
   - comment remove works
   - user ban removes queued comments first
   - sticky reminder posts once
   - lock post updates status
+  - latest action updates after each mod action
   - handoff note saves
   - handled is blocked while comments still need review
 
@@ -41,10 +43,10 @@
 - Demo video: use `docs/demo-script.md`
 - Screenshots:
   - Overview
-  - Moderator impact
+  - Review progress
   - Comments
   - Activity
-  - Mod notes
+  - Handoff
   - Settings page
   - App listing/install page
 

@@ -30,14 +30,12 @@ export const IncidentDetail = ({
   incident,
   postFlairOptions,
   onAction,
-  onEditRules,
 }: {
   busyAction: string | undefined;
   config: FirewatchConfig;
   incident: Incident;
   postFlairOptions: PostFlairOption[];
   onAction: ActionRunner;
-  onEditRules: () => void;
 }) => {
   const unresolvedComments = useMemo(
     () =>
@@ -125,7 +123,6 @@ export const IncidentDetail = ({
               busyAction={busyAction}
               incident={incident}
               onAction={runModAction}
-              onEditRules={onEditRules}
             />
             <RiskReasonsCard incident={incident} />
           </div>

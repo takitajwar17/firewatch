@@ -269,6 +269,9 @@ export const IncidentHero = ({
   const unresolvedCount = incident.flaggedComments.filter(
     (comment) => !comment.removed && !comment.reviewed
   ).length;
+  const latestAction = incident.actions.find(
+    (action) => action.type !== 'demo_seeded'
+  );
 
   return (
     <section className="rounded-md border border-border bg-background">
@@ -340,6 +343,20 @@ export const IncidentHero = ({
           <p className="text-xs leading-5 text-muted-foreground">
             {pluralize(unresolvedCount, 'comment')} still needs a decision.
           </p>
+        ) : null}
+        {latestAction ? (
+          <div className="rounded-md border bg-background px-3 py-2">
+            <p className="text-xs font-semibold leading-5 text-muted-foreground">
+              Latest action
+            </p>
+            <p className="break-words text-sm leading-5">
+              {latestAction.detail}
+            </p>
+            <p className="text-xs leading-5 text-muted-foreground">
+              {formatUsername(latestAction.actor)} ·{' '}
+              {formatTime(latestAction.createdAt)}
+            </p>
+          </div>
         ) : null}
       </div>
     </section>

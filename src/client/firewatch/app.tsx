@@ -35,7 +35,6 @@ export const App = () => {
     setActiveView('queue');
     setSelectedPostId(postId);
   }, [setSelectedPostId]);
-  const showAutomations = useCallback(() => setActiveView('automations'), []);
 
   if (loadState.status === 'error') {
     return (
@@ -98,7 +97,6 @@ export const App = () => {
           incident={selectedIncident}
           postFlairOptions={data.postFlairOptions}
           onAction={runAction}
-          onEditRules={showAutomations}
         />
       ) : (
         <EmptyBoard

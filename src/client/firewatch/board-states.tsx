@@ -1,7 +1,10 @@
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { FIREWATCH_DEMO_SCENARIOS } from '../../shared/firewatch-presets';
+import {
+  DEFAULT_DEMO_SCENARIO_ID,
+  FIREWATCH_DEMO_SCENARIOS,
+} from '../../shared/firewatch-presets';
 import type { DemoCreateHandler } from './types';
 import {
   RedditAddIcon,
@@ -106,28 +109,71 @@ export const EmptyBoard = ({
 }: {
   busy: boolean;
   onCreateDemo: DemoCreateHandler;
-}) => (
-  <div className="mx-auto flex w-full max-w-md flex-col gap-4 py-6 sm:py-8">
-    <div className="flex flex-col gap-2.5">
-      <h1 className="text-xl font-semibold leading-tight">
-        No posts need review right now
-      </h1>
-    </div>
-    <div className="flex flex-col gap-2">
-      {FIREWATCH_DEMO_SCENARIOS.map((scenario) => (
+}) => {
+  const primaryScenario =
+    FIREWATCH_DEMO_SCENARIOS.find(
+      (scenario) => scenario.id === DEFAULT_DEMO_SCENARIO_ID
+    ) ?? FIREWATCH_DEMO_SCENARIOS[0];
+  const secondaryScenarios = FIREWATCH_DEMO_SCENARIOS.filter(
+    (scenario) => scenario.id !== primaryScenario?.id
+  );
+
+  return (
+    <div className="mx-auto flex w-full max-w-lg flex-col gap-4 py-6 sm:py-8">
+      <div className="flex flex-col gap-2">
+        <h1 className="text-xl font-semibold leading-tight">
+          No posts need review right now
+        </h1>
+        <p className="text-sm leading-5 text-muted-foreground">
+          Start a clean demo thread to see reports, watched links, comment
+          review, handoff, and handled state in one pass.
+        </p>
+      </div>
+
+      {primaryScenario ? (
         <Button
-          key={scenario.id}
-          className="h-auto min-h-9 justify-start px-3 py-2 text-left text-sm font-semibold"
+          className="h-auto min-h-11 justify-start px-3 py-2.5 text-left text-sm font-semibold"
           disabled={busy}
-          variant="outline"
-          onClick={() => onCreateDemo(scenario.id)}
+          variant="default"
+          onClick={() => onCreateDemo(primaryScenario.id)}
         >
           <RedditAddIcon className="size-4 shrink-0" data-icon="inline-start" />
           <span className="flex min-w-0 flex-col gap-0.5">
-            <span>{busy ? 'Creating demo thread' : scenario.label}</span>
+            <span>
+              {busy ? 'Creating demo thread' : primaryScenario.label}
+            </span>
+            <span className="line-clamp-2 text-xs font-normal leading-4 text-primary-foreground/80">
+              {primaryScenario.description}
+            </span>
           </span>
         </Button>
-      ))}
+      ) : null}
+
+      <div className="flex flex-col gap-2">
+        <p className="text-xs font-semibold uppercase leading-4 tracking-[0.08em] text-muted-foreground">
+          Other demo drills
+        </p>
+        {secondaryScenarios.map((scenario) => (
+          <Button
+            key={scenario.id}
+            className="h-auto min-h-9 justify-start px-3 py-2 text-left text-sm font-semibold"
+            disabled={busy}
+            variant="outline"
+            onClick={() => onCreateDemo(scenario.id)}
+          >
+            <RedditAddIcon
+              className="size-4 shrink-0"
+              data-icon="inline-start"
+            />
+            <span className="flex min-w-0 flex-col gap-0.5">
+              <span>{busy ? 'Creating demo thread' : scenario.label}</span>
+              <span className="line-clamp-2 text-xs font-normal leading-4 text-muted-foreground">
+                {scenario.description}
+              </span>
+            </span>
+          </Button>
+        ))}
+      </div>
     </div>
-  </div>
-);
+  );
+};

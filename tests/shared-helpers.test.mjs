@@ -625,6 +625,21 @@ test('incident ingest dedupes retried content events but keeps reports additive'
   assert.doesNotMatch(source, /'comment_report',\s*\n\s*'post_report'/);
 });
 
+test('demo creation keeps repeated judge walkthroughs clean', () => {
+  const source = readFileSync('src/server/core/firewatch.ts', 'utf8');
+  const createStart = source.indexOf('export const createDemoIncident');
+  const createEnd = source.indexOf('export const resetDemoIncidents', createStart);
+  const createSource = source.slice(createStart, createEnd);
+  const resetStart = source.indexOf('export const resetDemoIncidents');
+  const resetEnd = source.indexOf('export const createFirewatchPost', resetStart);
+  const resetSource = source.slice(resetStart, resetEnd);
+
+  assert.match(createSource, /await resetDemoIncidents\(\)/);
+  assert.match(resetSource, /clearUserStrikes\(context\.subredditName, username\)/);
+  assert.match(resetSource, /clearRememberedIncident\(\)/);
+  assert.match(resetSource, /startsWith\('demo'\)/);
+});
+
 test('automation matching filters by trigger and source scope', () => {
   const source = readFileSync('src/server/core/firewatch-rules.ts', 'utf8');
 

@@ -1,5 +1,6 @@
 import { useState, type ComponentProps } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
@@ -183,6 +184,16 @@ export const AutomationsCard = ({
           />
         </div>
 
+        <Alert>
+          <RedditApproveIcon />
+          <AlertTitle>Moderator approval stays in front</AlertTitle>
+          <AlertDescription>
+            Templates prepare actions by default. Reddit actions only run when a
+            mod confirms them, unless the team deliberately changes the safety
+            mode.
+          </AlertDescription>
+        </Alert>
+
         {showBuilder ? (
           <RuleBuilder
             key={editingRule?.id ?? 'new'}
@@ -245,6 +256,18 @@ const RuleListItem = ({
         <p className="mt-1 line-clamp-3 text-xs leading-5 text-muted-foreground">
           {summarizeRule(rule)}
         </p>
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          <Badge variant={rule.enabled ? 'secondary' : 'outline'}>
+            {RULE_MODE_LABELS[rule.mode]}
+          </Badge>
+          {rule.mode === 'auto_run_all_selected_actions' ? (
+            <Badge variant="destructive">Runs selected actions</Badge>
+          ) : rule.mode === 'auto_run_safe_actions' ? (
+            <Badge variant="outline">Safe actions only</Badge>
+          ) : (
+            <Badge variant="outline">Mod confirms</Badge>
+          )}
+        </div>
       </div>
       <span
         className={cn(
@@ -769,6 +792,7 @@ const RuleBuilder = ({
           onChange={(value) => setMode(value)}
         />
       </div>
+      <SafetyModeNote mode={mode} />
       <label className="mt-3 flex w-fit items-center gap-2 text-sm font-semibold">
         <input
           checked={enabled}
@@ -841,6 +865,24 @@ const RuleSelect = <Value extends string>({
       <RedditChevronDownIcon className="pointer-events-none absolute top-1/2 right-4 size-4 -translate-y-1/2 text-muted-foreground" />
     </div>
   </FieldBlock>
+);
+
+const safetyModeDetail: Record<RuleMode, string> = {
+  suggest_only: 'Shows the match and takes no action.',
+  prepare_for_approval: 'Prepares actions. A mod reviews and runs them.',
+  auto_run_safe_actions:
+    'Runs Firewatch-only actions. Reddit actions still wait for a mod.',
+  auto_run_all_selected_actions:
+    'Runs selected actions automatically. Use only after testing the rule.',
+};
+
+const SafetyModeNote = ({ mode }: { mode: RuleMode }) => (
+  <div className="mt-3 rounded-md border bg-background px-3 py-2">
+    <p className="text-sm font-semibold leading-5">{RULE_MODE_LABELS[mode]}</p>
+    <p className="text-xs leading-5 text-muted-foreground">
+      {safetyModeDetail[mode]}
+    </p>
+  </div>
 );
 
 const RuleTestResultCard = ({ result }: { result: RuleTestResponse }) => (
@@ -1265,6 +1307,10 @@ const CommunityToolsCard = ({
   onResetDemos: () => void;
 }) => {
   const [scenarioId, setScenarioId] = useState(DEFAULT_DEMO_SCENARIO_ID);
+  const selectedScenario =
+    FIREWATCH_DEMO_SCENARIOS.find((scenario) => scenario.id === scenarioId) ??
+    FIREWATCH_DEMO_SCENARIOS[0];
+
   return (
     <Card size="sm">
       <CardHeader>
@@ -1272,7 +1318,8 @@ const CommunityToolsCard = ({
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <p className="text-sm leading-5 text-muted-foreground">
-          For testing the app. Does not change subreddit settings.
+          Creates one clean demo thread at a time. Existing demo queue items are
+          cleared first; subreddit settings stay unchanged.
         </p>
         <FieldBlock htmlFor="fw-demo-scenario" label="Demo scenario">
           <div className="relative min-w-0">
@@ -1296,11 +1343,16 @@ const CommunityToolsCard = ({
             <RedditChevronDownIcon className="pointer-events-none absolute top-1/2 right-4 size-4 -translate-y-1/2 text-muted-foreground" />
           </div>
         </FieldBlock>
+        {selectedScenario ? (
+          <p className="text-xs leading-5 text-muted-foreground">
+            {selectedScenario.description}
+          </p>
+        ) : null}
         <div className="grid min-w-0 gap-2 sm:grid-cols-2 xl:grid-cols-1">
           <PlaybookButton
             disabled={busyAction === 'demo'}
             icon={<RedditAddIcon data-icon="inline-start" />}
-            label="Create demo thread"
+            label={hasDemoIncidents ? 'Replace demo thread' : 'Create demo thread'}
             loading={busyAction === 'demo'}
             loadingLabel="Creating"
             variant="outline"

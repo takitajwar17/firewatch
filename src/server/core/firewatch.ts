@@ -697,6 +697,13 @@ export const getRememberedIncidentPostId = async (username?: string) => {
   return postId ? normalizePostId(postId) : undefined;
 };
 
+const clearRememberedIncident = async () => {
+  const username = await currentUsername();
+  if (!username) return;
+
+  await redis.del(selectionKey(context.subredditName, username));
+};
+
 export const claimIncident = async (postId: string) => {
   const normalizedPostId = normalizePostId(postId);
   const incident = await getIncident(normalizedPostId);
@@ -2332,6 +2339,8 @@ const buildDemoComments = ({
 export const createDemoIncident = async (
   scenarioId = DEFAULT_DEMO_SCENARIO_ID
 ) => {
+  await resetDemoIncidents();
+
   const config = await getConfig();
   const seed = now();
   const scenario = getDemoScenario(scenarioId);
@@ -2470,15 +2479,36 @@ export const resetDemoIncidents = async () => {
   const index = await getIndex();
   let resetCount = 0;
   const keptPostIds: string[] = [];
+  const demoAuthors = new Set<string>();
 
   for (const postId of index) {
     const incident = await getIncident(postId);
     if (incident?.demo) {
       resetCount += 1;
+      [
+        ...incident.recentSignals.map((signal) => signal.author),
+        ...incident.flaggedComments.map((comment) => comment.author),
+        ...incident.involvedUsers.map((user) => user.username),
+      ].forEach((username) => {
+        const normalized = normalizeUsername(username);
+        if (normalized?.toLowerCase().startsWith('demo')) {
+          demoAuthors.add(normalized);
+        }
+      });
       await redis.del(incidentKey(postId), claimKey(postId));
     } else {
       keptPostIds.push(postId);
     }
+  }
+
+  await Promise.all(
+    Array.from(demoAuthors).map((username) =>
+      clearUserStrikes(context.subredditName, username)
+    )
+  );
+  const rememberedPostId = await getRememberedIncidentPostId();
+  if (rememberedPostId && !keptPostIds.includes(rememberedPostId)) {
+    await clearRememberedIncident();
   }
 
   await saveIndex(keptPostIds);

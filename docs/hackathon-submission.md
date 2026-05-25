@@ -45,8 +45,8 @@ Firewatch is not a ported Data API app.
 
 One Reddit post can turn into 40 comments, 7 reports, and three mods opening
 the same thread. Firewatch puts that thread in one queue, shows why it is
-heating up, lets one mod take it, supports manual Reddit actions, and saves the
-handoff notes the team needs to close the loop.
+heating up, lets one mod claim it, supports manual Reddit actions, and saves
+the handoff notes the team needs to close the loop.
 
 Capabilities:
 
@@ -60,13 +60,13 @@ Capabilities:
   comments, reply pile-ons, recent removals, and manual mod sends.
 - Excludes Firewatch notices and mod-generated comments from repeated wording
   and user scoring so the app does not inflate its own incidents.
-- Shows current attention, peak score, queue reasons, comment review items,
+- Shows review score, peak score, queue reasons, comment review items,
   users in review, repeated wording, recent activity, trend, suggested action,
   and mod log.
-- Shows a moderator impact snapshot: reports grouped, comments reviewed,
+- Shows a review progress snapshot: reports grouped, comments reviewed,
   comments still waiting, users handled, mod actions taken, time open, and peak
   attention.
-- Lets a mod take a post so teammates can see ownership.
+- Lets a mod claim a post so teammates can see ownership.
 - Lets mods approve acceptable comments, remove rule-breaking comments with a
   Reddit removal note, ban a user after removing their queued comments, add a
   sticky reminder, lock the post, save a handoff note, and mark the post
@@ -79,9 +79,9 @@ Capabilities:
 - Deletes stored post/comment content when Reddit delete triggers arrive and
   expires incident records after 30 days.
 - Includes selectable demo drills for heated threads, scam-link cleanup, and
-  support-safety cleanup. Each drill creates a real source post and feeds the
-  same signal pipeline used by production events. Demo incidents can be reset
-  from the dashboard.
+  support-safety cleanup. Each drill creates one clean source post and feeds
+  the same signal pipeline used by production events. Demo incidents can be
+  reset from the dashboard.
 
 ## Project Impact
 

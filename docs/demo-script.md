@@ -4,57 +4,53 @@ Target length: 90 to 120 seconds.
 
 ## Shot List
 
-1. Open the Firewatch queue in `r/firewatch17_dev`.
-2. Choose **Scam link cleanup** or **Heated thread**, then click
-   **Create demo**.
-3. Show the new incident in the sidebar with current attention and status.
-4. Open the incident and point at the four proof areas:
-   - reports filed
-   - comments to review
-   - users in review
-   - reply clusters
-5. Show **Moderator impact**: reports grouped, comments waiting, actions taken,
-   and time open.
-6. Open **Why this post is here** and show that the score is explainable.
-7. Open **Activity** and show the Reddit signals and mod actions timeline.
-8. Open **Comments**.
-9. Approve one acceptable comment.
-10. Remove one rule-breaking comment with the removal reason.
-11. Ban one user, showing that Firewatch removes that user’s queued comments
-   before recording the ban.
-12. Click **Take post**.
-13. Click **Sticky reminder**.
-14. Click **Lock post** if the incident is still risky.
-15. Click **Save handoff note** and show the generated note.
-16. Once the review queue is clear, click **Mark handled**.
-17. Show the final mod note and mod log.
-18. Open **Settings** from the sidebar and show the combined watched words and
-    domains.
+1. Open Firewatch in `r/firewatch17_dev`.
+2. If the queue is empty, click **Suspicious giveaway thread**.
+3. Show the new incident in **Posts to review** with its review score and state.
+4. Open the incident and show the top post state: author, title, post score,
+   comments, review score, flair/lock/removal badges if present.
+5. In **Mod actions**, show the primary loop: Open on Reddit, Review comments,
+   Claim, Save handoff note, Mark handled.
+6. Show **Post tools** briefly, then skip the secondary controls.
+7. Show **Prepared automation** and say actions wait for moderator approval.
+8. Show **Signals** so the score is visibly explainable.
+9. Open **Comments**.
+10. Approve one acceptable comment.
+11. Remove one rule-breaking comment with a removal reason.
+12. Use **Remove and ban** only if the demo needs the strongest cleanup path.
+13. Return to **Post review** and show **Latest action**.
+14. Add a sticky comment or lock the post if the thread still looks risky.
+15. Open **Handoff**, save the generated handoff note, and show the summary.
+16. Once no comments remain open, click **Mark handled**.
+17. Open **Activity** and show Reddit activity, review progress, and mod log.
+18. Open **Settings** only at the end to show watched words/domains and demo
+    reset.
 
 ## Voiceover
 
 ```text
-Firewatch is incident command for Reddit moderators.
+Firewatch is a hot-thread queue for Reddit moderators.
 
-The normal mod queue tells you something was reported. Firewatch tells you why
-a post is heating up, who is handling it, what comments still need a decision,
+The normal mod queue tells you something was reported. Firewatch shows why a
+post is heating up, which comments still need a decision, who is handling it,
 and what has already been done.
 
-Here I create a demo drill. The app creates a real source post and feeds the
-same signal pipeline used in production: reports, comments, watched words,
+Here I create a clean demo drill. The app creates a real source post and feeds
+the same signal pipeline used in production: reports, comments, watched words,
 watched domains, repeated user wording, reply clusters, and mod sends.
 
 Every score is explainable. Firewatch does not make hidden AI decisions and it
 does not automatically punish users.
 
-The impact snapshot shows what the mod team has already handled.
+The review progress panel shows what the mod team has already handled.
 
 In comments, mods can approve what is acceptable, remove rule-breaking comments
-with a removal note, or ban a user after Firewatch removes that user’s queued
+with a removal reason, or ban a user after Firewatch removes that user’s queued
 comments first.
 
-One mod can take the post, add a sticky reminder, lock the post if needed, save
-a handoff note, and mark the incident handled when the review queue is clear.
+One mod can claim the post, add a sticky reminder, lock the post if needed,
+save a handoff note, and mark the incident handled when the review queue is
+clear.
 
 The result is less scattered mod work and a cleaner closeout record for the
 team.
@@ -63,10 +59,10 @@ team.
 ## Screenshot Checklist
 
 - Queue with at least one incident selected.
-- Overview showing current attention, peak score, and reasons.
-- Overview showing Moderator impact.
+- Post review showing review score, state badges, actions, and signals.
+- Post review showing latest action and prepared automation.
 - Comments tab showing Approve, Remove, and Ban user.
-- Activity tab showing Reddit signals and mod actions.
-- Mod notes tab showing handoff or final note.
+- Activity tab showing Reddit activity, review progress, and mod log.
+- Handoff tab showing handoff or final note.
 - Settings page showing watched words and domains.
 - Developer app listing showing Firewatch installed in the test subreddit.

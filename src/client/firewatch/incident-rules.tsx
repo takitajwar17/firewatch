@@ -8,7 +8,6 @@ import type { ActionRunner } from './types';
 import {
   RedditApproveIcon,
   RedditReportIcon,
-  RedditSettingsIcon,
   RedditShieldIcon,
 } from './reddit-icons';
 
@@ -16,12 +15,10 @@ export const MatchedRulesCard = ({
   busyAction,
   incident,
   onAction,
-  onEditRules,
 }: {
   busyAction: string | undefined;
   incident: Incident;
   onAction: ActionRunner;
-  onEditRules: () => void;
 }) => {
   const [dismissedRuleIds, setDismissedRuleIds] = useState<Set<string>>(
     () => new Set()
@@ -51,7 +48,6 @@ export const MatchedRulesCard = ({
                 return next;
               })
             }
-            onEditRules={onEditRules}
             onRun={() =>
               onAction(
                 `rule:${rule.ruleId}:${rule.targetId}`,
@@ -71,14 +67,12 @@ const MatchedRuleItem = ({
   incident,
   rule,
   onDismiss,
-  onEditRules,
   onRun,
 }: {
   busyAction: string | undefined;
   incident: Incident;
   rule: MatchedAutomationRule;
   onDismiss: () => void;
-  onEditRules: () => void;
   onRun: () => void;
 }) => {
   const actionId = `rule:${rule.ruleId}:${rule.targetId}`;
@@ -164,12 +158,6 @@ const MatchedRuleItem = ({
           loading={busyAction === actionId}
           variant={confirmRun ? 'destructive' : 'default'}
           onClick={runActions}
-        />
-        <PlaybookButton
-          icon={<RedditSettingsIcon data-icon="inline-start" />}
-          label="Edit automation"
-          variant="outline"
-          onClick={onEditRules}
         />
         <PlaybookButton
           label="Hide for now"
