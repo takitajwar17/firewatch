@@ -133,9 +133,7 @@ export const ruleDraftSummary = (
   ].join('\n');
 
 export const buildSummary = (incident: Incident) => {
-  const handler =
-    incident.claim?.username ??
-    incident.actions.find((action) => action.type === 'claimed')?.actor;
+  const handler = incident.claim?.username;
   const topReasons = (
     incident.peakReasons?.length ? incident.peakReasons : incident.reasons
   )
@@ -193,9 +191,7 @@ export const buildSummary = (incident: Incident) => {
 };
 
 export const buildEscalationSummary = (incident: Incident) => {
-  const handler =
-    incident.claim?.username ??
-    incident.actions.find((action) => action.type === 'claimed')?.actor;
+  const handler = incident.claim?.username;
   const unresolved = incident.flaggedComments.filter(
     (comment) => !comment.removed && !comment.reviewed
   );
@@ -364,6 +360,31 @@ export const claimIncident = async (postId: string) => {
       storedClaim.username !== actor
         ? `Already claimed by u/${storedClaim.username}`
         : `Claimed by u/${actor}`,
+  });
+};
+
+export const unclaimIncident = async (postId: string) => {
+  const normalizedPostId = normalizePostId(postId);
+  const incident = await getIncident(normalizedPostId);
+  if (!incident) throw new Error('Post is not in Firewatch yet');
+  if (!incident.claim) throw new Error('Post is not claimed');
+
+  const actor = await actorName();
+  const releasedUsername = incident.claim.username;
+  await redis.del(claimKey(normalizedPostId));
+
+  const released: Incident = {
+    ...incident,
+    claim: undefined,
+    updatedAt: now(),
+  };
+
+  await saveIncident(released);
+  return appendAction(normalizedPostId, {
+    type: 'unclaimed',
+    actor,
+    detail: `Released claim by u/${releasedUsername}`,
+    targetIds: [releasedUsername],
   });
 };
 

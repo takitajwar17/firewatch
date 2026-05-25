@@ -19,6 +19,7 @@ import {
   parseCrowdControlLevel,
   postActionControl,
   postActionDetail,
+  undoActionLabel,
   userActionControl,
   userActionDetail,
 } from '../dist/types/shared/reddit-actions.js';
@@ -213,7 +214,9 @@ test('crowd control parser accepts known Reddit values and defaults safely', () 
 test('post action helpers keep native post action behavior aligned', () => {
   assert.equal(postActionControl('spam'), 'markPostSpam');
   assert.equal(postActionControl('crowd-control'), 'crowdControl');
+  assert.equal(postActionControl('clear-flair'), 'setPostFlair');
   assert.equal(nativePostActionType('set-flair'), 'post_flaired');
+  assert.equal(nativePostActionType('clear-flair'), 'post_flair_removed');
   assert.equal(nativePostActionType('mark-nsfw'), 'post_marked_nsfw');
   assert.equal(nativePostActionType('unmark-nsfw'), 'post_unmarked_nsfw');
   assert.equal(nativePostActionType('mark-spoiler'), 'post_marked_spoiler');
@@ -236,6 +239,10 @@ test('post action helpers keep native post action behavior aligned', () => {
     }),
     'Set post flair to "Needs mod review"'
   );
+  assert.equal(
+    postActionDetail({ action: 'clear-flair' }),
+    'Removed post flair'
+  );
 });
 
 test('comment action helpers keep native comment action behavior aligned', () => {
@@ -255,6 +262,21 @@ test('comment action helpers keep native comment action behavior aligned', () =>
     }),
     'Removed comment thread (2 comments): Spam cleanup'
   );
+});
+
+test('undo action labels only expose safe reversible moderation actions', () => {
+  assert.equal(undoActionLabel('comment_removed'), 'Restore comment');
+  assert.equal(undoActionLabel('comment_locked'), 'Unlock comment');
+  assert.equal(undoActionLabel('post_removed'), 'Restore post');
+  assert.equal(undoActionLabel('locked'), 'Unlock post');
+  assert.equal(undoActionLabel('post_reports_ignored'), 'Unignore post reports');
+  assert.equal(undoActionLabel('post_flaired'), 'Restore previous flair');
+  assert.equal(undoActionLabel('post_flair_removed'), 'Restore flair');
+  assert.equal(undoActionLabel('claimed'), undefined);
+  assert.equal(undoActionLabel('unclaimed'), undefined);
+  assert.equal(undoActionLabel('comment_approved'), undefined);
+  assert.equal(undoActionLabel('user_banned'), undefined);
+  assert.equal(undoActionLabel('resolved'), undefined);
 });
 
 test('user action helpers keep native user action behavior aligned', () => {
@@ -652,6 +674,79 @@ test('bulk comment review is a single typed server action with queue selection U
   assert.match(clientSource, /bulk-comments:remove/);
   assert.match(clientSource, /Select all/);
   assert.match(clientSource, /Confirm remove/);
+});
+
+test('latest reversible action can be undone through one server endpoint', () => {
+  const routeSource = readFileSync('src/server/routes/api.ts', 'utf8');
+  const exportSource = readFileSync('src/server/core/firewatch.ts', 'utf8');
+  const activitySource = readFileSync(
+    'src/client/firewatch/incident-activity.tsx',
+    'utf8'
+  );
+  const serverSource = readFileSync(
+    'src/server/core/firewatch/actions/undo-actions.ts',
+    'utf8'
+  );
+  const clientSource = readFileSync(
+    'src/client/firewatch/overview/mod-actions-card.tsx',
+    'utf8'
+  );
+
+  assert.match(routeSource, /actions\/:actionId\/undo/);
+  assert.match(routeSource, /undoIncidentAction/);
+  assert.match(exportSource, /undoIncidentAction/);
+  assert.match(serverSource, /undoActionLabel\(action\.type\)/);
+  assert.match(serverSource, /approveCommentIfReal/);
+  assert.match(serverSource, /post\.approve\(\)/);
+  assert.match(serverSource, /comment\.unlock\(\)/);
+  assert.match(serverSource, /comment\.lock\(\)/);
+  assert.match(serverSource, /post\.unignoreReports\(\)/);
+  assert.match(serverSource, /post\.ignoreReports\(\)/);
+  assert.match(serverSource, /restorePostFlair/);
+  assert.match(clientSource, /undoActionLabel/);
+  assert.match(clientSource, /Confirm undo/);
+  assert.match(clientSource, /\/actions\/\$\{latestAction\.id\}\/undo/);
+  assert.match(activitySource, /latestUndoableAction/);
+  assert.match(activitySource, /\/actions\/\$\{action\.id\}\/undo/);
+});
+
+test('state actions expose unclaim and post flair removal without fake undo buttons', () => {
+  const apiTypesSource = readFileSync('src/shared/api.ts', 'utf8');
+  const routeSource = readFileSync('src/server/routes/api.ts', 'utf8');
+  const exportSource = readFileSync('src/server/core/firewatch.ts', 'utf8');
+  const incidentsSource = readFileSync(
+    'src/server/core/firewatch/incidents.ts',
+    'utf8'
+  );
+  const postActionSource = readFileSync(
+    'src/server/core/firewatch/actions/post-actions.ts',
+    'utf8'
+  );
+  const heroSource = readFileSync(
+    'src/client/firewatch/overview/mod-actions-card.tsx',
+    'utf8'
+  );
+  const postToolsSource = readFileSync(
+    'src/client/firewatch/overview/post-tools-card.tsx',
+    'utf8'
+  );
+  const commentsSource = readFileSync(
+    'src/client/firewatch/comments/flagged-comments-card.tsx',
+    'utf8'
+  );
+
+  assert.match(apiTypesSource, /'unclaimed'/);
+  assert.match(apiTypesSource, /'clear-flair'/);
+  assert.match(apiTypesSource, /postFlairBefore\?: PostFlairState/);
+  assert.match(routeSource, /incidents\/:postId\/unclaim/);
+  assert.match(exportSource, /unclaimIncident/);
+  assert.match(incidentsSource, /redis\.del\(claimKey\(normalizedPostId\)\)/);
+  assert.match(postActionSource, /removePostFlair/);
+  assert.match(postActionSource, /postFlairBefore/);
+  assert.match(heroSource, /label=\{incident\.claim \? 'Unclaim' : 'Claim'\}/);
+  assert.match(postToolsSource, /Remove flair/);
+  assert.match(commentsSource, /label="Restore"/);
+  assert.match(commentsSource, /commentState\.locked\s*\?\s*'Unlock'/);
 });
 
 test('user content removal refreshes and skips content already approved on Reddit', () => {

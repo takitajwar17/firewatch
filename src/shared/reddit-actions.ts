@@ -31,6 +31,33 @@ export const parseCrowdControlLevel = (
   return 'MEDIUM';
 };
 
+const undoActionLabels: Partial<Record<IncidentActionType, string>> = {
+  comment_locked: 'Unlock comment',
+  comment_removed: 'Restore comment',
+  comment_reports_ignored: 'Unignore comment reports',
+  comment_reports_unignored: 'Ignore comment reports',
+  comment_spammed: 'Restore comment',
+  comment_thread_removed: 'Restore comment thread',
+  comment_unlocked: 'Lock comment',
+  locked: 'Unlock post',
+  post_marked_nsfw: 'Remove NSFW tag',
+  post_marked_spoiler: 'Remove spoiler tag',
+  post_nsfw: 'Remove NSFW tag',
+  post_removed: 'Restore post',
+  post_reports_ignored: 'Unignore post reports',
+  post_reports_unignored: 'Ignore post reports',
+  post_flaired: 'Restore previous flair',
+  post_flair_removed: 'Restore flair',
+  post_spammed: 'Restore post',
+  post_spoiler: 'Remove spoiler tag',
+  post_unlocked: 'Lock post',
+  post_unmarked_nsfw: 'Mark post NSFW',
+  post_unmarked_spoiler: 'Mark post spoiler',
+};
+
+export const undoActionLabel = (type: IncidentActionType) =>
+  undoActionLabels[type];
+
 export const postActionControl = (
   action: NativePostAction
 ): keyof FirewatchConfig['actionControls'] => {
@@ -55,6 +82,7 @@ export const postActionControl = (
     case 'crowd-control':
       return 'crowdControl';
     case 'set-flair':
+    case 'clear-flair':
       return 'setPostFlair';
   }
 };
@@ -87,6 +115,8 @@ export const nativePostActionType = (
       return 'post_crowd_control';
     case 'set-flair':
       return 'post_flaired';
+    case 'clear-flair':
+      return 'post_flair_removed';
   }
 };
 
@@ -126,6 +156,8 @@ export const postActionDetail = ({
       return `Set crowd control to ${crowdControlLevel ?? 'MEDIUM'}`;
     case 'set-flair':
       return flairText ? `Set post flair to "${flairText}"` : 'Set post flair';
+    case 'clear-flair':
+      return 'Removed post flair';
   }
 };
 

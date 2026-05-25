@@ -17,6 +17,7 @@ export {
   bulkReviewComments,
   removeFlaggedComment,
 } from './firewatch/actions/comment-actions';
+export { undoIncidentAction } from './firewatch/actions/undo-actions';
 export { applyNativePostAction } from './firewatch/actions/post-actions';
 export {
   applyNativeUserAction,
@@ -27,6 +28,7 @@ export {
   clearIncidentUserStrikes,
   coolDownIncident,
   lockIncident,
+  unclaimIncident,
 } from './firewatch/incidents';
 export {
   getRememberedIncidentPostId,

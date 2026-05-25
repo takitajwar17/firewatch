@@ -15,7 +15,12 @@ import {
 } from './format';
 import type { ActionRunner } from './types';
 import type { Incident } from '../../shared/api';
-import { RedditCopyIcon, RedditShieldIcon } from './reddit-icons';
+import {
+  RedditCopyIcon,
+  RedditRefreshIcon,
+  RedditShieldIcon,
+} from './reddit-icons';
+import { undoActionLabel } from '../../shared/reddit-actions';
 
 export const LatestSignalsCard = ({ incident }: { incident: Incident }) => {
   const visibleSignals = incident.recentSignals;
@@ -152,48 +157,97 @@ const SummaryBlock = ({ label, value }: { label: string; value: string }) => {
 };
 
 export const ActionLogCard = ({
+  busyAction,
   compact,
   incident,
+  onAction,
 }: {
+  busyAction?: string | undefined;
   compact?: boolean;
   incident: Incident;
-}) => (
-  <Card size="sm">
-    <CardHeader>
-      <CardTitle>Mod log</CardTitle>
-    </CardHeader>
-    <CardContent>
-      {incident.actions.length === 0 ? (
-        <EmptyText>No mod actions yet.</EmptyText>
-      ) : (
-        <ScrollArea
-          className={cn(
-            compact ? 'sm:max-h-[360px]' : 'sm:max-h-[460px]',
-            'pr-0 sm:pr-3'
-          )}
-        >
-          <div className="flex flex-col">
-            {incident.actions.map((action, index) => (
-              <div key={action.id} className="content-visibility-list-item">
-                {index > 0 ? <Separator /> : null}
-                <div className="flex flex-col gap-1 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
-                  <div className="min-w-0">
-                    <p className="break-words text-sm font-semibold leading-5">
-                      {action.detail}
-                    </p>
-                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                      {formatUsername(action.actor)}
-                    </p>
+  onAction?: ActionRunner | undefined;
+}) => {
+  const [confirmUndoActionId, setConfirmUndoActionId] = useState<
+    string | undefined
+  >();
+  const latestUndoableAction = incident.actions.find((action) =>
+    undoActionLabel(action.type)
+  );
+
+  return (
+    <Card size="sm">
+      <CardHeader>
+        <CardTitle>Mod log</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {incident.actions.length === 0 ? (
+          <EmptyText>No mod actions yet.</EmptyText>
+        ) : (
+          <ScrollArea
+            className={cn(
+              compact ? 'sm:max-h-[360px]' : 'sm:max-h-[460px]',
+              'pr-0 sm:pr-3'
+            )}
+          >
+            <div className="flex flex-col">
+              {incident.actions.map((action, index) => {
+                const undoLabel = undoActionLabel(action.type);
+                const canUndo =
+                  Boolean(onAction) &&
+                  Boolean(undoLabel) &&
+                  latestUndoableAction?.id === action.id;
+                const undoActionId = `undo:${action.id}`;
+                const confirmUndo = confirmUndoActionId === action.id;
+
+                return (
+                  <div key={action.id} className="content-visibility-list-item">
+                    {index > 0 ? <Separator /> : null}
+                    <div className="flex flex-col gap-2 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+                      <div className="min-w-0">
+                        <p className="break-words text-sm font-semibold leading-5">
+                          {action.detail}
+                        </p>
+                        <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                          {formatUsername(action.actor)} ·{' '}
+                          {formatTime(action.createdAt)}
+                        </p>
+                      </div>
+                      {canUndo && onAction ? (
+                        <Button
+                          className="shrink-0"
+                          disabled={Boolean(busyAction)}
+                          size="sm"
+                          title={undoLabel}
+                          variant={confirmUndo ? 'destructive' : 'ghost'}
+                          onClick={() => {
+                            if (!confirmUndo) {
+                              setConfirmUndoActionId(action.id);
+                              return;
+                            }
+
+                            setConfirmUndoActionId(undefined);
+                            void onAction(
+                              undoActionId,
+                              `/api/incidents/${incident.postId}/actions/${action.id}/undo`
+                            );
+                          }}
+                        >
+                          <RedditRefreshIcon data-icon="inline-start" />
+                          {busyAction === undoActionId
+                            ? 'Working'
+                            : confirmUndo
+                              ? 'Confirm undo'
+                              : 'Undo'}
+                        </Button>
+                      ) : null}
+                    </div>
                   </div>
-                  <span className="shrink-0 text-xs leading-5 text-muted-foreground">
-                    {formatTime(action.createdAt)}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </ScrollArea>
-      )}
-    </CardContent>
-  </Card>
-);
+                );
+              })}
+            </div>
+          </ScrollArea>
+        )}
+      </CardContent>
+    </Card>
+  );
+};

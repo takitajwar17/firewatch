@@ -46,7 +46,8 @@ export type NativePostAction =
   | 'ignore-reports'
   | 'unignore-reports'
   | 'crowd-control'
-  | 'set-flair';
+  | 'set-flair'
+  | 'clear-flair';
 
 export type NativeCommentAction =
   | 'spam'
@@ -100,6 +101,7 @@ export type IncidentPostState = {
 
 export type IncidentActionType =
   | 'claimed'
+  | 'unclaimed'
   | 'cool_down'
   | 'cleanup'
   | 'comment_approved'
@@ -130,6 +132,7 @@ export type IncidentActionType =
   | 'post_reports_unignored'
   | 'post_crowd_control'
   | 'post_flaired'
+  | 'post_flair_removed'
   | 'firewatch_strike_added'
   | 'rule_action_executed'
   | 'rule_prepared'
@@ -423,6 +426,8 @@ export type IncidentAction = {
   actor: string;
   createdAt: number;
   detail: string;
+  postFlairAfter?: PostFlairState;
+  postFlairBefore?: PostFlairState;
   targetIds?: string[];
   summary?: string;
 };

@@ -1,5 +1,5 @@
 import { reddit } from '@devvit/web/server';
-import type { NativePostAction } from '../../../../shared/api';
+import type { NativePostAction, PostFlairState } from '../../../../shared/api';
 import {
   nativePostActionType,
   parseCrowdControlLevel,
@@ -10,6 +10,27 @@ import { normalizePostId } from '../../firewatch-utils';
 import { appendAction, getIncidentOrThrow } from '../incidents';
 import { actorName, getConfig } from '../store';
 import { trimRemovalNote } from './comment-helpers';
+
+const postFlairState = (
+  flair: {
+    backgroundColor?: string | undefined;
+    templateId?: string | undefined;
+    text?: string | undefined;
+    textColor?: string | undefined;
+  } | undefined
+): PostFlairState | undefined => {
+  if (!flair) return undefined;
+
+  const text = flair.text?.trim();
+  if (!text) return undefined;
+
+  return {
+    text,
+    templateId: flair.templateId,
+    backgroundColor: flair.backgroundColor,
+    textColor: flair.textColor,
+  };
+};
 
 export const applyNativePostAction = async (
   postId: string,
@@ -31,6 +52,7 @@ export const applyNativePostAction = async (
 
   const actor = await actorName();
   const post = await reddit.getPostById(normalizedPostId);
+  const flairBefore = postFlairState(post.flair);
   const reason = values.reason?.trim();
   const removalNote = trimRemovalNote(reason);
   const flairTemplateId = values.flairTemplateId?.trim() || undefined;
@@ -88,7 +110,21 @@ export const applyNativePostAction = async (
         text: flairText,
       });
       break;
+    case 'clear-flair':
+      if (!flairBefore) {
+        throw new Error('Post has no flair to remove');
+      }
+      await reddit.removePostFlair(incident.subredditName, normalizedPostId);
+      break;
   }
+
+  const flairAfter =
+    values.action === 'set-flair' && (flairText || flairTemplateId)
+      ? {
+          text: flairText ?? flairBefore?.text ?? '',
+          templateId: flairTemplateId,
+        }
+      : undefined;
 
   return appendAction(normalizedPostId, {
     type: nativePostActionType(values.action),
@@ -99,6 +135,11 @@ export const applyNativePostAction = async (
       flairText,
       reason,
     }),
+    postFlairAfter: flairAfter,
+    postFlairBefore:
+      values.action === 'set-flair' || values.action === 'clear-flair'
+        ? flairBefore
+        : undefined,
     targetIds: [normalizedPostId],
   });
 };

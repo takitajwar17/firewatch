@@ -127,6 +127,7 @@ export const actionLabel = (action: string) => {
   if (action.startsWith('ban:')) return 'Remove and ban user';
   if (action === 'bulk-comments:approve') return 'Approve selected comments';
   if (action === 'bulk-comments:remove') return 'Remove selected comments';
+  if (action.startsWith('undo:')) return 'Undo action';
   if (action.startsWith('post:')) return 'Post action';
   if (action.startsWith('comment:')) return 'Comment action';
   if (action.startsWith('user:')) return 'User action';
@@ -139,6 +140,7 @@ export const actionLabel = (action: string) => {
 
   const labels: Record<string, string> = {
     claim: 'Claim post',
+    unclaim: 'Unclaim post',
     'cool-down': 'Add sticky comment',
     lock: 'Lock post',
     escalate: 'Save handoff note',
@@ -159,6 +161,7 @@ export const actionLabel = (action: string) => {
 export const actionSuccessMessage = (action: string) => {
   if (action === 'bulk-comments:approve') return 'Selected comments approved.';
   if (action === 'bulk-comments:remove') return 'Selected comments removed.';
+  if (action.startsWith('undo:')) return 'Action undone.';
   if (action.startsWith('ban:')) {
     return 'Comment removed and user banned.';
   }
@@ -174,6 +177,7 @@ export const actionSuccessMessage = (action: string) => {
   if (action === 'post:unignore-reports') return 'Post reports unignored.';
   if (action === 'post:crowd-control') return 'Crowd Control updated.';
   if (action === 'post:set-flair') return 'Post flair updated.';
+  if (action === 'post:clear-flair') return 'Post flair removed.';
   if (action.startsWith('comment:') && action.endsWith(':spam')) {
     return 'Comment marked as spam.';
   }
@@ -219,6 +223,7 @@ export const actionSuccessMessage = (action: string) => {
 
   const messages: Record<string, string> = {
     claim: 'Post claimed.',
+    unclaim: 'Claim released.',
     'cool-down': 'Sticky comment posted.',
     lock: 'Post locked.',
     escalate: 'Handoff saved.',

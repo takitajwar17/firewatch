@@ -44,6 +44,8 @@ import {
   resolveIncident,
   runPreparedRuleActions,
   saveConfig,
+  undoIncidentAction,
+  unclaimIncident,
 } from '../core/firewatch';
 import {
   disableAllAutomations,
@@ -144,6 +146,10 @@ api.post('/incidents/:postId/claim', async (c) => {
   return incidentAction(c, () => claimIncident(c.req.param('postId')));
 });
 
+api.post('/incidents/:postId/unclaim', async (c) => {
+  return incidentAction(c, () => unclaimIncident(c.req.param('postId')));
+});
+
 api.post('/incidents/:postId/cool-down', async (c) => {
   return incidentAction(c, async () => {
     const body = await readOptionalJson<{ reminderText: string }>(c);
@@ -174,6 +180,12 @@ api.post('/incidents/:postId/escalate', async (c) => {
 
 api.post('/incidents/:postId/resolve', async (c) => {
   return incidentAction(c, () => resolveIncident(c.req.param('postId')));
+});
+
+api.post('/incidents/:postId/actions/:actionId/undo', async (c) => {
+  return incidentAction(c, () =>
+    undoIncidentAction(c.req.param('postId'), c.req.param('actionId'))
+  );
 });
 
 api.post('/demo/incident', async (c) => {

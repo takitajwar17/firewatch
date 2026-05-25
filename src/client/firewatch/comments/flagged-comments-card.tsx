@@ -728,11 +728,24 @@ export const FlaggedCommentsCard = ({
                 const commentState = commentStateById.get(comment.id);
                 const actionSnapshot = actionSnapshotById.get(comment.id);
                 if (!commentState) return null;
+                const approveAction = `approve:${comment.id}`;
+                const removeAction = `remove:${comment.id}`;
+                const lockToggle = commentState.locked ? 'unlock' : 'lock';
+                const lockAction = `comment:${comment.id}:${lockToggle}`;
+                const reportsToggle = commentState.reportsIgnored
+                  ? 'unignore-reports'
+                  : 'ignore-reports';
+                const reportsAction = `comment:${comment.id}:${reportsToggle}`;
+                const showAction = `comment:${comment.id}:show`;
                 const actionLabel = commentState.removed
                   ? commentState.spammed
                     ? 'spammed'
                     : 'removed'
                   : 'approved';
+                const canShowStateMenu =
+                  controls.lockComments ||
+                  controls.ignoreCommentReports ||
+                  controls.showComments;
 
                 return (
                   <div
@@ -767,18 +780,134 @@ export const FlaggedCommentsCard = ({
                           ))}
                         </div>
                       </div>
-                      {permalink ? (
-                        <Button
-                          className="shrink-0"
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => openRedditUrlInNewTab(permalink)}
-                        >
-                          <RedditLinkIcon data-icon="inline-start" />
-                          Open context
-                        </Button>
-                      ) : null}
+                      <div className="flex shrink-0 flex-wrap items-center gap-1.5 md:justify-end">
+                        {commentState.removed && controls.approveComments ? (
+                          <RedditActionButton
+                            action={approveAction}
+                            busyAction={busyAction}
+                            icon={<RedditApproveIcon data-icon="inline-start" />}
+                            label="Restore"
+                            variant="secondary"
+                            onClick={() =>
+                              onAction(
+                                approveAction,
+                                `/api/incidents/${incident.postId}/comments/${comment.id}/approve`
+                              )
+                            }
+                          />
+                        ) : null}
+                        {!commentState.removed && controls.removeComments ? (
+                          <RedditActionButton
+                            action={removeAction}
+                            busyAction={busyAction}
+                            icon={<RedditRemoveIcon data-icon="inline-start" />}
+                            label="Remove"
+                            variant="secondary"
+                            onClick={() =>
+                              setActivePrep({
+                                commentId: comment.id,
+                                kind: 'remove',
+                              })
+                            }
+                          />
+                        ) : null}
+                        {permalink ? (
+                          <Button
+                            className="shrink-0"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => openRedditUrlInNewTab(permalink)}
+                          >
+                            <RedditLinkIcon data-icon="inline-start" />
+                            Open context
+                          </Button>
+                        ) : null}
+                        {canShowStateMenu ? (
+                          <RedditOverflowMenu align="end" label="More actions">
+                            <>
+                              {controls.lockComments ? (
+                                <RedditMenuItem
+                                  disabled={Boolean(busyAction)}
+                                  icon={<RedditLockIcon />}
+                                  label={
+                                    busyAction === lockAction
+                                      ? 'Working'
+                                      : commentState.locked
+                                        ? 'Unlock'
+                                        : 'Lock'
+                                  }
+                                  onSelect={() => {
+                                    void onAction(
+                                      lockAction,
+                                      `/api/incidents/${incident.postId}/comments/${comment.id}/native-action`,
+                                      { action: lockToggle }
+                                    );
+                                  }}
+                                />
+                              ) : null}
+                              {controls.ignoreCommentReports ? (
+                                <RedditMenuItem
+                                  disabled={Boolean(busyAction)}
+                                  icon={<RedditReportIcon />}
+                                  label={
+                                    busyAction === reportsAction
+                                      ? 'Working'
+                                      : commentState.reportsIgnored
+                                        ? 'Unignore reports'
+                                        : 'Ignore reports'
+                                  }
+                                  onSelect={() => {
+                                    void onAction(
+                                      reportsAction,
+                                      `/api/incidents/${incident.postId}/comments/${comment.id}/native-action`,
+                                      { action: reportsToggle }
+                                    );
+                                  }}
+                                />
+                              ) : null}
+                              {controls.showComments ? (
+                                <RedditMenuItem
+                                  disabled={
+                                    Boolean(busyAction) || commentState.shown
+                                  }
+                                  icon={<RedditHideIcon />}
+                                  label={
+                                    busyAction === showAction
+                                      ? 'Working'
+                                      : commentState.shown
+                                        ? 'Shown'
+                                        : 'Show comment'
+                                  }
+                                  onSelect={() => {
+                                    void onAction(
+                                      showAction,
+                                      `/api/incidents/${incident.postId}/comments/${comment.id}/native-action`,
+                                      { action: 'show-comment' }
+                                    );
+                                  }}
+                                />
+                              ) : null}
+                            </>
+                          </RedditOverflowMenu>
+                        ) : null}
+                      </div>
                     </div>
+                    {activePrep?.commentId === comment.id ? (
+                      <CommentActionPrepPanel
+                        activePrep={activePrep.kind}
+                        banDuration={banDuration}
+                        busyAction={busyAction}
+                        comment={comment}
+                        incident={incident}
+                        reason={reason}
+                        userNote={userNote}
+                        onAction={onAction}
+                        onBanDurationChange={setBanDuration}
+                        onCancel={() => setActivePrep(undefined)}
+                        onReasonChange={setReason}
+                        onUserNoteChange={setUserNote}
+                      />
+                    ) : null}
                   </div>
                 );
               })}

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { PlaybookButton } from '../common';
 import {
@@ -10,11 +11,13 @@ import {
   RedditApproveIcon,
   RedditCommentIcon,
   RedditLinkIcon,
+  RedditRefreshIcon,
   RedditShieldIcon,
   RedditUsersIcon,
 } from '../reddit-icons';
 import type { ActionRunner } from '../types';
 import type { FirewatchConfig, Incident } from '../../../shared/api';
+import { undoActionLabel } from '../../../shared/reddit-actions';
 
 export const IncidentHero = ({
   busyAction,
@@ -31,12 +34,36 @@ export const IncidentHero = ({
 }) => {
   const terminal = isTerminalStatus(incident.status);
   const permalink = incident.permalink;
+  const claimAction = incident.claim ? 'unclaim' : 'claim';
   const unresolvedCount = incident.flaggedComments.filter(
     (comment) => !comment.removed && !comment.reviewed
   ).length;
   const latestAction = incident.actions.find(
     (action) => action.type !== 'demo_seeded'
   );
+  const undoLabel = latestAction
+    ? undoActionLabel(latestAction.type)
+    : undefined;
+  const [confirmUndoActionId, setConfirmUndoActionId] = useState<
+    string | undefined
+  >();
+  const confirmUndo = Boolean(
+    latestAction && confirmUndoActionId === latestAction.id
+  );
+  const undoActionId = latestAction ? `undo:${latestAction.id}` : undefined;
+  const undoLatestAction = () => {
+    if (!latestAction || !undoActionId) return;
+    if (!confirmUndo) {
+      setConfirmUndoActionId(latestAction.id);
+      return;
+    }
+
+    setConfirmUndoActionId(undefined);
+    void onAction(
+      undoActionId,
+      `/api/incidents/${incident.postId}/actions/${latestAction.id}/undo`
+    );
+  };
 
   return (
     <section className="rounded-md border border-border bg-background">
@@ -61,12 +88,15 @@ export const IncidentHero = ({
             </Button>
           ) : null}
           <PlaybookButton
-            disabled={Boolean(incident.claim) || Boolean(busyAction) || terminal}
+            disabled={Boolean(busyAction) || terminal}
             icon={<RedditUsersIcon data-icon="inline-start" />}
-            label={incident.claim ? 'Claimed' : 'Claim'}
-            loading={busyAction === 'claim'}
+            label={incident.claim ? 'Unclaim' : 'Claim'}
+            loading={busyAction === claimAction}
             onClick={() =>
-              onAction('claim', `/api/incidents/${incident.postId}/claim`)
+              onAction(
+                claimAction,
+                `/api/incidents/${incident.postId}/${claimAction}`
+              )
             }
           />
           <PlaybookButton
@@ -106,16 +136,37 @@ export const IncidentHero = ({
         </div>
         {latestAction ? (
           <div className="rounded-md border bg-background px-3 py-2">
-            <p className="text-xs font-semibold leading-5 text-muted-foreground">
-              Latest action
-            </p>
-            <p className="break-words text-sm leading-5">
-              {latestAction.detail}
-            </p>
-            <p className="text-xs leading-5 text-muted-foreground">
-              {formatUsername(latestAction.actor)} ·{' '}
-              {formatTime(latestAction.createdAt)}
-            </p>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold leading-5 text-muted-foreground">
+                  Latest action
+                </p>
+                <p className="break-words text-sm leading-5">
+                  {latestAction.detail}
+                </p>
+                <p className="text-xs leading-5 text-muted-foreground">
+                  {formatUsername(latestAction.actor)} ·{' '}
+                  {formatTime(latestAction.createdAt)}
+                </p>
+              </div>
+              {undoLabel && undoActionId ? (
+                <Button
+                  className="shrink-0"
+                  disabled={Boolean(busyAction)}
+                  size="sm"
+                  title={undoLabel}
+                  variant={confirmUndo ? 'destructive' : 'ghost'}
+                  onClick={undoLatestAction}
+                >
+                  <RedditRefreshIcon data-icon="inline-start" />
+                  {busyAction === undoActionId
+                    ? 'Working'
+                    : confirmUndo
+                      ? 'Confirm undo'
+                      : 'Undo'}
+                </Button>
+              ) : null}
+            </div>
           </div>
         ) : null}
       </div>

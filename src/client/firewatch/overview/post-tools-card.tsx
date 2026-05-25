@@ -93,6 +93,7 @@ export const NativePostControlsCard = ({
     controls.setPostFlair;
   const hasAdvancedActions =
     controls.stickyReminder ||
+    (controls.setPostFlair && Boolean(postState?.flair)) ||
     controls.markPostNsfw ||
     controls.markPostSpoiler ||
     controls.ignoreReports ||
@@ -156,7 +157,7 @@ export const NativePostControlsCard = ({
                 <PlaybookButton
                   disabled={disabled || postApproved}
                   icon={<RedditApproveIcon data-icon="inline-start" />}
-                  label={postApproved ? 'Approved' : 'Approve'}
+                  label={postApproved ? 'Approved' : postRemoved ? 'Restore' : 'Approve'}
                   loading={busyAction === 'post:approve'}
                   variant="secondary"
                   onClick={() => runPostAction('approve')}
@@ -319,6 +320,18 @@ export const NativePostControlsCard = ({
                   icon={<RedditCrowdControlIcon />}
                   label="Adjust Crowd Control"
                   onSelect={() => setActivePrep('crowd-control')}
+                />
+              ) : null}
+              {controls.setPostFlair && postState?.flair ? (
+                <RedditMenuItem
+                  disabled={disabled}
+                  icon={<RedditTagIcon />}
+                  label={
+                    busyAction === 'post:clear-flair'
+                      ? 'Working'
+                      : 'Remove flair'
+                  }
+                  onSelect={() => runPostAction('clear-flair')}
                 />
               ) : null}
             </RedditOverflowMenu>

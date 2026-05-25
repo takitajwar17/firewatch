@@ -158,7 +158,11 @@ export const IncidentDetail = ({
         >
           <LatestSignalsCard incident={incident} />
           <ImpactSnapshotCard incident={incident} />
-          <ActionLogCard incident={incident} />
+          <ActionLogCard
+            busyAction={busyAction}
+            incident={incident}
+            onAction={runModAction}
+          />
         </TabsContent>
 
         <TabsContent
