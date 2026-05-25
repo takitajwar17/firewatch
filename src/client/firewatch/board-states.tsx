@@ -1,16 +1,14 @@
+import { useState } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import {
   DEFAULT_DEMO_SCENARIO_ID,
   FIREWATCH_DEMO_SCENARIOS,
 } from '../../shared/firewatch-presets';
 import { Skeleton } from './common';
 import type { DemoCreateHandler } from './types';
-import {
-  RedditAddIcon,
-  RedditRefreshIcon,
-  RedditReportIcon,
-} from './reddit-icons';
+import { RedditRefreshIcon, RedditReportIcon } from './reddit-icons';
 
 export const LoadingBoard = () => (
   <div
@@ -110,17 +108,20 @@ export const EmptyBoard = ({
   busy: boolean;
   onCreateDemo: DemoCreateHandler;
 }) => {
-  const primaryScenario =
+  const defaultScenario =
     FIREWATCH_DEMO_SCENARIOS.find(
       (scenario) => scenario.id === DEFAULT_DEMO_SCENARIO_ID
     ) ?? FIREWATCH_DEMO_SCENARIOS[0];
-  const secondaryScenarios = FIREWATCH_DEMO_SCENARIOS.filter(
-    (scenario) => scenario.id !== primaryScenario?.id
+  const [selectedScenarioId, setSelectedScenarioId] = useState(
+    () => defaultScenario?.id
+  );
+  const selectedScenario = FIREWATCH_DEMO_SCENARIOS.find(
+    (scenario) => scenario.id === selectedScenarioId
   );
 
   return (
-    <div className="mx-auto flex w-full max-w-lg flex-col gap-4 py-6 sm:py-8">
-      <div className="flex flex-col gap-2">
+    <div className="flex min-h-[60vh] items-center justify-center py-6 sm:py-8">
+      <div className="mx-auto flex w-full max-w-xl flex-col gap-4">
         <h1 className="text-xl font-semibold leading-tight">
           No posts need review right now
         </h1>
@@ -128,51 +129,77 @@ export const EmptyBoard = ({
           Start a clean demo thread to see reports, watched links, comment
           review, handoff, and handled state in one pass.
         </p>
-      </div>
 
-      {primaryScenario ? (
-        <Button
-          className="h-auto min-h-11 justify-start px-3 py-2.5 text-left text-sm font-semibold"
-          disabled={busy}
-          variant="default"
-          onClick={() => onCreateDemo(primaryScenario.id)}
-        >
-          <RedditAddIcon className="size-4 shrink-0" data-icon="inline-start" />
-          <span className="flex min-w-0 flex-col gap-0.5">
-            <span>
-              {busy ? 'Creating demo thread' : primaryScenario.label}
-            </span>
-            <span className="line-clamp-2 text-xs font-normal leading-4 text-primary-foreground/80">
-              {primaryScenario.description}
-            </span>
-          </span>
-        </Button>
-      ) : null}
+        <div className="mt-1 flex flex-col gap-2">
+          <p className="text-xs font-semibold uppercase leading-4 tracking-[0.08em] text-muted-foreground">
+            Choose one demo scenario
+          </p>
+          <div className="grid min-w-0 gap-2">
+            {FIREWATCH_DEMO_SCENARIOS.map((scenario) => {
+              const selected = scenario.id === selectedScenario?.id;
 
-      <div className="flex flex-col gap-2">
-        <p className="text-xs font-semibold uppercase leading-4 tracking-[0.08em] text-muted-foreground">
-          Other demo drills
-        </p>
-        {secondaryScenarios.map((scenario) => (
+              return (
+                <button
+                  key={scenario.id}
+                  aria-pressed={selected}
+                  className={cn(
+                    'group flex min-h-16 w-full min-w-0 items-center gap-3 rounded-md border bg-background px-3 py-2.5 text-left transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-60',
+                    selected
+                      ? 'border-primary bg-primary/10'
+                      : 'border-border'
+                  )}
+                  disabled={busy}
+                  type="button"
+                  onClick={() => setSelectedScenarioId(scenario.id)}
+                >
+                  <span
+                    className={cn(
+                      'flex size-4 shrink-0 items-center justify-center rounded-full border transition-colors',
+                      selected
+                        ? 'border-primary bg-primary'
+                        : 'border-muted-foreground/70'
+                    )}
+                  >
+                    {selected ? (
+                      <span className="size-1.5 rounded-full bg-primary-foreground" />
+                    ) : null}
+                  </span>
+                  <span className="flex min-w-0 flex-col gap-0.5">
+                    <span className="truncate text-sm font-semibold leading-5 text-foreground">
+                      {scenario.label}
+                    </span>
+                    <span className="line-clamp-2 text-xs font-normal leading-4 text-muted-foreground">
+                      {scenario.description}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs leading-5 text-muted-foreground">
+            Firewatch will create one demo thread and open it in the review
+            queue.
+          </p>
           <Button
-            key={scenario.id}
-            className="h-auto min-h-9 justify-start px-3 py-2 text-left text-sm font-semibold"
-            disabled={busy}
-            variant="outline"
-            onClick={() => onCreateDemo(scenario.id)}
+            className="w-full sm:w-fit"
+            disabled={busy || !selectedScenario}
+            variant="default"
+            onClick={() => {
+              if (selectedScenario) onCreateDemo(selectedScenario.id);
+            }}
           >
-            <RedditAddIcon
-              className="size-4 shrink-0"
-              data-icon="inline-start"
-            />
-            <span className="flex min-w-0 flex-col gap-0.5">
-              <span>{busy ? 'Creating demo thread' : scenario.label}</span>
-              <span className="line-clamp-2 text-xs font-normal leading-4 text-muted-foreground">
-                {scenario.description}
-              </span>
-            </span>
+            {busy ? (
+              <RedditRefreshIcon
+                className="animate-spin"
+                data-icon="inline-start"
+              />
+            ) : null}
+            {busy ? 'Creating demo thread' : 'Create demo thread'}
           </Button>
-        ))}
+        </div>
       </div>
     </div>
   );
