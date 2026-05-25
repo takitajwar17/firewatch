@@ -478,12 +478,6 @@ const IncidentQueueItemSkeleton = ({
             surface === 'dark' ? 'bg-sidebar-accent' : undefined
           )}
         />
-        <Skeleton
-          className={cn(
-            'h-4 w-4/5',
-            surface === 'dark' ? 'bg-sidebar-accent' : undefined
-          )}
-        />
       </div>
       <Skeleton
         className={cn(
@@ -495,18 +489,11 @@ const IncidentQueueItemSkeleton = ({
     <div className="mt-2 flex items-center gap-2">
       <Skeleton
         className={cn(
-          'h-3.5 w-20',
-          surface === 'dark' ? 'bg-sidebar-accent' : undefined
-        )}
-      />
-      <Skeleton
-        className={cn(
-          'h-3.5 w-12',
+          'h-3.5 w-24',
           surface === 'dark' ? 'bg-sidebar-accent' : undefined
         )}
       />
     </div>
-    {surface === 'light' ? <Skeleton className="mt-2 h-3.5 w-44" /> : null}
   </div>
 );
 
