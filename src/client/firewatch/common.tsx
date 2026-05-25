@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
 import { DropdownMenu } from 'radix-ui';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -74,6 +74,45 @@ export const ScoreBadge = ({ incident }: { incident: Incident }) => (
 
 export const EmptyText = ({ children }: { children: ReactNode }) => (
   <p className="text-sm leading-5 text-muted-foreground">{children}</p>
+);
+
+export const Skeleton = ({ className, ...props }: ComponentProps<'div'>) => (
+  <div
+    className={cn('animate-pulse rounded-md bg-muted', className)}
+    data-slot="skeleton"
+    {...props}
+  />
+);
+
+export const Input = ({
+  className,
+  type,
+  ...props
+}: ComponentProps<'input'>) => (
+  <input
+    className={cn(
+      'h-9 w-full min-w-0 rounded-full border border-transparent bg-secondary px-4 py-2 text-sm transition-colors outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm file:font-semibold file:text-foreground placeholder:text-muted-foreground hover:bg-accent focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/25 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/15 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40',
+      className
+    )}
+    data-slot="input"
+    type={type}
+    {...props}
+  />
+);
+
+export const SubredditAvatar = ({
+  size = 'default',
+}: {
+  size?: 'default' | 'sm';
+}) => (
+  <span
+    className={cn(
+      'flex shrink-0 items-center justify-center rounded-full border border-border bg-[#eef1f3] font-black leading-none text-[#0e1113]',
+      size === 'sm' ? 'size-8 text-lg' : 'size-9 text-xl'
+    )}
+  >
+    r/
+  </span>
 );
 
 export const DisclosurePanel = ({

@@ -1,20 +1,22 @@
 import { reddit } from '@devvit/web/server';
 import type { Incident, RuleExecutionLog } from '../../../shared/api';
+import { addUserStrike } from '../firewatch-rules/strikes';
+import { attachRuleContext } from '../firewatch-rules/matching';
 import {
-  addUserStrike,
-  attachRuleContext,
   getRuleExecutionLogs,
   recordRuleExecutionLog,
-} from '../firewatch-rules';
+} from '../firewatch-rules/store';
 import {
   applyNativeCommentAction,
-  applyNativePostAction,
-  applyNativeUserAction,
   approveFlaggedComment,
+  removeFlaggedComment,
+} from './actions/comment-actions';
+import { applyNativePostAction } from './actions/post-actions';
+import {
+  applyNativeUserAction,
   banPreparedRuleUser,
   isDemoUser,
-  removeFlaggedComment,
-} from './actions';
+} from './actions/user-actions';
 import {
   appendAction,
   coolDownIncident,

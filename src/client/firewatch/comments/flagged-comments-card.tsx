@@ -1,0 +1,601 @@
+import { useMemo, useState } from 'react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
+import { cn } from '@/lib/utils';
+import {
+  EmptyText,
+  PanelLabel,
+  RedditActionButton,
+  RedditMenuItem,
+  RedditMenuSeparator,
+  RedditOverflowMenu,
+} from '../common';
+import { formatTime, formatUsername } from '../format';
+import { openRedditUrlInNewTab } from '../navigation';
+import {
+  RedditApproveIcon,
+  RedditBanIcon,
+  RedditHideIcon,
+  RedditLinkIcon,
+  RedditLockIcon,
+  RedditRemoveIcon,
+  RedditReportIcon,
+  RedditSpamIcon,
+  RedditUsersIcon,
+} from '../reddit-icons';
+import type { ActionRunner } from '../types';
+import type { FirewatchConfig, Incident } from '../../../shared/api';
+import { CommentActionPrepPanel } from './comment-action-prep';
+import { CommentContextBlock } from './comment-context';
+import {
+  buildCommentReviewState,
+  buildCommentThreadContextById,
+  buildFirstOpenCommentIdByAuthor,
+  commentAuthorKey,
+  type CommentPrepSelection,
+} from './comment-state';
+
+export const FlaggedCommentsCard = ({
+  busyAction,
+  config,
+  incident,
+  onAction,
+}: {
+  busyAction: string | undefined;
+  config: FirewatchConfig;
+  incident: Incident;
+  onAction: ActionRunner;
+}) => {
+  const [activePrep, setActivePrep] = useState<CommentPrepSelection>();
+  const [reason, setReason] = useState('Rule-breaking comment');
+  const [userNote, setUserNote] = useState('Firewatch moderator action');
+  const [banDuration, setBanDuration] = useState('0');
+  const [expandedCommentIds, setExpandedCommentIds] = useState<Set<string>>(
+    () => new Set()
+  );
+  const { actionSnapshotById, alreadyActioned, commentStateById, needsReview } =
+    useMemo(() => buildCommentReviewState(incident), [incident]);
+  const firstOpenCommentIdByAuthor = useMemo(
+    () => buildFirstOpenCommentIdByAuthor(needsReview),
+    [needsReview]
+  );
+  const contextByCommentId = useMemo(
+    () => buildCommentThreadContextById(incident),
+    [incident]
+  );
+  const controls = config.actionControls;
+  const toggleExpanded = (commentId: string) => {
+    setExpandedCommentIds((current) => {
+      const next = new Set(current);
+      if (next.has(commentId)) {
+        next.delete(commentId);
+      } else {
+        next.add(commentId);
+      }
+      return next;
+    });
+  };
+
+  return (
+    <section className="min-w-0 rounded-md border border-border bg-background">
+      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border px-3 py-2.5">
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold leading-5">
+            Comments to review
+          </h3>
+        </div>
+        <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-bold text-secondary-foreground">
+          {needsReview.length} open
+        </span>
+      </div>
+      <div className="flex flex-col gap-0">
+        {needsReview.length === 0 ? (
+          <div className="p-3">
+            <EmptyText>No comments waiting on review.</EmptyText>
+          </div>
+        ) : (
+          <div className="flex flex-col">
+            {needsReview.map((comment) => {
+              const authorLabel = formatUsername(comment.author);
+              const permalink = comment.permalink;
+              const canBanAuthor = authorLabel !== 'unknown user';
+              const commentState = commentStateById.get(comment.id);
+              if (!commentState) return null;
+              const commentOpen =
+                !commentState.removed && !commentState.reviewed;
+              const approveAction = `approve:${comment.id}`;
+              const removeAction = `remove:${comment.id}`;
+              const spamAction = `comment:${comment.id}:spam`;
+              const lockToggle = commentState.locked ? 'unlock' : 'lock';
+              const lockAction = `comment:${comment.id}:${lockToggle}`;
+              const reportsToggle = commentState.reportsIgnored
+                ? 'unignore-reports'
+                : 'ignore-reports';
+              const reportsAction = `comment:${comment.id}:${reportsToggle}`;
+              const threadAction = `comment:${comment.id}:thread`;
+              const showAction = `comment:${comment.id}:show`;
+              const approveUserAction = `user:${comment.author}:approve`;
+              const muteUserAction = `user:${comment.author}:mute`;
+              const modNoteAction = `user:${comment.author}:note`;
+              const removeContentAction = `user:${comment.author}:content`;
+              const banAction = `ban:${comment.author}`;
+              const hasAdvancedCommentActions =
+                controls.markCommentSpam ||
+                (controls.removeCommentThreads && controls.removeComments) ||
+                controls.lockComments ||
+                controls.ignoreCommentReports ||
+                controls.showComments;
+              const hasAdvancedUserActions =
+                controls.approveUsers ||
+                controls.muteUsers ||
+                controls.addModNotes ||
+                controls.removeUserContent;
+              const showUserTools =
+                hasAdvancedUserActions &&
+                firstOpenCommentIdByAuthor.get(
+                  commentAuthorKey(comment.author)
+                ) === comment.id;
+              const threadContext = contextByCommentId.get(comment.id);
+
+              return (
+                <article
+                  key={comment.id}
+                  className="content-visibility-list-item min-w-0 overflow-hidden border-b border-border px-3 py-2.5 last:border-b-0"
+                >
+                  <div className="flex gap-2.5">
+                    <img
+                      alt=""
+                      className="mt-0.5 size-7 shrink-0 rounded-full"
+                      src="/avatar_default_2.png"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                        <span className="font-semibold leading-5 text-foreground">
+                          {authorLabel}
+                        </span>
+                        <span
+                          aria-hidden="true"
+                          className="text-muted-foreground/70"
+                        >
+                          ·
+                        </span>
+                        <span className="text-xs font-semibold leading-5 text-muted-foreground">
+                          score {comment.score}
+                        </span>
+                        <span
+                          aria-hidden="true"
+                          className="text-muted-foreground/70"
+                        >
+                          ·
+                        </span>
+                        <span className="text-xs font-semibold leading-5 text-muted-foreground">
+                          {formatTime(comment.createdAt)}
+                        </span>
+                        {comment.numReports ? (
+                          <Badge className="max-w-full" variant="outline">
+                            {comment.numReports} reports
+                          </Badge>
+                        ) : null}
+                        {comment.reasons.map((reason) => (
+                          <Badge
+                            key={reason}
+                            className="max-w-full"
+                            variant="secondary"
+                          >
+                            {reason}
+                          </Badge>
+                        ))}
+                        {commentState.locked ? (
+                          <Badge className="max-w-full" variant="outline">
+                            Locked
+                          </Badge>
+                        ) : null}
+                        {commentState.reportsIgnored ? (
+                          <Badge className="max-w-full" variant="outline">
+                            Reports ignored
+                          </Badge>
+                        ) : null}
+                        {commentState.shown ? (
+                          <Badge className="max-w-full" variant="outline">
+                            Shown
+                          </Badge>
+                        ) : null}
+                      </div>
+                      <p
+                        className={cn(
+                          'mt-1 break-words text-sm leading-5 text-foreground/90',
+                          expandedCommentIds.has(comment.id)
+                            ? ''
+                            : 'line-clamp-3'
+                        )}
+                      >
+                        {comment.body}
+                      </p>
+                      {comment.body.length > 220 ? (
+                        <button
+                          className="mt-1 text-xs font-semibold leading-5 text-primary hover:underline"
+                          type="button"
+                          onClick={() => toggleExpanded(comment.id)}
+                        >
+                          {expandedCommentIds.has(comment.id)
+                            ? 'Show less'
+                            : 'Show full comment'}
+                        </button>
+                      ) : null}
+
+                      {threadContext ? (
+                        <CommentContextBlock context={threadContext} />
+                      ) : null}
+
+                      <div className="mt-2 flex flex-wrap items-center gap-1.5 sm:gap-2">
+                        {permalink ? (
+                          <Button
+                            className="max-w-full"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => openRedditUrlInNewTab(permalink)}
+                          >
+                            <RedditLinkIcon data-icon="inline-start" />
+                            Open context
+                          </Button>
+                        ) : null}
+                        {controls.approveComments ? (
+                          <RedditActionButton
+                            action={approveAction}
+                            busyAction={busyAction}
+                            disabled={!commentOpen}
+                            icon={<RedditApproveIcon data-icon="inline-start" />}
+                            label={
+                              commentState.reviewed ? 'Approved' : 'Approve'
+                            }
+                            variant="secondary"
+                            onClick={() =>
+                              onAction(
+                                approveAction,
+                                `/api/incidents/${incident.postId}/comments/${comment.id}/approve`
+                              )
+                            }
+                          />
+                        ) : null}
+                        {controls.removeComments ? (
+                          <RedditActionButton
+                            action={removeAction}
+                            busyAction={busyAction}
+                            disabled={!commentOpen}
+                            icon={<RedditRemoveIcon data-icon="inline-start" />}
+                            label={commentState.removed ? 'Removed' : 'Remove'}
+                            variant="secondary"
+                            onClick={() =>
+                              setActivePrep({
+                                commentId: comment.id,
+                                kind: 'remove',
+                              })
+                            }
+                          />
+                        ) : null}
+                        {controls.banUsers && controls.removeComments ? (
+                          <RedditActionButton
+                            action={banAction}
+                            busyAction={busyAction}
+                            disabled={!canBanAuthor || !commentOpen}
+                            icon={<RedditBanIcon data-icon="inline-start" />}
+                            label="Remove and ban"
+                            variant="destructive"
+                            onClick={() =>
+                              setActivePrep({
+                                commentId: comment.id,
+                                kind: 'ban',
+                              })
+                            }
+                          />
+                        ) : null}
+                      </div>
+
+                      {hasAdvancedCommentActions || showUserTools ? (
+                        <div className="mt-3">
+                          <RedditOverflowMenu align="start" label="More actions">
+                            <>
+                              {hasAdvancedCommentActions ? (
+                                <>
+                                  {controls.markCommentSpam ? (
+                                    <RedditMenuItem
+                                      destructive
+                                      disabled={
+                                        Boolean(busyAction) || !commentOpen
+                                      }
+                                      icon={<RedditSpamIcon />}
+                                      label={
+                                        busyAction === spamAction
+                                          ? 'Working'
+                                          : commentState.spammed
+                                            ? 'Marked as spam'
+                                            : 'Mark as spam'
+                                      }
+                                      onSelect={() =>
+                                        setActivePrep({
+                                          commentId: comment.id,
+                                          kind: 'spam',
+                                        })
+                                      }
+                                    />
+                                  ) : null}
+                                  {controls.removeCommentThreads &&
+                                  controls.removeComments ? (
+                                    <RedditMenuItem
+                                      destructive
+                                      disabled={
+                                        Boolean(busyAction) || !commentOpen
+                                      }
+                                      icon={<RedditRemoveIcon />}
+                                      label={
+                                        busyAction === threadAction
+                                          ? 'Working'
+                                          : 'Remove thread'
+                                      }
+                                      onSelect={() =>
+                                        setActivePrep({
+                                          commentId: comment.id,
+                                          kind: 'thread',
+                                        })
+                                      }
+                                    />
+                                  ) : null}
+                                  {controls.lockComments ? (
+                                    <RedditMenuItem
+                                      disabled={
+                                        Boolean(busyAction) || !commentOpen
+                                      }
+                                      icon={<RedditLockIcon />}
+                                      label={
+                                        busyAction === lockAction
+                                          ? 'Working'
+                                          : commentState.locked
+                                            ? 'Unlock'
+                                            : 'Lock'
+                                      }
+                                      onSelect={() => {
+                                        void onAction(
+                                          lockAction,
+                                          `/api/incidents/${incident.postId}/comments/${comment.id}/native-action`,
+                                          { action: lockToggle }
+                                        );
+                                      }}
+                                    />
+                                  ) : null}
+                                  {controls.ignoreCommentReports ? (
+                                    <RedditMenuItem
+                                      disabled={
+                                        Boolean(busyAction) || !commentOpen
+                                      }
+                                      icon={<RedditReportIcon />}
+                                      label={
+                                        busyAction === reportsAction
+                                          ? 'Working'
+                                          : commentState.reportsIgnored
+                                            ? 'Unignore reports'
+                                            : 'Ignore reports'
+                                      }
+                                      onSelect={() => {
+                                        void onAction(
+                                          reportsAction,
+                                          `/api/incidents/${incident.postId}/comments/${comment.id}/native-action`,
+                                          { action: reportsToggle }
+                                        );
+                                      }}
+                                    />
+                                  ) : null}
+                                  {controls.showComments ? (
+                                    <RedditMenuItem
+                                      disabled={
+                                        Boolean(busyAction) ||
+                                        !commentOpen ||
+                                        commentState.shown
+                                      }
+                                      icon={<RedditHideIcon />}
+                                      label={
+                                        busyAction === showAction
+                                          ? 'Working'
+                                          : commentState.shown
+                                            ? 'Shown'
+                                            : 'Show comment'
+                                      }
+                                      onSelect={() => {
+                                        void onAction(
+                                          showAction,
+                                          `/api/incidents/${incident.postId}/comments/${comment.id}/native-action`,
+                                          { action: 'show-comment' }
+                                        );
+                                      }}
+                                    />
+                                  ) : null}
+                                </>
+                              ) : null}
+
+                              {hasAdvancedCommentActions && showUserTools ? (
+                                <RedditMenuSeparator />
+                              ) : null}
+
+                              {showUserTools ? (
+                                <>
+                                  {controls.approveUsers ? (
+                                    <RedditMenuItem
+                                      disabled={
+                                        Boolean(busyAction) || !canBanAuthor
+                                      }
+                                      icon={<RedditUsersIcon />}
+                                      label={
+                                        busyAction === approveUserAction
+                                          ? 'Working'
+                                          : 'Approve user'
+                                      }
+                                      onSelect={() => {
+                                        void onAction(
+                                          approveUserAction,
+                                          `/api/incidents/${incident.postId}/users/${encodeURIComponent(comment.author)}/native-action`,
+                                          { action: 'approve' }
+                                        );
+                                      }}
+                                    />
+                                  ) : null}
+                                  {controls.muteUsers ? (
+                                    <RedditMenuItem
+                                      disabled={
+                                        Boolean(busyAction) || !canBanAuthor
+                                      }
+                                      icon={<RedditUsersIcon />}
+                                      label={
+                                        busyAction === muteUserAction
+                                          ? 'Working'
+                                          : 'Mute user'
+                                      }
+                                      onSelect={() =>
+                                        setActivePrep({
+                                          commentId: comment.id,
+                                          kind: 'mute',
+                                        })
+                                      }
+                                    />
+                                  ) : null}
+                                  {controls.addModNotes ? (
+                                    <RedditMenuItem
+                                      disabled={
+                                        Boolean(busyAction) || !canBanAuthor
+                                      }
+                                      icon={<RedditReportIcon />}
+                                      label={
+                                        busyAction === modNoteAction
+                                          ? 'Working'
+                                          : 'Add mod note'
+                                      }
+                                      onSelect={() =>
+                                        setActivePrep({
+                                          commentId: comment.id,
+                                          kind: 'note',
+                                        })
+                                      }
+                                    />
+                                  ) : null}
+                                  {controls.removeUserContent ? (
+                                    <RedditMenuItem
+                                      destructive
+                                      disabled={
+                                        Boolean(busyAction) || !canBanAuthor
+                                      }
+                                      icon={<RedditBanIcon />}
+                                      label={
+                                        busyAction === removeContentAction
+                                          ? 'Working'
+                                          : 'Remove recent user content'
+                                      }
+                                      onSelect={() =>
+                                        setActivePrep({
+                                          commentId: comment.id,
+                                          kind: 'content',
+                                        })
+                                      }
+                                    />
+                                  ) : null}
+                                </>
+                              ) : null}
+                            </>
+                          </RedditOverflowMenu>
+                        </div>
+                      ) : null}
+                      {activePrep?.commentId === comment.id ? (
+                        <CommentActionPrepPanel
+                          activePrep={activePrep.kind}
+                          banDuration={banDuration}
+                          busyAction={busyAction}
+                          comment={comment}
+                          incident={incident}
+                          reason={reason}
+                          userNote={userNote}
+                          onAction={onAction}
+                          onBanDurationChange={setBanDuration}
+                          onCancel={() => setActivePrep(undefined)}
+                          onReasonChange={setReason}
+                          onUserNoteChange={setUserNote}
+                        />
+                      ) : null}
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+
+        {alreadyActioned.length > 0 ? (
+          <>
+            <Separator className="my-0" />
+            <div className="px-3 py-2.5">
+              <PanelLabel>ALREADY ACTIONED</PanelLabel>
+            </div>
+            <div className="flex flex-col">
+              {alreadyActioned.map((comment) => {
+                const permalink = comment.permalink;
+                const commentState = commentStateById.get(comment.id);
+                const actionSnapshot = actionSnapshotById.get(comment.id);
+                if (!commentState) return null;
+                const actionLabel = commentState.removed
+                  ? commentState.spammed
+                    ? 'spammed'
+                    : 'removed'
+                  : 'approved';
+
+                return (
+                  <div
+                    key={comment.id}
+                    className="content-visibility-list-item border-t border-border px-3 py-2.5"
+                  >
+                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold leading-5">
+                          {formatUsername(comment.author)} · {actionLabel}
+                        </p>
+                        {actionSnapshot?.resolutionActor ? (
+                          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                            by {formatUsername(actionSnapshot.resolutionActor)}
+                            {actionSnapshot.resolutionAt
+                              ? ` at ${formatTime(actionSnapshot.resolutionAt)}`
+                              : ''}
+                          </p>
+                        ) : null}
+                        <p className="mt-2 line-clamp-2 break-words text-sm leading-5 text-muted-foreground">
+                          {comment.body}
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {comment.reasons.map((reason) => (
+                            <Badge
+                              key={reason}
+                              className="max-w-full"
+                              variant="secondary"
+                            >
+                              {reason}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                      {permalink ? (
+                        <Button
+                          className="shrink-0"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => openRedditUrlInNewTab(permalink)}
+                        >
+                          <RedditLinkIcon data-icon="inline-start" />
+                          Open context
+                        </Button>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        ) : null}
+      </div>
+    </section>
+  );
+};

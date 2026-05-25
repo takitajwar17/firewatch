@@ -1,5 +1,5 @@
 import { SectionHeader } from './common';
-import { AutomationsCard } from './community-settings';
+import { AutomationsCard } from './settings/automations-card';
 import type { FirewatchRule, RuleExecutionLog } from '../../shared/api';
 import type { RuleSaveHandler, RuleTestHandler } from './types';
 

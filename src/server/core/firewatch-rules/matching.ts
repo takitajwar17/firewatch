@@ -1,62 +1,42 @@
-import { context, reddit, redis } from '@devvit/web/server';
 import type {
   FirewatchConfig,
   FirewatchRule,
-  FirewatchRuleInput,
   Incident,
   MatchedAutomationRule,
   RuleCondition,
   RuleExecutionLog,
   RuleMode,
-  RuleTestResponse,
   RuleScope,
+  RuleTestResponse,
   RuleTrigger,
-  UserStrike,
   UserStrikeSummary,
-} from '../../shared/api';
+} from '../../../shared/api';
+import { preparedRuleAction } from '../../../shared/automation-rules';
+import { linkCount, textContainsTerm } from '../firewatch-detection';
+import { normalizeUsername } from '../firewatch-utils';
+import { currentIso } from './common';
 import {
-  defaultRuleScope,
-  defaultRuleTemplates,
-  preparedRuleAction,
-} from '../../shared/automation-rules';
+  compareConditionValue,
+  inWindow,
+  removedCommentCountForUser,
+  reportCountInWindow,
+  watchedDomainHits,
+  watchedWordHits,
+} from './metrics';
 import {
-  linkCount,
-  textContainsTerm,
-  watchedDomainMatches,
-  watchedWordMatches,
-} from './firewatch-detection';
+  approvedUsernames,
+  getModeratorUsernames,
+  isAutoModerator,
+  isIgnoredAuthor,
+  postFlairAllowed,
+  signalText,
+} from './scope';
 import {
-  makeId,
-  normalizeCommentId,
-  normalizePostId,
-  normalizeSignal,
-  normalizeUsername,
-  now,
-  retentionExpiration,
-} from './firewatch-utils';
-
-const MAX_RULE_LOGS = 80;
-const MAX_STRIKES_PER_USER = 100;
-const DEFAULT_STRIKE_WINDOW_DAYS = 7;
-
-export const responseRulesKey = (subredditName: string) =>
-  `fw:subreddit:${subredditName}:rules`;
-export const ruleLogsKey = (subredditName: string) =>
-  `fw:subreddit:${subredditName}:rule_logs`;
-export const userStrikesKey = (subredditName: string, username: string) =>
-  `fw:user:${subredditName}:${username.toLowerCase()}:strikes`;
-
-const currentIso = () => new Date(now()).toISOString();
-
-const compare = (
-  actual: number,
-  operator: '>=' | '>' | '=',
-  expected: number
-) => {
-  if (operator === '>') return actual > expected;
-  if (operator === '=') return actual === expected;
-  return actual >= expected;
-};
+  getAutomations,
+  getRuleExecutionLogs,
+  recordRuleExecutionLog,
+} from './store';
+import { getUserStrikeSummaries } from './strikes';
 
 const triggerTypeForSignal = (
   signal: Incident['recentSignals'][number] | undefined
@@ -91,437 +71,6 @@ const triggerTypesForIncident = (incident: Incident) => {
   return triggerTypes;
 };
 
-const parseJsonList = <Item>(stored: string | undefined): Item[] => {
-  if (!stored) return [];
-
-  try {
-    const parsed: unknown = JSON.parse(stored);
-    return Array.isArray(parsed)
-      ? parsed.filter((item): item is Item => Boolean(item))
-      : [];
-  } catch {
-    return [];
-  }
-};
-
-const templateRules = (subredditName: string) =>
-  defaultRuleTemplates({
-    createdAt: currentIso(),
-    createdBy: 'firewatch',
-    subredditId: subredditName,
-  });
-
-export const getAutomations = async (subredditName = context.subredditName) => {
-  const stored = parseJsonList<FirewatchRule>(
-    await redis.get(responseRulesKey(subredditName))
-  );
-
-  return stored.length > 0 ? stored : templateRules(subredditName);
-};
-
-const saveAutomations = async (
-  subredditName: string,
-  rules: FirewatchRule[]
-) => {
-  await redis.set(responseRulesKey(subredditName), JSON.stringify(rules), {
-    expiration: retentionExpiration(),
-  });
-};
-
-const normalizeRuleScope = (
-  input: RuleScope | undefined,
-  subredditName: string
-): RuleScope => ({
-  ...defaultRuleScope(subredditName, input?.target ?? 'comment'),
-  ...input,
-  subredditId: subredditName,
-});
-
-export const saveAutomation = async ({
-  input,
-  subredditName = context.subredditName,
-  username = context.username ?? 'mod',
-}: {
-  input: FirewatchRuleInput;
-  subredditName?: string;
-  username?: string;
-}) => {
-  const rules = await getAutomations(subredditName);
-  const existing = input.id
-    ? rules.find((rule) => rule.id === input.id)
-    : undefined;
-  const timestamp = currentIso();
-  const nextRule: FirewatchRule = {
-    id: existing?.id ?? input.id ?? makeId('rule'),
-    name: input.name.trim() || 'Untitled automation',
-    ...(input.description?.trim()
-      ? { description: input.description.trim() }
-      : {}),
-    enabled: input.enabled,
-    trigger: input.trigger,
-    scope: normalizeRuleScope(input.scope, subredditName),
-    conditions: input.conditions,
-    ...(input.counter ? { counter: input.counter } : {}),
-    actions: input.actions,
-    mode: input.mode,
-    createdBy: existing?.createdBy ?? username,
-    createdAt: existing?.createdAt ?? timestamp,
-    updatedAt: timestamp,
-  };
-  const nextRules = existing
-    ? rules.map((rule) => (rule.id === nextRule.id ? nextRule : rule))
-    : [nextRule, ...rules];
-
-  await saveAutomations(subredditName, nextRules);
-  return nextRules;
-};
-
-export const importAutomationTemplates = async (
-  subredditName = context.subredditName
-) => {
-  const templates = templateRules(subredditName);
-  await saveAutomations(subredditName, templates);
-  return templates;
-};
-
-export const disableAllAutomations = async (
-  subredditName = context.subredditName
-) => {
-  const rules = await getAutomations(subredditName);
-  const timestamp = currentIso();
-  const nextRules = rules.map((rule) => ({
-    ...rule,
-    enabled: false,
-    updatedAt: timestamp,
-  }));
-
-  await saveAutomations(subredditName, nextRules);
-  return nextRules;
-};
-
-export const getRuleExecutionLogs = async (
-  subredditName = context.subredditName
-) =>
-  parseJsonList<RuleExecutionLog>(await redis.get(ruleLogsKey(subredditName)));
-
-export const recordRuleExecutionLog = async (
-  log: Omit<RuleExecutionLog, 'id' | 'triggeredAt'>
-) => {
-  const nextLog: RuleExecutionLog = {
-    ...log,
-    id: makeId('rulelog'),
-    triggeredAt: currentIso(),
-  };
-  const logs = await getRuleExecutionLogs(context.subredditName);
-  await redis.set(
-    ruleLogsKey(context.subredditName),
-    JSON.stringify([nextLog, ...logs].slice(0, MAX_RULE_LOGS)),
-    { expiration: retentionExpiration() }
-  );
-  return nextLog;
-};
-
-export const addUserStrike = async ({
-  createdBy = 'firewatch',
-  expiresAt,
-  reason,
-  relatedCommentId,
-  relatedPostId,
-  source,
-  subredditName = context.subredditName,
-  username,
-  weight = 1,
-}: {
-  createdBy?: 'firewatch' | string;
-  expiresAt?: string;
-  reason: string;
-  relatedCommentId?: string | undefined;
-  relatedPostId?: string | undefined;
-  source: UserStrike['source'];
-  subredditName?: string;
-  username: string;
-  weight?: number;
-}) => {
-  const normalizedUsername = normalizeUsername(username);
-  if (!normalizedUsername) throw new Error('Cannot add strike to unknown user');
-
-  const strike: UserStrike = {
-    id: makeId('strike'),
-    subredditId: subredditName,
-    username: normalizedUsername,
-    reason,
-    source,
-    weight,
-    ...(relatedPostId ? { relatedPostId: normalizePostId(relatedPostId) } : {}),
-    ...(relatedCommentId
-      ? { relatedCommentId: normalizeCommentId(relatedCommentId) }
-      : {}),
-    createdAt: currentIso(),
-    ...(expiresAt ? { expiresAt } : {}),
-    createdBy,
-  };
-  const strikes = await getUserStrikes(subredditName, normalizedUsername);
-  await redis.set(
-    userStrikesKey(subredditName, normalizedUsername),
-    JSON.stringify([strike, ...strikes].slice(0, MAX_STRIKES_PER_USER)),
-    { expiration: retentionExpiration() }
-  );
-  return strike;
-};
-
-export const getUserStrikes = async (
-  subredditName: string,
-  username: string
-) => {
-  const normalizedUsername = normalizeUsername(username);
-  if (!normalizedUsername) return [];
-
-  const strikes = parseJsonList<UserStrike>(
-    await redis.get(userStrikesKey(subredditName, normalizedUsername))
-  );
-  const nowMs = now();
-
-  return strikes.filter((strike) => {
-    if (!strike.expiresAt) return true;
-    const expiresAt = Date.parse(strike.expiresAt);
-    return Number.isFinite(expiresAt) ? expiresAt > nowMs : true;
-  });
-};
-
-export const clearUserStrikes = async (
-  subredditName: string,
-  username: string
-) => {
-  const normalizedUsername = normalizeUsername(username);
-  if (!normalizedUsername) throw new Error('Cannot clear unknown user');
-  await redis.del(userStrikesKey(subredditName, normalizedUsername));
-};
-
-const isAutoModerator = (username: string | undefined) =>
-  normalizeUsername(username)?.toLowerCase() === 'automoderator';
-
-const isIgnoredAuthor = (
-  username: string | undefined,
-  ignoredAuthors: string[] | undefined
-) => {
-  const normalized = normalizeUsername(username)?.toLowerCase();
-  if (!normalized) return false;
-  return (ignoredAuthors ?? []).some(
-    (author) => normalizeUsername(author)?.toLowerCase() === normalized
-  );
-};
-
-const approvedUsernames = (incident: Incident) =>
-  new Set(
-    incident.actions
-      .filter((action) => action.type === 'user_approved')
-      .flatMap((action) => action.targetIds ?? [])
-      .map((username) => normalizeUsername(username)?.toLowerCase())
-      .filter((username): username is string => Boolean(username))
-  );
-
-const knownModeratorUsernames = (incident: Incident) =>
-  new Set(
-    incident.actions
-      .map((action) => normalizeUsername(action.actor)?.toLowerCase())
-      .filter((username): username is string => Boolean(username))
-      .filter(
-        (username) =>
-          username !== 'firewatch' &&
-          username !== context.appSlug?.toLowerCase()
-      )
-  );
-
-const getModeratorUsernames = async (
-  incident: Incident,
-  rules: FirewatchRule[]
-) => {
-  const moderators = knownModeratorUsernames(incident);
-  if (!rules.some((rule) => rule.enabled && rule.scope.excludeModerators)) {
-    return moderators;
-  }
-
-  try {
-    const redditModerators = await reddit
-      .getModerators({
-        subredditName: incident.subredditName,
-        limit: 1000,
-        pageSize: 100,
-      })
-      .all();
-
-    for (const moderator of redditModerators) {
-      const username = normalizeUsername(moderator.username)?.toLowerCase();
-      if (username) moderators.add(username);
-    }
-  } catch {
-    return moderators;
-  }
-
-  return moderators;
-};
-
-const signalAllowedByScope = ({
-  approvedUsers,
-  moderatorUsers,
-  scope,
-  signal,
-}: {
-  approvedUsers: Set<string>;
-  moderatorUsers: Set<string>;
-  scope: RuleScope;
-  signal: Incident['recentSignals'][number];
-}) => {
-  const normalizedSignal = normalizeSignal(signal);
-  const author = normalizedSignal.author;
-
-  if (
-    scope.excludeFirewatchNotices &&
-    normalizedSignal.source === 'firewatch_notice'
-  ) {
-    return false;
-  }
-  if (
-    scope.excludeModerators &&
-    (normalizedSignal.source === 'mod_action' ||
-      Boolean(author && moderatorUsers.has(author.toLowerCase())))
-  ) {
-    return false;
-  }
-  if (
-    scope.excludeApprovedUsers &&
-    author &&
-    approvedUsers.has(author.toLowerCase())
-  ) {
-    return false;
-  }
-  if (scope.excludeAutoModerator && isAutoModerator(author)) return false;
-  if (isIgnoredAuthor(author, scope.ignoredAuthors)) return false;
-  if (
-    scope.commentAuthors?.length &&
-    !scope.commentAuthors.some(
-      (allowedAuthor) =>
-        normalizeUsername(allowedAuthor)?.toLowerCase() ===
-        normalizeUsername(author)?.toLowerCase()
-    )
-  ) {
-    return false;
-  }
-
-  return true;
-};
-
-const postFlairAllowed = (incident: Incident, scope: RuleScope) => {
-  if (!scope.postFlairs?.length) return true;
-
-  const flair = incident.postState?.flair;
-  if (!flair) return false;
-  const allowed = new Set(scope.postFlairs.map((item) => item.toLowerCase()));
-  return (
-    allowed.has(flair.text.toLowerCase()) ||
-    Boolean(flair.templateId && allowed.has(flair.templateId.toLowerCase()))
-  );
-};
-
-const signalText = (
-  incident: Incident,
-  scope: RuleScope,
-  moderatorUsers: Set<string>,
-  filter?: (signal: Incident['recentSignals'][number]) => boolean
-) => {
-  const approvedUsers = approvedUsernames(incident);
-
-  return incident.recentSignals
-    .filter((signal) =>
-      signalAllowedByScope({
-        approvedUsers,
-        moderatorUsers,
-        scope,
-        signal,
-      })
-    )
-    .filter((signal) => !filter || filter(signal))
-    .map((signal) => signal.body)
-    .filter((body): body is string => Boolean(body))
-    .join('\n');
-};
-
-const watchedWordHits = (text: string, keywords: string[]) => {
-  return watchedWordMatches(text, keywords).reduce(
-    (total, match) => total + match.count,
-    0
-  );
-};
-
-const watchedDomainHits = (text: string, domains: string[]) => {
-  return watchedDomainMatches(text, domains).reduce(
-    (total, match) => total + match.count,
-    0
-  );
-};
-
-const inWindow = (timestamp: number, windowMinutes?: number) => {
-  if (!windowMinutes) return true;
-  return timestamp >= now() - windowMinutes * 60 * 1000;
-};
-
-const removedCommentCountForUser = (
-  incident: Incident,
-  username: string,
-  windowMinutes?: number
-) => {
-  const normalizedUsername = normalizeUsername(username);
-  if (!normalizedUsername) return 0;
-  const commentAuthors = new Map(
-    incident.flaggedComments.map((comment) => [
-      normalizeCommentId(comment.id),
-      normalizeUsername(comment.author)?.toLowerCase(),
-    ])
-  );
-
-  return incident.actions.filter((action) => {
-    if (
-      action.type !== 'comment_removed' &&
-      action.type !== 'comment_spammed' &&
-      action.type !== 'comment_thread_removed' &&
-      action.type !== 'user_content_removed' &&
-      action.type !== 'user_banned'
-    ) {
-      return false;
-    }
-    if (!inWindow(action.createdAt, windowMinutes)) return false;
-    return (action.targetIds ?? []).some((targetId) => {
-      if (targetId.startsWith('t3_')) return false;
-      return (
-        commentAuthors.get(normalizeCommentId(targetId)) ===
-        normalizedUsername.toLowerCase()
-      );
-    });
-  }).length;
-};
-
-const reportCountInWindow = (incident: Incident, windowMinutes?: number) =>
-  incident.recentSignals.filter(
-    (signal) =>
-      (signal.type === 'comment_report' || signal.type === 'post_report') &&
-      inWindow(signal.createdAt, windowMinutes)
-  ).length;
-
-const compareConditionValue = ({
-  actual,
-  label,
-  operator,
-  expected,
-}: {
-  actual: number;
-  expected: number;
-  label: string;
-  operator: '>=' | '>' | '=';
-}) =>
-  compare(actual, operator, expected)
-    ? `${label} ${operator} ${expected} (${actual})`
-    : undefined;
-
 type Candidate = {
   targetId: string;
   targetType: MatchedAutomationRule['targetType'];
@@ -539,17 +88,11 @@ const candidateUsers = (
   const approvedUsers = approvedUsernames(incident);
   for (const user of incident.involvedUsers) {
     if (isIgnoredAuthor(user.username, scope.ignoredAuthors)) continue;
-    if (
-      scope.excludeModerators &&
-      moderatorUsers.has(user.username.toLowerCase())
-    ) {
+    if (scope.excludeModerators && moderatorUsers.has(user.username.toLowerCase())) {
       continue;
     }
     if (scope.excludeAutoModerator && isAutoModerator(user.username)) continue;
-    if (
-      scope.excludeApprovedUsers &&
-      approvedUsers.has(user.username.toLowerCase())
-    ) {
+    if (scope.excludeApprovedUsers && approvedUsers.has(user.username.toLowerCase())) {
       continue;
     }
     users.set(user.username.toLowerCase(), {
@@ -568,18 +111,13 @@ const candidateUsers = (
   }
   for (const summary of strikeSummaries) {
     if (isIgnoredAuthor(summary.username, scope.ignoredAuthors)) continue;
-    if (
-      scope.excludeModerators &&
-      moderatorUsers.has(summary.username.toLowerCase())
-    ) {
+    if (scope.excludeModerators && moderatorUsers.has(summary.username.toLowerCase())) {
       continue;
     }
-    if (scope.excludeAutoModerator && isAutoModerator(summary.username))
+    if (scope.excludeAutoModerator && isAutoModerator(summary.username)) {
       continue;
-    if (
-      scope.excludeApprovedUsers &&
-      approvedUsers.has(summary.username.toLowerCase())
-    ) {
+    }
+    if (scope.excludeApprovedUsers && approvedUsers.has(summary.username.toLowerCase())) {
       continue;
     }
     users.set(summary.username.toLowerCase(), {
@@ -624,10 +162,7 @@ const candidatesForRule = (
         ) {
           return false;
         }
-        if (
-          rule.scope.excludeAutoModerator &&
-          isAutoModerator(comment.author)
-        ) {
+        if (rule.scope.excludeAutoModerator && isAutoModerator(comment.author)) {
           return false;
         }
         if (
@@ -935,56 +470,6 @@ const matchRule = ({
   }
 
   return matches;
-};
-
-export const getUserStrikeSummaries = async (
-  incident: Incident
-): Promise<UserStrikeSummary[]> => {
-  const usernames = Array.from(
-    new Set(
-      [
-        ...incident.involvedUsers.map((user) => user.username),
-        ...incident.flaggedComments.map((comment) => comment.author),
-      ]
-        .map(normalizeUsername)
-        .filter((username): username is string => Boolean(username))
-    )
-  );
-
-  return Promise.all(
-    usernames.map(async (username) => {
-      const strikes = await getUserStrikes(incident.subredditName, username);
-      const windowStart =
-        now() - DEFAULT_STRIKE_WINDOW_DAYS * 24 * 60 * 60 * 1000;
-      const recentStrikes = strikes.filter((strike) => {
-        const createdAt = Date.parse(strike.createdAt);
-        return Number.isFinite(createdAt) ? createdAt >= windowStart : true;
-      });
-      const removedComments = removedCommentCountForUser(
-        incident,
-        username,
-        DEFAULT_STRIKE_WINDOW_DAYS * 24 * 60
-      );
-      const suspiciousDomainHits = recentStrikes.filter(
-        (strike) => strike.source === 'watched_domain'
-      ).length;
-      const totalWeight = recentStrikes.reduce(
-        (total, strike) => total + strike.weight,
-        0
-      );
-
-      return {
-        username,
-        totalWeight,
-        strikeCount: recentStrikes.length,
-        recentWindowDays: DEFAULT_STRIKE_WINDOW_DAYS,
-        removedComments,
-        suspiciousDomainHits,
-        strikes: recentStrikes,
-        ...(totalWeight >= 2 ? { preparedAction: 'temp ban review' } : {}),
-      };
-    })
-  );
 };
 
 export const matchIncidentAutomations = async ({

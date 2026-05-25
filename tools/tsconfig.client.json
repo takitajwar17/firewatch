@@ -4,6 +4,7 @@
     "outDir": "../dist/types/client",
     "tsBuildInfoFile": "../dist/types/client/tsconfig.tsbuildinfo",
     "customConditions": ["browser"],
+    "types": ["vite/client"],
     "rootDir": "../src/client"
   },
   "include": ["../src/client/**/*"],

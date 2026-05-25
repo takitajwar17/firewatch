@@ -1,10 +1,10 @@
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
 import {
   DEFAULT_DEMO_SCENARIO_ID,
   FIREWATCH_DEMO_SCENARIOS,
 } from '../../shared/firewatch-presets';
+import { Skeleton } from './common';
 import type { DemoCreateHandler } from './types';
 import {
   RedditAddIcon,

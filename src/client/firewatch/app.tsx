@@ -1,9 +1,9 @@
 import { useCallback, useMemo, useState } from 'react';
 import { AutomationsPage } from './automations';
 import { EmptyBoard, ErrorBoard, LoadingBoard } from './board-states';
-import { CommunitySettingsPage } from './community-settings';
 import { IncidentDetail } from './incident-detail';
-import { FirewatchShell } from './shell';
+import { CommunitySettingsPage } from './settings/community-settings-page';
+import { FirewatchShell } from './shell/firewatch-shell';
 import type { FirewatchView } from './types';
 import { useDashboard } from './use-dashboard';
 

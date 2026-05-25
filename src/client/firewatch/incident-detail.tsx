@@ -6,16 +6,17 @@ import {
   LatestSignalsCard,
   SummariesCard,
 } from './incident-activity';
-import { FlaggedCommentsCard, RepeatedPhrasesCard } from './incident-comments';
+import { FlaggedCommentsCard } from './comments/flagged-comments-card';
+import { RepeatedPhrasesCard } from './comments/repeated-phrases-card';
+import { IncidentHero } from './overview/mod-actions-card';
+import { IncidentIntro } from './overview/post-header';
+import { NativePostControlsCard } from './overview/post-tools-card';
+import { ImpactSnapshotCard } from './overview/review-progress-card';
 import {
-  ImpactSnapshotCard,
-  IncidentHero,
-  IncidentIntro,
-  NativePostControlsCard,
   ParticipantsCard,
   ResponseCard,
   RiskReasonsCard,
-} from './incident-overview';
+} from './overview/review-sidecards';
 import { MatchedRulesCard } from './incident-rules';
 import type { ActionRunner } from './types';
 import type {

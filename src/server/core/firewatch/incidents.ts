@@ -1,7 +1,8 @@
 import { context, redis, reddit } from '@devvit/web/server';
 import type { Incident, IncidentAction } from '../../../shared/api';
 import { MAX_ACTIONS } from '../firewatch-constants';
-import { attachRuleContext, clearUserStrikes } from '../firewatch-rules';
+import { attachRuleContext } from '../firewatch-rules/matching';
+import { clearUserStrikes } from '../firewatch-rules/strikes';
 import { calculateIncident } from '../firewatch-scoring';
 import { upsertIncidentSignal } from './signals';
 import { actorName, getConfig, getIncident, saveIncident } from './store';

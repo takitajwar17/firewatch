@@ -8,7 +8,10 @@ import type {
 import { sortIncidentsByPriority } from '../../../shared/incidents';
 import { MAX_RECENT_SIGNALS } from '../firewatch-constants';
 import { normalizeDetectionText } from '../firewatch-detection';
-import { attachRuleContext, recordRuleMatches } from '../firewatch-rules';
+import {
+  attachRuleContext,
+  recordRuleMatches,
+} from '../firewatch-rules/matching';
 import {
   calculateIncident,
   getResponseSuggestion,

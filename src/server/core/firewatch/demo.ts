@@ -10,10 +10,12 @@ import {
 } from '../../../shared/firewatch-presets';
 import {
   addUserStrike,
-  attachRuleContext,
   clearUserStrikes,
+} from '../firewatch-rules/strikes';
+import {
+  attachRuleContext,
   recordRuleMatches,
-} from '../firewatch-rules';
+} from '../firewatch-rules/matching';
 import { runRuleAutomationActions } from './automation';
 import { appendAction } from './incidents';
 import { upsertIncidentSignal } from './signals';

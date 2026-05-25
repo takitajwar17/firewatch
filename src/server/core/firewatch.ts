@@ -12,13 +12,15 @@ export {
   upsertIncidentSignal,
 } from './firewatch/signals';
 export {
-  applyNativeCommentAction,
-  applyNativePostAction,
-  applyNativeUserAction,
   approveFlaggedComment,
-  banUserAndRemoveComments,
+  applyNativeCommentAction,
   removeFlaggedComment,
-} from './firewatch/actions';
+} from './firewatch/actions/comment-actions';
+export { applyNativePostAction } from './firewatch/actions/post-actions';
+export {
+  applyNativeUserAction,
+  banUserAndRemoveComments,
+} from './firewatch/actions/user-actions';
 export {
   claimIncident,
   clearIncidentUserStrikes,

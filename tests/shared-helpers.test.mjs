@@ -275,12 +275,21 @@ test('user action helpers keep native user action behavior aligned', () => {
 test('runtime copy keeps automation and settings naming consistent', () => {
   const runtimeFiles = [
     'src/client/firewatch/automations.tsx',
-    'src/client/firewatch/community-settings.tsx',
+    'src/client/firewatch/settings/automations-card.tsx',
+    'src/client/firewatch/settings/community-controls.tsx',
+    'src/client/firewatch/settings/community-settings-page.tsx',
+    'src/client/firewatch/settings/rule-builder-model.ts',
+    'src/client/firewatch/settings/rule-builder.tsx',
+    'src/client/firewatch/common.tsx',
     'src/client/firewatch/format.ts',
     'src/client/firewatch/incident-rules.tsx',
-    'src/client/firewatch/shell.tsx',
+    'src/client/firewatch/shell/command-panel.tsx',
+    'src/client/firewatch/shell/firewatch-shell.tsx',
+    'src/client/firewatch/shell/incident-queue-item.tsx',
+    'src/client/firewatch/shell/workspace-header.tsx',
     'src/client/firewatch/use-dashboard.ts',
-    'src/server/core/firewatch-rules.ts',
+    'src/server/core/firewatch-rules/matching.ts',
+    'src/server/core/firewatch-rules/store.ts',
     'src/server/core/firewatch.ts',
     'src/server/routes/forms.ts',
     'src/server/routes/menu.ts',
@@ -489,7 +498,7 @@ test('prepared action runner uses documented native APIs for sticky and ban acti
     'utf8'
   );
   const userActionSource = readFileSync(
-    'src/server/core/firewatch/actions.ts',
+    'src/server/core/firewatch/actions/user-actions.ts',
     'utf8'
   );
   const stickyStart = incidentActionSource.indexOf('export const coolDownIncident');
@@ -556,7 +565,10 @@ test('auto-run all mode dispatches selected actions and records failures', () =>
     'src/server/core/firewatch/automation.ts',
     'utf8'
   );
-  const rulesSource = readFileSync('src/server/core/firewatch-rules.ts', 'utf8');
+  const rulesSource = readFileSync(
+    'src/server/core/firewatch-rules/matching.ts',
+    'utf8'
+  );
   const autoAllStart = firewatchSource.indexOf('const runAutoAllRuleActions');
   const autoAllEnd = firewatchSource.indexOf('const runRuleAutomationActions', autoAllStart);
   const autoAllSource = firewatchSource.slice(autoAllStart, autoAllEnd);
@@ -600,7 +612,7 @@ test('comment review cards hydrate and display native Reddit comment state', () 
     readFileSync('src/server/core/firewatch/incidents.ts', 'utf8'),
   ].join('\n');
   const clientSource = readFileSync(
-    'src/client/firewatch/incident-comments.tsx',
+    'src/client/firewatch/comments/comment-state.ts',
     'utf8'
   );
 
@@ -620,7 +632,7 @@ test('comment review cards hydrate and display native Reddit comment state', () 
 
 test('user content removal refreshes and skips content already approved on Reddit', () => {
   const source = readFileSync(
-    'src/server/core/firewatch/actions.ts',
+    'src/server/core/firewatch/actions/user-actions.ts',
     'utf8'
   );
   const banStart = source.indexOf('export const banUserAndRemoveComments');
@@ -636,7 +648,10 @@ test('user content removal refreshes and skips content already approved on Reddi
 });
 
 test('scoring keeps open review comments durable and report counts stable', () => {
-  const source = readFileSync('src/server/core/firewatch-scoring.ts', 'utf8');
+  const source = [
+    readFileSync('src/server/core/firewatch-scoring.ts', 'utf8'),
+    readFileSync('src/server/core/firewatch-scoring/helpers.ts', 'utf8'),
+  ].join('\n');
 
   assert.match(source, /previousOpenComments/);
   assert.match(source, /MAX_FLAGGED_COMMENTS - openFlaggedComments\.length/);
@@ -674,7 +689,10 @@ test('demo creation keeps repeated judge walkthroughs clean', () => {
 });
 
 test('automation matching filters by trigger and source scope', () => {
-  const source = readFileSync('src/server/core/firewatch-rules.ts', 'utf8');
+  const source = [
+    readFileSync('src/server/core/firewatch-rules/matching.ts', 'utf8'),
+    readFileSync('src/server/core/firewatch-rules/scope.ts', 'utf8'),
+  ].join('\n');
 
   assert.match(source, /triggerTypesForIncident/);
   assert.match(source, /!effectiveTriggerTypes\.has\(rule\.trigger\.type\)/);
@@ -709,7 +727,7 @@ test('client refreshes dashboard state after settings, automations, and actions'
 
 test('automation editor preserves existing scope counters and extra actions', () => {
   const source = readFileSync(
-    'src/client/firewatch/community-settings.tsx',
+    'src/client/firewatch/settings/rule-builder.tsx',
     'utf8'
   );
 

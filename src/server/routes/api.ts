@@ -47,8 +47,8 @@ import {
   getRuleExecutionLogs,
   importAutomationTemplates,
   saveAutomation,
-  testAutomation,
-} from '../core/firewatch-rules';
+} from '../core/firewatch-rules/store';
+import { testAutomation } from '../core/firewatch-rules/matching';
 
 export const api = new Hono();
 

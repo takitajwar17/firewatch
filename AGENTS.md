@@ -3,14 +3,14 @@ You are writing a Devvit web application that will be executed on Reddit.com.
 ## Tech Stack
 
 - **Frontend**: React 19, Tailwind CSS 4, Vite
-- **Backend**: Node.js v22 serverless environment (Devvit), Hono, TRPC
-- **Communication**: tRPC v11 for end-to-end type safety
+- **Backend**: Node.js v22 serverless environment (Devvit), Hono REST routes
+- **Communication**: Typed request and response contracts in `/src/shared/api.ts`
 
 ## Layout & Architecture
 
 - `/src/server`: **Backend Code**. This runs in a secure, serverless environment.
-  - `trpc.ts`: Defines the API router and procedures.
   - `index.ts`: Main server entry point (Hono app).
+  - `routes/`: Hono route modules for the iframe API, Devvit menu actions, forms, and triggers.
   - Access `redis`, `reddit`, and `context` here via `@devvit/web/server`.
 - `/src/client`: **Frontend Code**. This is executed inside of an iFrame on reddit.com
   - To add an entrypoint, create a HTML file and add to the mapping inside of `devvit.json`
