@@ -26,6 +26,7 @@ import {
   getIndex,
   getIncident,
   getRememberedIncidentPostId,
+  removeFromIncidentRegistry,
   saveIncident,
   saveIndex,
 } from './store';
@@ -386,6 +387,7 @@ export const resetDemoIncidents = async () => {
         }
       });
       await redis.del(incidentKey(postId), claimKey(postId));
+      await removeFromIncidentRegistry(context.subredditName, postId);
     } else {
       keptPostIds.push(postId);
     }

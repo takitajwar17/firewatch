@@ -30,6 +30,7 @@ export {
 export {
   getRememberedIncidentPostId,
   rememberSelectedIncident,
+  resetAppData,
 } from './firewatch/store';
 export { escalateIncident, resolveIncident } from './firewatch/incidents';
 export { runPreparedRuleActions } from './firewatch/automation';

@@ -3,6 +3,7 @@ import type { Context as HonoContext } from 'hono';
 import { context, reddit } from '@devvit/web/server';
 import type {
   ActionResponse,
+  AppResetResponse,
   ConfigResponse,
   CrowdControlLevel,
   DashboardInitResponse,
@@ -36,6 +37,7 @@ import {
   getRememberedIncidentPostId,
   lockIncident,
   removeFlaggedComment,
+  resetAppData,
   resetDemoIncidents,
   resolveIncident,
   runPreparedRuleActions,
@@ -186,6 +188,16 @@ api.post('/demo/reset', async (c) => {
     const resetCount = await resetDemoIncidents();
     const dashboard = await loadDashboardData();
     return c.json<DemoResetResponse>({ ...dashboard, resetCount });
+  } catch (error) {
+    return incidentActionError(c, error);
+  }
+});
+
+api.post('/app/reset', async (c) => {
+  try {
+    const resetSummary = await resetAppData();
+    const dashboard = await loadDashboardData();
+    return c.json<AppResetResponse>({ ...dashboard, ...resetSummary });
   } catch (error) {
     return incidentActionError(c, error);
   }

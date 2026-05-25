@@ -13,7 +13,11 @@ import {
   type ConfigActionControlField,
 } from '../../../shared/firewatch-config';
 import type { FirewatchConfig } from '../../../shared/api';
-import type { ConfigSaveHandler, DemoCreateHandler } from '../types';
+import type {
+  AppResetHandler,
+  ConfigSaveHandler,
+  DemoCreateHandler,
+} from '../types';
 import { DisclosurePanel, FieldBlock, Input, PlaybookButton } from '../common';
 import { splitList } from '../format';
 import {
@@ -378,14 +382,17 @@ export const CommunityToolsCard = ({
   busyAction,
   hasDemoIncidents,
   onCreateDemo,
+  onResetApp,
   onResetDemos,
 }: {
   busyAction: string | undefined;
   hasDemoIncidents: boolean;
   onCreateDemo: DemoCreateHandler;
+  onResetApp: AppResetHandler;
   onResetDemos: () => void;
 }) => {
   const [scenarioId, setScenarioId] = useState(DEFAULT_DEMO_SCENARIO_ID);
+  const [confirmReset, setConfirmReset] = useState(false);
   const selectedScenario =
     FIREWATCH_DEMO_SCENARIOS.find((scenario) => scenario.id === scenarioId) ??
     FIREWATCH_DEMO_SCENARIOS[0];
@@ -446,6 +453,44 @@ export const CommunityToolsCard = ({
             variant="ghost"
             onClick={onResetDemos}
           />
+        </div>
+        <div className="border-t border-border pt-3">
+          <div className="flex flex-col gap-2">
+            <p className="text-sm font-semibold leading-5">Reset app</p>
+            <p className="text-xs leading-5 text-muted-foreground">
+              Deletes saved filters, queue data, automations, logs, claims,
+              handoff notes, and strike history for this install.
+            </p>
+            {confirmReset ? (
+              <div className="grid min-w-0 gap-2 sm:grid-cols-2 xl:grid-cols-1">
+                <PlaybookButton
+                  disabled={busyAction === 'reset-app'}
+                  icon={<RedditRemoveIcon data-icon="inline-start" />}
+                  label="Delete all Firewatch data"
+                  loading={busyAction === 'reset-app'}
+                  loadingLabel="Deleting"
+                  variant="destructive"
+                  onClick={() => {
+                    setConfirmReset(false);
+                    onResetApp();
+                  }}
+                />
+                <PlaybookButton
+                  disabled={busyAction === 'reset-app'}
+                  label="Cancel"
+                  variant="ghost"
+                  onClick={() => setConfirmReset(false)}
+                />
+              </div>
+            ) : (
+              <PlaybookButton
+                icon={<RedditRemoveIcon data-icon="inline-start" />}
+                label="Reset app"
+                variant="ghost"
+                onClick={() => setConfirmReset(true)}
+              />
+            )}
+          </div>
         </div>
       </CardContent>
     </Card>

@@ -24,6 +24,7 @@ import {
   getConfig,
   getIncident,
   getIndex,
+  removeFromIncidentRegistry,
   saveIncident,
   saveIndex,
   shouldShowInQueue,
@@ -230,6 +231,7 @@ export const deleteStoredPostContent = async (postId: string) => {
   const index = await getIndex();
   await redis.del(incidentKey(normalizedPostId), claimKey(normalizedPostId));
   await saveIndex(index.filter((id) => id !== normalizedPostId));
+  await removeFromIncidentRegistry(context.subredditName, normalizedPostId);
 
   if (context.subredditName) {
     const boardPostId = await redis.get(boardPostKey(context.subredditName));

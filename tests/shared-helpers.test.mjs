@@ -688,6 +688,32 @@ test('demo creation keeps repeated judge walkthroughs clean', () => {
   assert.match(resetSource, /startsWith\('demo'\)/);
 });
 
+test('app reset deletes Firewatch-owned storage', () => {
+  const storeSource = readFileSync('src/server/core/firewatch/store.ts', 'utf8');
+  const apiSource = readFileSync('src/server/routes/api.ts', 'utf8');
+  const clientSource = readFileSync(
+    'src/client/firewatch/settings/community-controls.tsx',
+    'utf8'
+  );
+  const resetStart = storeSource.indexOf('export const resetAppData');
+  const resetSource = storeSource.slice(resetStart);
+
+  assert.match(apiSource, /api\.post\('\/app\/reset'/);
+  assert.match(clientSource, /Delete all Firewatch data/);
+  assert.match(resetSource, /INDEX_KEY/);
+  assert.match(resetSource, /boardPostKey\(subredditName\)/);
+  assert.match(resetSource, /configKey\(subredditName\)/);
+  assert.match(resetSource, /incidentRegistryKey\(subredditName\)/);
+  assert.match(resetSource, /responseRulesKey\(subredditName\)/);
+  assert.match(resetSource, /ruleLogsKey\(subredditName\)/);
+  assert.match(resetSource, /userRegistryKey\(subredditName\)/);
+  assert.match(resetSource, /incidentKey\(postId\)/);
+  assert.match(resetSource, /claimKey\(postId\)/);
+  assert.match(resetSource, /selectionKey\(subredditName, username\)/);
+  assert.match(resetSource, /userStrikesKey\(subredditName, username\)/);
+  assert.match(storeSource, /await redis\.del\(\.\.\.uniqueKeys\.slice/);
+});
+
 test('automation matching filters by trigger and source scope', () => {
   const source = [
     readFileSync('src/server/core/firewatch-rules/matching.ts', 'utf8'),

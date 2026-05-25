@@ -7,6 +7,7 @@ import {
   normalizeUsername,
   now,
   retentionExpiration,
+  userRegistryKey,
 } from '../firewatch-utils';
 import {
   currentIso,
@@ -18,6 +19,33 @@ import { removedCommentCountForUser } from './metrics';
 
 export const userStrikesKey = (subredditName: string, username: string) =>
   `fw:user:${subredditName}:${username.toLowerCase()}:strikes`;
+
+const getTrackedUsers = async (subredditName: string) => {
+  const stored = await redis.get(userRegistryKey(subredditName));
+  if (!stored) return [];
+
+  try {
+    const parsed: unknown = JSON.parse(stored);
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed.filter((item): item is string => typeof item === 'string');
+  } catch {
+    return [];
+  }
+};
+
+const trackUser = async (subredditName: string, username: string) => {
+  const normalizedUsername = normalizeUsername(username);
+  if (!normalizedUsername) return;
+  const trackedUsers = await getTrackedUsers(subredditName);
+  await redis.set(
+    userRegistryKey(subredditName),
+    JSON.stringify(
+      Array.from(new Set([normalizedUsername, ...trackedUsers])).slice(0, 500)
+    ),
+    { expiration: retentionExpiration() }
+  );
+};
 
 export const addUserStrike = async ({
   createdBy = 'firewatch',
@@ -59,6 +87,7 @@ export const addUserStrike = async ({
     createdBy,
   };
   const strikes = await getUserStrikes(subredditName, normalizedUsername);
+  await trackUser(subredditName, normalizedUsername);
   await redis.set(
     userStrikesKey(subredditName, normalizedUsername),
     JSON.stringify([strike, ...strikes].slice(0, MAX_STRIKES_PER_USER)),

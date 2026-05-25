@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type {
+  AppResetResponse,
   ConfigResponse,
   DashboardInitResponse,
   DemoResetResponse,
@@ -197,6 +198,33 @@ export const useDashboard = () => {
     }
   }, [applyDashboard]);
 
+  const resetAppData = useCallback(async () => {
+    setBusyAction('reset-app');
+    setNotice(undefined);
+    try {
+      const payload = await requestJson<AppResetResponse>('/api/app/reset', {
+        method: 'POST',
+      });
+      applyDashboard(payload);
+      setNotice({
+        type: 'success',
+        message: `Firewatch data reset. Deleted ${payload.deletedKeys} stored record${
+          payload.deletedKeys === 1 ? '' : 's'
+        }.`,
+      });
+    } catch (error) {
+      setNotice({
+        type: 'error',
+        message:
+          error instanceof Error
+            ? `Could not reset Firewatch: ${error.message}`
+            : 'Could not reset Firewatch.',
+      });
+    } finally {
+      setBusyAction(undefined);
+    }
+  }, [applyDashboard]);
+
   const saveDashboardConfig = useCallback(async (values: ConfigFormValues) => {
     setBusyAction('config');
     setNotice(undefined);
@@ -359,6 +387,7 @@ export const useDashboard = () => {
     loadState,
     notice,
     refresh,
+    resetAppData,
     resetDemoIncidents,
     runAction,
     saveAutomation,

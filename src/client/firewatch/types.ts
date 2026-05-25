@@ -34,6 +34,8 @@ export type FirewatchView = 'queue' | 'automations' | 'settings';
 
 export type DemoCreateHandler = (scenarioId?: FirewatchDemoScenarioId) => void;
 
+export type AppResetHandler = () => void;
+
 export type RuleSaveHandler = (values: FirewatchRuleInput) => Promise<void>;
 
 export type RuleTestHandler = (

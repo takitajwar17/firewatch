@@ -18,6 +18,7 @@ export const App = () => {
     loadState,
     notice,
     refresh,
+    resetAppData,
     resetDemoIncidents,
     runAction,
     saveAutomation,
@@ -86,6 +87,7 @@ export const App = () => {
           config={data.config}
           hasDemoIncidents={hasDemoIncidents}
           onCreateDemo={createDemoIncident}
+          onResetApp={resetAppData}
           onResetDemos={resetDemoIncidents}
           onSaveConfig={saveDashboardConfig}
         />

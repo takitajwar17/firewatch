@@ -5,16 +5,23 @@ import type {
   FirewatchConfigUpdate,
 } from '../../../shared/firewatch-config';
 import { DEFAULT_CONFIG, INDEX_KEY } from '../firewatch-constants';
+import { responseRulesKey, ruleLogsKey } from '../firewatch-rules/store';
+import { userStrikesKey } from '../firewatch-rules/strikes';
 import {
+  boardPostKey,
+  claimKey,
   configKey,
   deriveIncidentStatus,
   incidentKey,
+  incidentRegistryKey,
   normalizeConfig,
   normalizePostId,
+  normalizeUsername,
   parseCsv,
   retentionExpiration,
   selectionExpiration,
   selectionKey,
+  userRegistryKey,
 } from '../firewatch-utils';
 
 
@@ -104,6 +111,55 @@ export const saveIndex = async (postIds: string[]) => {
   );
 };
 
+const parseStringList = (stored: string | undefined) => {
+  if (!stored) return [];
+
+  try {
+    const parsed: unknown = JSON.parse(stored);
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed.filter((item): item is string => typeof item === 'string');
+  } catch {
+    return [];
+  }
+};
+
+const saveStringList = async (key: string, values: string[]) => {
+  await redis.set(
+    key,
+    JSON.stringify(Array.from(new Set(values.filter(Boolean))).slice(0, 500)),
+    { expiration: retentionExpiration() }
+  );
+};
+
+export const getIncidentRegistry = async (
+  subredditName = context.subredditName
+) => parseStringList(await redis.get(incidentRegistryKey(subredditName)));
+
+export const addToIncidentRegistry = async (
+  subredditName: string,
+  postId: string
+) => {
+  const normalizedPostId = normalizePostId(postId);
+  const registry = await getIncidentRegistry(subredditName);
+  await saveStringList(incidentRegistryKey(subredditName), [
+    normalizedPostId,
+    ...registry.filter((id) => id !== normalizedPostId),
+  ]);
+};
+
+export const removeFromIncidentRegistry = async (
+  subredditName: string,
+  postId: string
+) => {
+  const normalizedPostId = normalizePostId(postId);
+  const registry = await getIncidentRegistry(subredditName);
+  await saveStringList(
+    incidentRegistryKey(subredditName),
+    registry.filter((id) => id !== normalizedPostId)
+  );
+};
+
 export const addToIndex = async (postId: string) => {
   const index = await getIndex();
   const nextIndex = [postId, ...index.filter((id) => id !== postId)].slice(
@@ -148,6 +204,7 @@ export const shouldShowInQueue = (incident: Incident) => {
 };
 
 export const saveIncident = async (incident: Incident) => {
+  await addToIncidentRegistry(incident.subredditName, incident.postId);
   await redis.set(incidentKey(incident.postId), JSON.stringify(incident), {
     expiration: retentionExpiration(),
   });
@@ -195,4 +252,102 @@ export const clearRememberedIncident = async () => {
   if (!username) return;
 
   await redis.del(selectionKey(context.subredditName, username));
+};
+
+const incidentUsernames = (incident: Incident) =>
+  [
+    incident.postAuthor,
+    incident.claim?.username,
+    ...incident.actions.flatMap((action) => [
+      action.actor,
+      ...(action.targetIds ?? []),
+    ]),
+    ...incident.flaggedComments.map((comment) => comment.author),
+    ...incident.involvedUsers.map((user) => user.username),
+    ...incident.recentSignals.map((signal) => signal.author),
+  ]
+    .map(normalizeUsername)
+    .filter((username): username is string => Boolean(username));
+
+const getModeratorSelectionUsernames = async (subredditName: string) => {
+  const usernames = new Set<string>();
+  const current = await currentUsername();
+  const normalizedCurrent = normalizeUsername(current);
+  if (normalizedCurrent) usernames.add(normalizedCurrent);
+
+  try {
+    const moderators = await reddit
+      .getModerators({ subredditName, limit: 1000, pageSize: 100 })
+      .all();
+
+    for (const moderator of moderators) {
+      const username = normalizeUsername(moderator.username);
+      if (username) usernames.add(username);
+    }
+  } catch (error) {
+    console.error('Failed to load moderators while resetting Firewatch', error);
+  }
+
+  return usernames;
+};
+
+const deleteRedisKeys = async (keys: string[]) => {
+  const uniqueKeys = Array.from(new Set(keys.filter(Boolean)));
+  for (let index = 0; index < uniqueKeys.length; index += 50) {
+    await redis.del(...uniqueKeys.slice(index, index + 50));
+  }
+
+  return uniqueKeys.length;
+};
+
+export const resetAppData = async () => {
+  const subredditName = context.subredditName;
+  const [indexPostIds, registeredPostIds, trackedUsers] = await Promise.all([
+    getIndex(),
+    getIncidentRegistry(subredditName),
+    parseStringList(await redis.get(userRegistryKey(subredditName))),
+  ]);
+  const postIds = Array.from(
+    new Set([...indexPostIds, ...registeredPostIds].map(normalizePostId))
+  );
+  const incidents = (
+    await Promise.all(postIds.map((postId) => getIncident(postId)))
+  ).filter((incident): incident is Incident => Boolean(incident));
+  const usernames = new Set(
+    trackedUsers
+      .map(normalizeUsername)
+      .filter((username): username is string => Boolean(username))
+  );
+
+  for (const incident of incidents) {
+    for (const username of incidentUsernames(incident)) {
+      usernames.add(username);
+    }
+  }
+
+  const selectionUsernames = await getModeratorSelectionUsernames(
+    subredditName
+  );
+  const keysToDelete = [
+    INDEX_KEY,
+    boardPostKey(subredditName),
+    configKey(subredditName),
+    incidentRegistryKey(subredditName),
+    responseRulesKey(subredditName),
+    ruleLogsKey(subredditName),
+    userRegistryKey(subredditName),
+    ...postIds.flatMap((postId) => [incidentKey(postId), claimKey(postId)]),
+    ...Array.from(selectionUsernames).map((username) =>
+      selectionKey(subredditName, username)
+    ),
+    ...Array.from(usernames).map((username) =>
+      userStrikesKey(subredditName, username)
+    ),
+  ];
+
+  return {
+    deletedKeys: await deleteRedisKeys(keysToDelete),
+    incidentCount: postIds.length,
+    userCount: usernames.size,
+  };
 };

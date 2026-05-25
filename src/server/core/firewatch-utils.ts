@@ -23,8 +23,12 @@ export const configKey = (subredditName: string) =>
 export const boardPostKey = (subredditName: string) =>
   `fw:board-post:native-v11:${subredditName}`;
 export const claimKey = (postId: string) => `fw:claim:${postId}`;
+export const incidentRegistryKey = (subredditName: string) =>
+  `fw:subreddit:${subredditName}:incident_ids`;
 export const selectionKey = (subredditName: string, username: string) =>
   `fw:selected:${subredditName}:${username}`;
+export const userRegistryKey = (subredditName: string) =>
+  `fw:subreddit:${subredditName}:users`;
 
 export const now = () => Date.now();
 export const retentionExpiration = () =>

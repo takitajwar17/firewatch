@@ -1,6 +1,10 @@
 import { SectionHeader } from '../common';
 import type { FirewatchConfig } from '../../../shared/api';
-import type { ConfigSaveHandler, DemoCreateHandler } from '../types';
+import type {
+  AppResetHandler,
+  ConfigSaveHandler,
+  DemoCreateHandler,
+} from '../types';
 import { CommunityFiltersCard, CommunityToolsCard } from './community-controls';
 
 export const CommunitySettingsPage = ({
@@ -8,6 +12,7 @@ export const CommunitySettingsPage = ({
   config,
   hasDemoIncidents,
   onCreateDemo,
+  onResetApp,
   onResetDemos,
   onSaveConfig,
 }: {
@@ -15,6 +20,7 @@ export const CommunitySettingsPage = ({
   config: FirewatchConfig;
   hasDemoIncidents: boolean;
   onCreateDemo: DemoCreateHandler;
+  onResetApp: AppResetHandler;
   onResetDemos: () => void;
   onSaveConfig: ConfigSaveHandler;
 }) => {
@@ -44,6 +50,7 @@ export const CommunitySettingsPage = ({
           busyAction={busyAction}
           hasDemoIncidents={hasDemoIncidents}
           onCreateDemo={onCreateDemo}
+          onResetApp={onResetApp}
           onResetDemos={onResetDemos}
         />
       </div>

@@ -566,6 +566,12 @@ export type DemoResetResponse = DashboardInitResponse & {
   resetCount: number;
 };
 
+export type AppResetResponse = DashboardInitResponse & {
+  deletedKeys: number;
+  incidentCount: number;
+  userCount: number;
+};
+
 export type RulesResponse = {
   type: 'rules';
   rules: FirewatchRule[];
