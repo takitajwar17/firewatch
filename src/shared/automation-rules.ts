@@ -1,7 +1,5 @@
 import type {
   FirewatchRule,
-  FirewatchRuleInput,
-  MatchedAutomationRule,
   PreparedRuleAction,
   RuleAction,
   RuleCondition,
@@ -9,8 +7,6 @@ import type {
   RuleScope,
   RuleTrigger,
 } from './api';
-
-export const DEFAULT_RULE_MODE: RuleMode = 'prepare_for_approval';
 
 export const defaultRuleScope = (
   subredditId: string,
@@ -29,15 +25,6 @@ export const RULE_MODE_LABELS: Record<RuleMode, string> = {
   prepare_for_approval: 'Prepare for mod approval',
   auto_run_safe_actions: 'Auto-run safe actions',
   auto_run_all_selected_actions: 'Auto-run all selected actions',
-};
-
-export const RULE_MODE_DESCRIPTIONS: Record<RuleMode, string> = {
-  suggest_only: 'Show the match and suggested actions without running them.',
-  prepare_for_approval: 'Prepare actions for mods to review and run manually.',
-  auto_run_safe_actions:
-    'Run safe Firewatch-only actions and prepare risky Reddit actions.',
-  auto_run_all_selected_actions:
-    'Run all selected actions. Use only for automations you trust completely.',
 };
 
 export const RULE_TRIGGER_LABELS: Record<RuleTrigger['type'], string> = {
@@ -188,11 +175,6 @@ export const summarizeRule = (rule: FirewatchRule) => {
     conditionSummary || 'conditions match'
   } -> ${RULE_MODE_LABELS[rule.mode].toLowerCase()} ${actionSummary.toLowerCase()}`;
 };
-
-export const formatMatchedRuleLogLine = (match: MatchedAutomationRule) =>
-  `${match.ruleName} matched and prepared ${match.preparedActions.length} action${
-    match.preparedActions.length === 1 ? '' : 's'
-  }.`;
 
 export const defaultRuleTemplates = ({
   createdAt,
@@ -376,23 +358,3 @@ export const defaultRuleTemplates = ({
     updatedAt: createdAt,
   },
 ];
-
-export const ruleInputFromTemplate = (
-  template: FirewatchRule
-): FirewatchRuleInput => {
-  const input: FirewatchRuleInput = {
-    name: template.name,
-    enabled: template.enabled,
-    trigger: template.trigger,
-    scope: template.scope,
-    conditions: template.conditions,
-    actions: template.actions,
-    mode: template.mode,
-  };
-
-  return {
-    ...input,
-    ...(template.description ? { description: template.description } : {}),
-    ...(template.counter ? { counter: template.counter } : {}),
-  };
-};

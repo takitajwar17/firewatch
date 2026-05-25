@@ -5,20 +5,6 @@ import type {
 } from '../../shared/api';
 import { EMPTY_CONFIG } from '../../shared/firewatch-config';
 
-export const statusBadgeVariant: Record<
-  string,
-  'secondary' | 'outline' | 'destructive' | 'success'
-> = {
-  open: 'outline',
-  watching: 'outline',
-  review: 'destructive',
-  claimed: 'outline',
-  cooldown: 'outline',
-  locked: 'destructive',
-  handled: 'success',
-  resolved: 'success',
-};
-
 export const levelBadgeVariant: Record<
   IncidentLevel,
   'secondary' | 'outline' | 'destructive'
@@ -36,18 +22,8 @@ const timeFormatter = new Intl.DateTimeFormat(undefined, {
   minute: '2-digit',
 });
 
-const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
-  month: 'short',
-  day: 'numeric',
-  hour: 'numeric',
-  minute: '2-digit',
-});
-
 export const formatTime = (timestamp: number) =>
   timeFormatter.format(new Date(timestamp));
-
-export const formatDateTime = (timestamp: number) =>
-  dateTimeFormatter.format(new Date(timestamp));
 
 export const formatStatus = (status: string) => {
   const labels: Record<string, string> = {

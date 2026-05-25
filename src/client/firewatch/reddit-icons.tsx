@@ -16,12 +16,6 @@ const RedditIcon = ({ children, ...props }: RedditIconProps) => (
   </svg>
 );
 
-export const RedditSearchIcon = (props: RedditIconProps) => (
-  <RedditIcon {...props}>
-    <path d="M18.736 17.464l-3.483-3.483A7.961 7.961 0 0016.999 9 8 8 0 109 17a7.961 7.961 0 004.981-1.746l3.483 3.483a.9.9 0 101.272-1.273zM9 15.2A6.207 6.207 0 012.8 9c0-3.419 2.781-6.2 6.2-6.2s6.2 2.781 6.2 6.2-2.781 6.2-6.2 6.2z" />
-  </RedditIcon>
-);
-
 export const RedditRefreshIcon = (props: RedditIconProps) => (
   <RedditIcon {...props}>
     <path d="M17.775 10.902a.9.9 0 0 0-1.08.672 6.89 6.89 0 0 1-6.7 5.426 6.902 6.902 0 0 1-6.454-4.454l1.915.426a.9.9 0 0 0 .39-1.758L2.61 10.495a.9.9 0 0 0-1.071.683l-.72 3.236a.9.9 0 1 0 1.757.39l.264-1.188A8.701 8.701 0 0 0 9.995 18.8a8.69 8.69 0 0 0 8.452-6.817.9.9 0 0 0-.672-1.081zM19.18 5.586a.9.9 0 1 0-1.757-.39l-.264 1.188A8.701 8.701 0 0 0 10.005 1.2a8.69 8.69 0 0 0-8.452 6.817.9.9 0 1 0 1.752.409A6.89 6.89 0 0 1 10.005 3a6.902 6.902 0 0 1 6.454 4.454l-1.915-.426a.9.9 0 0 0-.39 1.758l3.236.719a.9.9 0 0 0 1.071-.683l.72-3.236z" />
@@ -52,12 +46,6 @@ export const RedditShieldIcon = (props: RedditIconProps) => (
   </RedditIcon>
 );
 
-export const RedditShareIcon = (props: RedditIconProps) => (
-  <RedditIcon {...props}>
-    <path d="M14.7 13.1a2.7 2.7 0 00-1.88.76L7.44 10.8a2.74 2.74 0 000-1.6l5.38-3.06a2.7 2.7 0 10-.9-1.56L6.54 7.64a2.7 2.7 0 100 4.72l5.38 3.06a2.7 2.7 0 102.78-2.32z" />
-  </RedditIcon>
-);
-
 export const RedditCommentIcon = (props: RedditIconProps) => (
   <RedditIcon {...props}>
     <path d="M10 1a9 9 0 00-9 9c0 1.947.79 3.58 1.935 4.957L.231 17.661A.784.784 0 00.785 19H10a9 9 0 009-9 9 9 0 00-9-9zm0 16.2H6.162c-.994.004-1.907.053-3.045.144l-.076-.188a36.981 36.981 0 002.328-2.087l-1.05-1.263C3.297 12.576 2.8 11.331 2.8 10c0-3.97 3.23-7.2 7.2-7.2s7.2 3.23 7.2 7.2-3.23 7.2-7.2 7.2z" />
@@ -79,12 +67,6 @@ export const RedditDownvoteIcon = (props: RedditIconProps) => (
 export const RedditChevronDownIcon = (props: RedditIconProps) => (
   <RedditIcon {...props}>
     <path d="M10 13.2a.9.9 0 01-.637-.264l-5.1-5.1a.9.9 0 111.274-1.272L10 11.027l4.463-4.463a.9.9 0 111.273 1.272l-5.1 5.1A.9.9 0 0110 13.2z" />
-  </RedditIcon>
-);
-
-export const RedditMoreIcon = (props: RedditIconProps) => (
-  <RedditIcon {...props}>
-    <path d="M16 11.75a1.75 1.75 0 11.001-3.501A1.75 1.75 0 0116 11.75zM11.75 10a1.75 1.75 0 10-3.501.001A1.75 1.75 0 0011.75 10zm-6 0a1.75 1.75 0 10-3.501.001A1.75 1.75 0 005.75 10z" />
   </RedditIcon>
 );
 

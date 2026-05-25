@@ -3,7 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { RULE_MODE_LABELS } from '../../shared/automation-rules';
 import type { Incident, MatchedAutomationRule } from '../../shared/api';
-import { EmptyText, PlaybookButton } from './common';
+import { PlaybookButton } from './common';
 import type { ActionRunner } from './types';
 import {
   RedditApproveIcon,
@@ -183,7 +183,3 @@ const MatchedRuleItem = ({
     </article>
   );
 };
-
-export const RuleLogEmptyState = () => (
-  <EmptyText>No automation matches yet.</EmptyText>
-);

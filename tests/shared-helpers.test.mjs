@@ -25,12 +25,10 @@ import {
 import {
   RULE_MODE_LABELS,
   defaultRuleTemplates,
-  formatMatchedRuleLogLine,
   isDestructiveRuleAction,
   isRestrictedRuleAction,
   preparedRuleAction,
   ruleActionLabel,
-  ruleInputFromTemplate,
   summarizeRule,
 } from '../dist/types/shared/automation-rules.js';
 
@@ -291,25 +289,6 @@ test('automation templates keep risky actions approval-first', () => {
   }
 });
 
-test('rule template imports preserve editable behavior without cloning identity', () => {
-  const rules = defaultRuleTemplates({
-    createdAt: '2026-05-23T00:00:00.000Z',
-    createdBy: 'firewatch',
-    subredditId: 'firewatch17_dev',
-  });
-  const scamRule = rules.find((rule) => rule.id === 'rule_scam_link_response');
-  assert.ok(scamRule);
-
-  const input = ruleInputFromTemplate(scamRule);
-  assert.equal(input.name, scamRule.name);
-  assert.equal(input.enabled, true);
-  assert.deepEqual(input.scope, scamRule.scope);
-  assert.deepEqual(input.conditions, scamRule.conditions);
-  assert.deepEqual(input.actions, scamRule.actions);
-  assert.equal(input.mode, 'prepare_for_approval');
-  assert.equal(Object.hasOwn(input, 'id'), false);
-});
-
 test('prepared automation actions classify safety and preserve targets', () => {
   const safe = preparedRuleAction({
     action: {
@@ -375,57 +354,6 @@ test('auto-run safe mode is limited to Firewatch-internal actions', () => {
   assert.equal(nativeApproval.risk, 'restricted');
   assert.equal(nativeFlair.risk, 'restricted');
   assert.equal(firewatchLog.risk, 'safe');
-});
-
-test('matched automation log copy handles prepared action counts', () => {
-  assert.equal(
-    formatMatchedRuleLogLine({
-      id: 'single',
-      ruleId: 'rule_single',
-      ruleName: 'Single action rule',
-      mode: 'prepare_for_approval',
-      matchedAt: '2026-05-23T00:00:00.000Z',
-      targetId: 't1_a',
-      targetType: 'comment',
-      why: ['1 watched domain hit'],
-      preparedActions: [
-        preparedRuleAction({
-          action: { type: 'add_firewatch_strike', reason: 'x' },
-          id: 'prepared_one',
-          targetId: 't1_a',
-          targetType: 'comment',
-        }),
-      ],
-    }),
-    'Single action rule matched and prepared 1 action.'
-  );
-  assert.equal(
-    formatMatchedRuleLogLine({
-      id: 'multiple',
-      ruleId: 'rule_multiple',
-      ruleName: 'Multiple action rule',
-      mode: 'prepare_for_approval',
-      matchedAt: '2026-05-23T00:00:00.000Z',
-      targetId: 't1_a',
-      targetType: 'comment',
-      why: ['1 watched domain hit'],
-      preparedActions: [
-        preparedRuleAction({
-          action: { type: 'add_firewatch_strike', reason: 'x' },
-          id: 'prepared_one',
-          targetId: 't1_a',
-          targetType: 'comment',
-        }),
-        preparedRuleAction({
-          action: { type: 'add_native_mod_note', note: 'x' },
-          id: 'prepared_two',
-          targetId: 't1_a',
-          targetType: 'comment',
-        }),
-      ],
-    }),
-    'Multiple action rule matched and prepared 2 actions.'
-  );
 });
 
 test('all automation actions are represented in shared and server handlers', () => {
