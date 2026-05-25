@@ -1,5 +1,9 @@
 import { reddit } from '@devvit/web/server';
-import type { Incident, NativeCommentAction } from '../../../../shared/api';
+import type {
+  BulkCommentReviewInput,
+  Incident,
+  NativeCommentAction,
+} from '../../../../shared/api';
 import {
   commentActionControl,
   commentActionDetail,
@@ -102,6 +106,148 @@ export const removeFlaggedComment = async (
   const refreshedIncident = await refreshIncident(nextIncident);
 
   await saveIncident(refreshedIncident);
+  const ruleLogs = await recordRuleMatches({
+    config,
+    incident: refreshedIncident,
+    triggerType: 'comment_removed',
+  });
+  return runRuleAutomationActions(refreshedIncident, ruleLogs);
+};
+
+const commentCountLabel = (count: number) =>
+  `${count} comment${count === 1 ? '' : 's'}`;
+
+const normalizedBulkReviewInput = (
+  values: Partial<BulkCommentReviewInput>
+) => {
+  const action = values.action;
+  if (action !== 'approve' && action !== 'remove') {
+    throw new Error('Choose approve or remove for bulk comment review');
+  }
+
+  const commentIds = Array.isArray(values.commentIds)
+    ? values.commentIds
+        .filter(
+          (commentId) =>
+            typeof commentId === 'string' && commentId.trim().length > 0
+        )
+        .map(normalizeCommentId)
+    : [];
+  const uniqueCommentIds = Array.from(new Set(commentIds)).slice(0, 50);
+
+  if (uniqueCommentIds.length === 0) {
+    throw new Error('Select at least one comment');
+  }
+
+  return {
+    action,
+    commentIds: uniqueCommentIds,
+    reason: values.reason,
+  };
+};
+
+const bulkCommentDetail = ({
+  action,
+  count,
+  demoOnly,
+  reason,
+}: {
+  action: BulkCommentReviewInput['action'];
+  count: number;
+  demoOnly: boolean;
+  reason?: string | undefined;
+}) => {
+  const comments = commentCountLabel(count);
+
+  if (action === 'approve') {
+    return demoOnly ? `Marked ${comments} approved` : `Approved ${comments}`;
+  }
+
+  return demoOnly
+    ? `Marked ${comments} removed`
+    : `Removed ${comments}${reason ? `: ${reason}` : ''}`;
+};
+
+export const bulkReviewComments = async (
+  postId: string,
+  values: Partial<BulkCommentReviewInput>
+) => {
+  const normalizedPostId = normalizePostId(postId);
+  const input = normalizedBulkReviewInput(values);
+  const sourceIncident = await refreshIncident(
+    await getIncidentOrThrow(normalizedPostId)
+  );
+  await saveIncident(sourceIncident);
+  const config = await getConfig(sourceIncident.subredditName);
+  const selectedCommentIds = new Set(input.commentIds);
+  const targetIds = sourceIncident.flaggedComments
+    .filter(
+      (comment) =>
+        selectedCommentIds.has(normalizeCommentId(comment.id)) &&
+        !comment.removed &&
+        !comment.reviewed
+    )
+    .map((comment) => normalizeCommentId(comment.id));
+
+  if (targetIds.length === 0) {
+    throw new Error('No open comments selected');
+  }
+
+  if (input.action === 'approve' && !config.actionControls.approveComments) {
+    throw new Error('Comment approvals are disabled in Settings');
+  }
+  if (input.action === 'remove' && !config.actionControls.removeComments) {
+    throw new Error('Comment removals are disabled in Settings');
+  }
+
+  const actor = await actorName();
+  const reason = input.reason?.trim();
+  if (input.action === 'approve') {
+    await Promise.all(
+      targetIds.map((targetId) =>
+        approveCommentIfReal(sourceIncident, targetId)
+      )
+    );
+  } else {
+    await Promise.all(
+      targetIds.map((targetId) =>
+        removeCommentIfReal(sourceIncident, targetId, reason)
+      )
+    );
+  }
+
+  const demoOnly = targetIds.every((targetId) =>
+    isDemoComment(sourceIncident, targetId)
+  );
+  const incident = await appendAction(normalizedPostId, {
+    type: input.action === 'approve' ? 'comment_approved' : 'comment_removed',
+    actor,
+    detail: bulkCommentDetail({
+      action: input.action,
+      count: targetIds.length,
+      demoOnly,
+      reason,
+    }),
+    targetIds,
+  });
+  const nextIncident: Incident = {
+    ...incident,
+    flaggedComments: incident.flaggedComments.map((flaggedComment) =>
+      targetIds.includes(normalizeCommentId(flaggedComment.id))
+        ? {
+            ...flaggedComment,
+            removed: input.action === 'remove',
+            reviewed: input.action === 'approve',
+          }
+        : flaggedComment
+    ),
+  };
+  const refreshedIncident = await refreshIncident(nextIncident);
+
+  await saveIncident(refreshedIncident);
+
+  if (input.action === 'approve') return refreshedIncident;
+
   const ruleLogs = await recordRuleMatches({
     config,
     incident: refreshedIncident,

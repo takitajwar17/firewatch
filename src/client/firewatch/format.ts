@@ -125,6 +125,8 @@ export const readErrorMessage = async (res: Response) => {
 
 export const actionLabel = (action: string) => {
   if (action.startsWith('ban:')) return 'Remove and ban user';
+  if (action === 'bulk-comments:approve') return 'Approve selected comments';
+  if (action === 'bulk-comments:remove') return 'Remove selected comments';
   if (action.startsWith('post:')) return 'Post action';
   if (action.startsWith('comment:')) return 'Comment action';
   if (action.startsWith('user:')) return 'User action';
@@ -155,6 +157,8 @@ export const actionLabel = (action: string) => {
 };
 
 export const actionSuccessMessage = (action: string) => {
+  if (action === 'bulk-comments:approve') return 'Selected comments approved.';
+  if (action === 'bulk-comments:remove') return 'Selected comments removed.';
   if (action.startsWith('ban:')) {
     return 'Comment removed and user banned.';
   }

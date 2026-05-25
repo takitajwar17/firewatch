@@ -13,6 +13,7 @@ import { IncidentIntro } from './overview/post-header';
 import { NativePostControlsCard } from './overview/post-tools-card';
 import { ImpactSnapshotCard } from './overview/review-progress-card';
 import {
+  EvidenceCapsuleCard,
   ParticipantsCard,
   ResponseCard,
   RiskReasonsCard,
@@ -106,6 +107,7 @@ export const IncidentDetail = ({
           value="overview"
         >
           <div className="flex flex-col gap-3">
+            <EvidenceCapsuleCard incident={incident} />
             <IncidentHero
               busyAction={busyAction}
               config={config}

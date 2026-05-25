@@ -5,7 +5,171 @@ import { Separator } from '@/components/ui/separator';
 import { EmptyText } from '../common';
 import { formatTime, formatUsername, pluralize } from '../format';
 import type { ActionRunner } from '../types';
-import type { Incident } from '../../../shared/api';
+import type { FlaggedComment, Incident } from '../../../shared/api';
+
+type EvidenceRow = {
+  label: string;
+  meta?: string;
+  value: string;
+};
+
+const strongestOpenCommentFrom = (incident: Incident) =>
+  [...incident.flaggedComments]
+    .filter((comment) => !comment.removed && !comment.reviewed)
+    .sort(
+      (a, b) =>
+        b.score - a.score ||
+        b.reasons.length - a.reasons.length ||
+        b.createdAt - a.createdAt
+    )[0];
+
+const commentMeta = (comment: FlaggedComment) =>
+  `${formatUsername(comment.author)} · review score ${comment.score}`;
+
+const signalSummary = (incident: Incident) => {
+  const parts = [
+    incident.impact.reportsGrouped > 0
+      ? pluralize(incident.impact.reportsGrouped, 'report')
+      : undefined,
+    incident.stats.suspiciousLinkHits > 0
+      ? pluralize(incident.stats.suspiciousLinkHits, 'watched link')
+      : undefined,
+    incident.stats.keywordHits > 0
+      ? pluralize(incident.stats.keywordHits, 'keyword hit')
+      : undefined,
+    incident.stats.repeatedPhraseHits > 0
+      ? pluralize(incident.stats.repeatedPhraseHits, 'repeated phrase')
+      : undefined,
+    incident.stats.branchPileOns > 0
+      ? pluralize(
+          incident.stats.branchPileOns,
+          'reply cluster',
+          'reply clusters'
+        )
+      : undefined,
+  ].filter((part): part is string => Boolean(part));
+
+  return parts.slice(0, 4).join(' · ');
+};
+
+const openWorkSummary = (incident: Incident) => {
+  const openComments = incident.flaggedComments.filter(
+    (comment) => !comment.removed && !comment.reviewed
+  );
+  const authorCount = new Set(
+    openComments.map((comment) => comment.author.toLowerCase())
+  ).size;
+
+  if (openComments.length === 0) {
+    return undefined;
+  }
+
+  return `${pluralize(openComments.length, 'comment')} from ${pluralize(
+    authorCount,
+    'author'
+  )} still need decisions`;
+};
+
+const preparedAutomationSummary = (incident: Incident) => {
+  const rules = incident.matchedRules ?? [];
+  const firstRule = rules[0];
+
+  if (!firstRule) return undefined;
+
+  const remainingCount = rules.length - 1;
+
+  return remainingCount > 0
+    ? `${firstRule.ruleName} + ${pluralize(remainingCount, 'more automation')}`
+    : firstRule.ruleName;
+};
+
+const evidenceRowsFrom = (incident: Incident) => {
+  const topReason = incident.reasons[0] ?? incident.peakReasons?.[0];
+  const openComment = strongestOpenCommentFrom(incident);
+  const signals = signalSummary(incident);
+  const openWork = openWorkSummary(incident);
+  const automation = preparedAutomationSummary(incident);
+
+  const rows: EvidenceRow[] = [];
+
+  if (signals || topReason) {
+    const reasonRow: EvidenceRow = {
+      label: 'Why now',
+      value: signals || topReason?.detail || topReason?.label || 'Review signal',
+    };
+
+    if (topReason) {
+      reasonRow.meta = topReason.label;
+    }
+
+    rows.push(reasonRow);
+  }
+
+  if (openComment) {
+    rows.push({
+      label: 'Start with',
+      meta: commentMeta(openComment),
+      value: openComment.body,
+    });
+  }
+
+  if (openWork) {
+    rows.push({
+      label: 'Still open',
+      value: openWork,
+    });
+  }
+
+  if (automation) {
+    rows.push({
+      label: 'Automations',
+      meta: `${incident.matchedRules?.length ?? 0} ready`,
+      value: automation,
+    });
+  }
+
+  return rows;
+};
+
+export const EvidenceCapsuleCard = ({ incident }: { incident: Incident }) => {
+  const rows = evidenceRowsFrom(incident);
+
+  return (
+    <Card size="sm">
+      <CardHeader>
+        <CardTitle>Review snapshot</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {rows.length === 0 ? (
+          <EmptyText>No review evidence yet.</EmptyText>
+        ) : (
+          <div className="rounded-md border bg-background">
+            {rows.map((row) => (
+              <div
+                key={`${row.label}-${row.value}`}
+                className="grid min-w-0 grid-cols-[7rem_minmax(0,1fr)] gap-3 border-b px-3 py-2.5 last:border-b-0"
+              >
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold leading-5 text-muted-foreground">
+                    {row.label}
+                  </p>
+                  {row.meta ? (
+                    <p className="truncate text-[11px] leading-4 text-muted-foreground">
+                      {row.meta}
+                    </p>
+                  ) : null}
+                </div>
+                <p className="line-clamp-2 min-w-0 break-words text-sm leading-5 text-foreground">
+                  {row.value}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
 
 export const ResponseCard = ({ incident }: { incident: Incident }) => (
   <Card size="sm">

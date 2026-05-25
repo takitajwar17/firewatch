@@ -32,7 +32,7 @@ export const MatchedRulesCard = ({
   return (
     <Card size="sm">
       <CardHeader>
-        <CardTitle>Prepared automation</CardTitle>
+        <CardTitle>Automations ready</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         {matchedRules.map((rule) => (
@@ -62,6 +62,30 @@ export const MatchedRulesCard = ({
   );
 };
 
+const counterScopeLabels: Record<string, string> = {
+  domain: 'this domain',
+  post: 'this post',
+  thread: 'this thread',
+  user: 'this user',
+};
+
+const readableRuleReason = (reason: string) => {
+  const counterMatch = /^(post|thread|user|domain) counter (\d+)\/(\d+)$/.exec(
+    reason
+  );
+
+  if (!counterMatch) return reason;
+
+  const scope = counterMatch[1];
+  const count = counterMatch[2];
+  const threshold = counterMatch[3];
+
+  if (!scope || !count || !threshold) return reason;
+
+  const scopeLabel = counterScopeLabels[scope] ?? 'this item';
+  return `Matched ${count} times on ${scopeLabel} (threshold ${threshold})`;
+};
+
 const MatchedRuleItem = ({
   busyAction,
   incident,
@@ -78,6 +102,9 @@ const MatchedRuleItem = ({
   const actionId = `rule:${rule.ruleId}:${rule.targetId}`;
   const canRun = rule.mode !== 'suggest_only';
   const [confirmRun, setConfirmRun] = useState(false);
+  const title = rule.username
+    ? `${rule.ruleName} for u/${rule.username}`
+    : rule.ruleName;
   const runActions = () => {
     if (!confirmRun) {
       setConfirmRun(true);
@@ -91,12 +118,9 @@ const MatchedRuleItem = ({
     <article className="rounded-md border bg-background p-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm font-semibold leading-5">{rule.ruleName}</p>
+          <p className="text-sm font-semibold leading-5">{title}</p>
           <div className="mt-1 flex flex-wrap gap-1.5">
             <Badge variant="secondary">{RULE_MODE_LABELS[rule.mode]}</Badge>
-            {rule.username ? (
-              <Badge variant="outline">u/{rule.username}</Badge>
-            ) : null}
             <Badge variant="outline">{incident.score}/100</Badge>
           </div>
         </div>
@@ -112,7 +136,7 @@ const MatchedRuleItem = ({
             {rule.why.map((reason) => (
               <li key={reason} className="flex gap-2 text-sm leading-5">
                 <RedditReportIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                <span>{reason}</span>
+                <span>{readableRuleReason(reason)}</span>
               </li>
             ))}
           </ul>
@@ -138,11 +162,9 @@ const MatchedRuleItem = ({
       </div>
 
       <div className="mt-3 flex flex-wrap gap-2">
-        {canRun ? (
+        {confirmRun ? (
           <p className="w-full text-xs leading-5 text-muted-foreground">
-            {confirmRun
-              ? 'Confirm to run every action listed above.'
-              : 'Review the actions above before running them.'}
+            Confirm to run every action listed above.
           </p>
         ) : null}
         <PlaybookButton

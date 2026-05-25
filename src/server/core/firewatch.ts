@@ -14,6 +14,7 @@ export {
 export {
   approveFlaggedComment,
   applyNativeCommentAction,
+  bulkReviewComments,
   removeFlaggedComment,
 } from './firewatch/actions/comment-actions';
 export { applyNativePostAction } from './firewatch/actions/post-actions';

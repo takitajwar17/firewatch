@@ -57,6 +57,14 @@ export type NativeCommentAction =
   | 'remove-thread'
   | 'show-comment';
 
+export type BulkCommentReviewAction = 'approve' | 'remove';
+
+export type BulkCommentReviewInput = {
+  action: BulkCommentReviewAction;
+  commentIds: string[];
+  reason?: string;
+};
+
 export type NativeUserAction =
   | 'approve'
   | 'mute'

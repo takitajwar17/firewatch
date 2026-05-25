@@ -5,6 +5,7 @@ import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import {
   EmptyText,
+  Input,
   PanelLabel,
   RedditActionButton,
   RedditMenuItem,
@@ -54,8 +55,40 @@ export const FlaggedCommentsCard = ({
   const [expandedCommentIds, setExpandedCommentIds] = useState<Set<string>>(
     () => new Set()
   );
+  const [bulkReviewState, setBulkReviewState] = useState(() => ({
+    postId: incident.postId,
+    removeOpen: false,
+    selectedCommentIds: new Set<string>(),
+  }));
   const { actionSnapshotById, alreadyActioned, commentStateById, needsReview } =
     useMemo(() => buildCommentReviewState(incident), [incident]);
+  const controls = config.actionControls;
+  const selectedCommentIds = useMemo(
+    () =>
+      bulkReviewState.postId === incident.postId
+        ? bulkReviewState.selectedCommentIds
+        : new Set<string>(),
+    [bulkReviewState, incident.postId]
+  );
+  const bulkRemoveOpen =
+    bulkReviewState.postId === incident.postId
+      ? bulkReviewState.removeOpen
+      : false;
+  const selectionEnabled =
+    needsReview.length > 1 &&
+    (controls.approveComments || controls.removeComments);
+  const selectedOpenCommentIds = useMemo(
+    () =>
+      needsReview
+        .map((comment) => comment.id)
+        .filter((commentId) => selectedCommentIds.has(commentId)),
+    [needsReview, selectedCommentIds]
+  );
+  const selectedCount = selectedOpenCommentIds.length;
+  const allSelected =
+    needsReview.length > 0 && selectedCount === needsReview.length;
+  const bulkApproveAction = 'bulk-comments:approve';
+  const bulkRemoveAction = 'bulk-comments:remove';
   const firstOpenCommentIdByAuthor = useMemo(
     () => buildFirstOpenCommentIdByAuthor(needsReview),
     [needsReview]
@@ -64,7 +97,74 @@ export const FlaggedCommentsCard = ({
     () => buildCommentThreadContextById(incident),
     [incident]
   );
-  const controls = config.actionControls;
+
+  const clearBulkSelection = () => {
+    setBulkReviewState({
+      postId: incident.postId,
+      removeOpen: false,
+      selectedCommentIds: new Set<string>(),
+    });
+  };
+
+  const toggleSelectedComment = (commentId: string) => {
+    setBulkReviewState((current) => {
+      const currentSelection =
+        current.postId === incident.postId
+          ? current.selectedCommentIds
+          : new Set<string>();
+      const next = new Set(currentSelection);
+      if (next.has(commentId)) {
+        next.delete(commentId);
+      } else {
+        next.add(commentId);
+      }
+      return {
+        postId: incident.postId,
+        removeOpen:
+          current.postId === incident.postId ? current.removeOpen : false,
+        selectedCommentIds: next,
+      };
+    });
+  };
+
+  const toggleAllSelectedComments = () => {
+    setBulkReviewState({
+      postId: incident.postId,
+      removeOpen: false,
+      selectedCommentIds: allSelected
+        ? new Set<string>()
+        : new Set(needsReview.map((comment) => comment.id)),
+    });
+  };
+
+  const updateBulkRemoveOpen = (removeOpen: boolean) => {
+    setBulkReviewState((current) => ({
+      postId: incident.postId,
+      removeOpen,
+      selectedCommentIds:
+        current.postId === incident.postId
+          ? current.selectedCommentIds
+          : new Set<string>(),
+    }));
+  };
+
+  const runBulkReview = (action: 'approve' | 'remove') => {
+    const commentIds = selectedOpenCommentIds;
+    if (commentIds.length === 0) return;
+
+    void onAction(
+      action === 'approve' ? bulkApproveAction : bulkRemoveAction,
+      `/api/incidents/${incident.postId}/comments/bulk-review`,
+      {
+        action,
+        commentIds,
+        ...(action === 'remove' ? { reason } : {}),
+      }
+    ).then((updatedIncident) => {
+      if (updatedIncident) clearBulkSelection();
+    });
+  };
+
   const toggleExpanded = (commentId: string) => {
     setExpandedCommentIds((current) => {
       const next = new Set(current);
@@ -96,6 +196,83 @@ export const FlaggedCommentsCard = ({
           </div>
         ) : (
           <div className="flex flex-col">
+            {selectionEnabled ? (
+              <div className="border-b border-border bg-muted/25 px-3 py-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={toggleAllSelectedComments}
+                  >
+                    {allSelected ? 'Clear selection' : 'Select all'}
+                  </Button>
+                  <span className="text-xs font-semibold leading-5 text-muted-foreground">
+                    {selectedCount > 0
+                      ? `${selectedCount} selected`
+                      : 'Select comments to review together'}
+                  </span>
+                  <div className="ml-auto flex flex-wrap items-center gap-2">
+                    {selectedCount > 0 && !allSelected ? (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={clearBulkSelection}
+                      >
+                        Clear
+                      </Button>
+                    ) : null}
+                    {controls.approveComments ? (
+                      <RedditActionButton
+                        action={bulkApproveAction}
+                        busyAction={busyAction}
+                        disabled={selectedCount === 0}
+                        icon={<RedditApproveIcon data-icon="inline-start" />}
+                        label="Approve selected"
+                        variant="secondary"
+                        onClick={() => runBulkReview('approve')}
+                      />
+                    ) : null}
+                    {controls.removeComments ? (
+                      <Button
+                        disabled={Boolean(busyAction) || selectedCount === 0}
+                        size="sm"
+                        variant={bulkRemoveOpen ? 'destructive' : 'secondary'}
+                        onClick={() => updateBulkRemoveOpen(true)}
+                      >
+                        <RedditRemoveIcon data-icon="inline-start" />
+                        Remove selected
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+                {bulkRemoveOpen && selectedCount > 0 ? (
+                  <div className="mt-2 flex flex-col gap-2 rounded-md border border-border bg-background p-2 sm:flex-row sm:items-center">
+                    <Input
+                      aria-label="Removal reason for selected comments"
+                      className="sm:flex-1"
+                      value={reason}
+                      onChange={(event) => setReason(event.target.value)}
+                    />
+                    <RedditActionButton
+                      action={bulkRemoveAction}
+                      busyAction={busyAction}
+                      disabled={selectedCount === 0}
+                      icon={<RedditRemoveIcon data-icon="inline-start" />}
+                      label={`Confirm remove ${selectedCount}`}
+                      variant="destructive"
+                      onClick={() => runBulkReview('remove')}
+                    />
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => updateBulkRemoveOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
             {needsReview.map((comment) => {
               const authorLabel = formatUsername(comment.author);
               const permalink = comment.permalink;
@@ -137,13 +314,26 @@ export const FlaggedCommentsCard = ({
                   commentAuthorKey(comment.author)
                 ) === comment.id;
               const threadContext = contextByCommentId.get(comment.id);
+              const selected = selectedCommentIds.has(comment.id);
 
               return (
                 <article
                   key={comment.id}
-                  className="content-visibility-list-item min-w-0 overflow-hidden border-b border-border px-3 py-2.5 last:border-b-0"
+                  className={cn(
+                    'content-visibility-list-item min-w-0 overflow-hidden border-b border-border px-3 py-2.5 last:border-b-0',
+                    selected ? 'bg-accent/30' : undefined
+                  )}
                 >
                   <div className="flex gap-2.5">
+                    {selectionEnabled ? (
+                      <input
+                        aria-label={`Select comment by ${authorLabel}`}
+                        checked={selected}
+                        className="mt-1 size-4 shrink-0 accent-primary"
+                        type="checkbox"
+                        onChange={() => toggleSelectedComment(comment.id)}
+                      />
+                    ) : null}
                     <img
                       alt=""
                       className="mt-0.5 size-7 shrink-0 rounded-full"

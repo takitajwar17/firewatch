@@ -4,7 +4,6 @@ import {
   formatTime,
   formatUsername,
   isTerminalStatus,
-  pluralize,
 } from '../format';
 import { openRedditUrlInNewTab } from '../navigation';
 import {
@@ -105,11 +104,6 @@ export const IncidentHero = ({
             }
           />
         </div>
-        {unresolvedCount > 0 && !terminal ? (
-          <p className="text-xs leading-5 text-muted-foreground">
-            {pluralize(unresolvedCount, 'comment')} still needs a decision.
-          </p>
-        ) : null}
         {latestAction ? (
           <div className="rounded-md border bg-background px-3 py-2">
             <p className="text-xs font-semibold leading-5 text-muted-foreground">

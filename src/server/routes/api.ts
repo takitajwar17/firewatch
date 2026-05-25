@@ -4,6 +4,7 @@ import { context, reddit } from '@devvit/web/server';
 import type {
   ActionResponse,
   AppResetResponse,
+  BulkCommentReviewInput,
   ConfigResponse,
   CrowdControlLevel,
   DashboardInitResponse,
@@ -26,6 +27,7 @@ import {
   applyNativeUserAction,
   approveFlaggedComment,
   banUserAndRemoveComments,
+  bulkReviewComments,
   claimIncident,
   clearIncidentUserStrikes,
   coolDownIncident,
@@ -287,6 +289,13 @@ api.post('/incidents/:postId/comments/:commentId/approve', async (c) => {
   return incidentAction(c, () =>
     approveFlaggedComment(c.req.param('postId'), c.req.param('commentId'))
   );
+});
+
+api.post('/incidents/:postId/comments/bulk-review', async (c) => {
+  return incidentAction(c, async () => {
+    const body = await readOptionalJson<BulkCommentReviewInput>(c);
+    return bulkReviewComments(c.req.param('postId'), body);
+  });
 });
 
 api.post('/incidents/:postId/comments/:commentId/native-action', async (c) => {

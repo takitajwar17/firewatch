@@ -630,6 +630,30 @@ test('comment review cards hydrate and display native Reddit comment state', () 
   assert.match(clientSource, /Boolean\(comment\.spam\)/);
 });
 
+test('bulk comment review is a single typed server action with queue selection UI', () => {
+  const apiTypesSource = readFileSync('src/shared/api.ts', 'utf8');
+  const routeSource = readFileSync('src/server/routes/api.ts', 'utf8');
+  const serverSource = readFileSync(
+    'src/server/core/firewatch/actions/comment-actions.ts',
+    'utf8'
+  );
+  const clientSource = readFileSync(
+    'src/client/firewatch/comments/flagged-comments-card.tsx',
+    'utf8'
+  );
+
+  assert.match(apiTypesSource, /export type BulkCommentReviewInput/);
+  assert.match(routeSource, /comments\/bulk-review/);
+  assert.match(routeSource, /bulkReviewComments/);
+  assert.match(serverSource, /export const bulkReviewComments/);
+  assert.match(serverSource, /appendAction\(normalizedPostId/);
+  assert.match(serverSource, /targetIds/);
+  assert.match(clientSource, /bulk-comments:approve/);
+  assert.match(clientSource, /bulk-comments:remove/);
+  assert.match(clientSource, /Select all/);
+  assert.match(clientSource, /Confirm remove/);
+});
+
 test('user content removal refreshes and skips content already approved on Reddit', () => {
   const source = readFileSync(
     'src/server/core/firewatch/actions/user-actions.ts',
