@@ -130,9 +130,6 @@ export const IncidentIntro = ({ incident }: { incident: Incident }) => {
 
 const AttentionScoreRail = ({ incident }: { incident: Incident }) => {
   const score = clampScore(incident.score);
-  const unresolvedComments = incident.flaggedComments.filter(
-    (comment) => !comment.removed && !comment.reviewed
-  ).length;
   const attentionTone =
     incident.level === 'watch'
       ? 'bg-primary/70'
@@ -142,43 +139,27 @@ const AttentionScoreRail = ({ incident }: { incident: Incident }) => {
 
   return (
     <aside
-      aria-label={`Review score ${incident.score}`}
+      aria-label={`Review score ${incident.score}. ${incident.responseSuggestion.label}`}
       className="max-w-full rounded-lg border border-border bg-muted/30 px-3 py-3 text-sm"
     >
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-xs font-semibold leading-4 text-muted-foreground">
-          Review score
-        </span>
-        <Badge
-          className="h-6 rounded-full px-2.5 text-xs font-bold tabular-nums"
-          variant="secondary"
-        >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <span className="text-xs font-semibold leading-4 text-muted-foreground">
+            Review score
+          </span>
+          <p className="mt-2 text-sm font-bold leading-5 text-foreground">
+            {incident.responseSuggestion.label}
+          </p>
+        </div>
+        <span className="shrink-0 text-4xl font-bold leading-none text-foreground tabular-nums">
           {incident.score}
-        </Badge>
+        </span>
       </div>
-      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-secondary">
+      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-secondary">
         <div
           className={cn('h-full rounded-full', attentionTone)}
           style={{ width: `${score}%` }}
         />
-      </div>
-      <div className="mt-3 flex items-center gap-2 font-bold leading-5 text-foreground">
-        <RedditCommentIcon className="size-4 shrink-0 text-muted-foreground" />
-        <span className="truncate">{incident.responseSuggestion.label}</span>
-      </div>
-      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs leading-5 text-muted-foreground">
-        <span>{pluralize(unresolvedComments, 'comment')} open</span>
-        <span aria-hidden="true">·</span>
-        <span className="inline-flex items-center gap-1">
-          <RedditReportIcon className="size-3.5" />
-          {pluralize(incident.stats.reportSignals, 'report')}
-        </span>
-        <span aria-hidden="true">·</span>
-        <span>
-          {pluralize(incident.stats.suspiciousLinkHits, 'watched link')}
-        </span>
-        <span aria-hidden="true">·</span>
-        <span>{pluralize(incident.stats.keywordHits, 'keyword hit')}</span>
       </div>
     </aside>
   );
