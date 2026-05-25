@@ -85,38 +85,3 @@ changed, deleted by app logic, or removed by platform storage behavior.
 
 See [Privacy Policy](PRIVACY.md) and [Terms of Service](TERMS.md) for the full
 policy text.
-
-## Development
-
-Prerequisites:
-
-- Node 22+
-- A Reddit account with Developer Platform access
-- A test subreddit you moderate
-
-Useful commands:
-
-- `npm run build` - builds client and server bundles.
-- `npm run type-check` - runs TypeScript project checks.
-- `npm run lint` - runs ESLint.
-- `npm run test` - runs type checks and Node tests.
-- `npm run login` - logs the Devvit CLI into Reddit.
-- `npm run dev` - starts a Devvit playtest.
-- `npm run deploy` - uploads a private app version after checks.
-- `npm run launch` - submits an unlisted app version for review.
-- `npm run launch:public` - submits a public directory version for review.
-
-## Version Notes
-
-Current first release scope:
-
-- Firewatch queue custom post.
-- Subreddit menu actions for queue, settings, and demo drills.
-- Post menu action for manual escalation.
-- Trigger ingestion for posts, comments, reports, delete events, mod actions,
-  and AutoModerator filters.
-- Configurable deterministic scoring.
-- Automations with templates, dry runs, prepared actions, safe automation,
-  and automation logs.
-- Reddit-native moderator actions from the incident panel.
-- Handoff summaries, handled state, and delete-trigger cleanup.
