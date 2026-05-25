@@ -83,5 +83,5 @@ selected incident state expires after 24 hours. Community configuration and the
 Firewatch queue post reference do not have an app-set expiry and remain until
 changed, deleted by app logic, or removed by platform storage behavior.
 
-See [Privacy Policy](PRIVACY.md) and [Terms of Service](TERMS.md) for the full
+See [Privacy Policy](https://raw.githubusercontent.com/takitajwar17/firewatch/main/PRIVACY.md) and [Terms of Service](https://raw.githubusercontent.com/takitajwar17/firewatch/main/TERMS.md) for the full
 policy text.
