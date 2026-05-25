@@ -33,18 +33,18 @@ button {
 }
 
 * {
-  scrollbar-color: var(--border) transparent;
-  scrollbar-width: thin;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 *::-webkit-scrollbar {
-  height: 8px;
-  width: 8px;
+  display: none;
+  height: 0;
+  width: 0;
 }
 
 *::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 999px;
+  background: transparent;
 }
 
 *::-webkit-scrollbar-track {
