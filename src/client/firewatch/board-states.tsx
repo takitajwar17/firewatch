@@ -16,14 +16,14 @@ export const LoadingBoard = () => (
       <Skeleton className="h-5 w-96 max-w-full" />
     </div>
     <div className="grid grid-cols-[minmax(0,1fr)] gap-3 sm:grid-cols-2 md:grid-cols-4">
-      <Skeleton className="h-20 rounded-lg" />
-      <Skeleton className="h-20 rounded-lg" />
-      <Skeleton className="h-20 rounded-lg" />
-      <Skeleton className="h-20 rounded-lg" />
+      <Skeleton className="h-20 rounded-md" />
+      <Skeleton className="h-20 rounded-md" />
+      <Skeleton className="h-20 rounded-md" />
+      <Skeleton className="h-20 rounded-md" />
     </div>
     <div className="grid grid-cols-[minmax(0,1fr)] gap-3 sm:gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-      <Skeleton className="h-[360px] rounded-lg sm:h-[520px]" />
-      <Skeleton className="h-[320px] rounded-lg sm:h-[520px]" />
+      <Skeleton className="h-[360px] rounded-md sm:h-[520px]" />
+      <Skeleton className="h-[320px] rounded-md sm:h-[520px]" />
     </div>
   </div>
 );

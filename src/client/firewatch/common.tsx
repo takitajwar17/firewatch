@@ -1,10 +1,15 @@
 import type { ReactNode } from 'react';
+import { DropdownMenu } from 'radix-ui';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { Incident } from '../../shared/api';
 import { levelBadgeVariant } from './format';
-import { RedditChevronDownIcon, RedditRefreshIcon } from './reddit-icons';
+import {
+  RedditChevronDownIcon,
+  RedditOverflowIcon,
+  RedditRefreshIcon,
+} from './reddit-icons';
 
 export const PanelLabel = ({
   children,
@@ -43,7 +48,9 @@ export const SectionHeader = ({
     )}
   >
     <div className="min-w-0">
-      <h2 className="text-base font-bold leading-5 text-foreground">{title}</h2>
+      <h2 className="text-base font-semibold leading-5 text-foreground">
+        {title}
+      </h2>
       {description ? (
         <p className="mt-1 max-w-3xl text-xs leading-5 text-muted-foreground">
           {description}
@@ -81,10 +88,10 @@ export const DisclosurePanel = ({
   title: string;
 }) => (
   <details
-    className="group overflow-hidden rounded-lg border border-border bg-muted/45 open:bg-muted/70"
+    className="group overflow-hidden rounded-md border border-border bg-background"
     open={defaultOpen}
   >
-    <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 px-4 py-2 hover:bg-accent/60 [&::-webkit-details-marker]:hidden">
+    <summary className="flex min-h-9 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 hover:bg-accent/60 [&::-webkit-details-marker]:hidden">
       <span className="min-w-0">
         <span className="block text-sm font-semibold leading-5">{title}</span>
         {description ? (
@@ -95,8 +102,81 @@ export const DisclosurePanel = ({
       </span>
       <RedditChevronDownIcon className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
     </summary>
-    <div className="min-w-0 border-t px-4 py-3">{children}</div>
+    <div className="min-w-0 border-t border-border px-3 py-2.5">
+      {children}
+    </div>
   </details>
+);
+
+export const RedditOverflowMenu = ({
+  align = 'end',
+  children,
+  label = 'More actions',
+}: {
+  align?: 'start' | 'center' | 'end';
+  children: ReactNode;
+  label?: string;
+}) => (
+  <DropdownMenu.Root>
+    <DropdownMenu.Trigger asChild>
+      <Button size="sm" variant="ghost">
+        <RedditOverflowIcon data-icon="inline-start" />
+        {label}
+      </Button>
+    </DropdownMenu.Trigger>
+    <DropdownMenu.Portal>
+      <DropdownMenu.Content
+        align={align}
+        className="z-50 max-h-[432px] min-w-64 max-w-[300px] overflow-hidden rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-lg shadow-black/25"
+        sideOffset={6}
+      >
+        {children}
+      </DropdownMenu.Content>
+    </DropdownMenu.Portal>
+  </DropdownMenu.Root>
+);
+
+export const RedditMenuItem = ({
+  description,
+  destructive,
+  disabled,
+  icon,
+  label,
+  onSelect,
+}: {
+  description?: string;
+  destructive?: boolean;
+  disabled?: boolean;
+  icon?: ReactNode;
+  label: string;
+  onSelect: () => void;
+}) => (
+  <DropdownMenu.Item
+    className={cn(
+      'flex min-h-10 cursor-pointer items-center gap-2 rounded-sm px-3 py-2 text-sm leading-5 outline-none hover:bg-accent focus:bg-accent data-disabled:pointer-events-none data-disabled:cursor-not-allowed data-disabled:opacity-50',
+      destructive ? 'text-destructive' : 'text-popover-foreground'
+    )}
+    disabled={disabled === true}
+    onSelect={onSelect}
+  >
+    {icon ? (
+      <span className="flex size-5 shrink-0 items-center justify-center [&_svg]:size-5">
+        {icon}
+      </span>
+    ) : null}
+    <span className="flex min-w-0 flex-col">
+      <span className="truncate">{label}</span>
+      {description ? (
+        <span className="line-clamp-2 text-xs leading-4 text-muted-foreground">
+          {description}
+        </span>
+      ) : null}
+    </span>
+  </DropdownMenu.Item>
+);
+
+export const RedditMenuSeparator = () => (
+  <DropdownMenu.Separator className="my-1 h-px bg-border" />
 );
 
 export const FieldBlock = ({

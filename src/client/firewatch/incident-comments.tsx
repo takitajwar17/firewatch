@@ -1,18 +1,20 @@
-import { useMemo, useState, type ReactNode } from 'react';
-import { navigateTo } from '@devvit/web/client';
+import { useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import {
-  DisclosurePanel,
   EmptyText,
   PanelLabel,
   RedditActionButton,
+  RedditMenuItem,
+  RedditMenuSeparator,
+  RedditOverflowMenu,
 } from './common';
 import { ActionPrepPanel, ActionSelect, ActionTextArea } from './action-prep';
 import { formatTime, formatUsername } from './format';
+import { openRedditUrlInNewTab } from './navigation';
 import type { ActionRunner } from './types';
 import type {
   FirewatchConfig,
@@ -347,10 +349,12 @@ export const FlaggedCommentsCard = ({
   };
 
   return (
-    <section className="min-w-0 rounded-lg border border-border bg-background">
-      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border px-3 py-3 sm:px-4">
+    <section className="min-w-0 rounded-md border border-border bg-background">
+      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border px-3 py-2.5">
         <div className="min-w-0">
-          <h3 className="text-base font-bold leading-5">Comments to review</h3>
+          <h3 className="text-sm font-semibold leading-5">
+            Comments to review
+          </h3>
         </div>
         <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-bold text-secondary-foreground">
           {needsReview.length} open
@@ -358,7 +362,7 @@ export const FlaggedCommentsCard = ({
       </div>
       <div className="flex flex-col gap-0">
         {needsReview.length === 0 ? (
-          <div className="p-3 sm:p-4">
+          <div className="p-3">
             <EmptyText>No comments waiting on review.</EmptyText>
           </div>
         ) : (
@@ -409,9 +413,9 @@ export const FlaggedCommentsCard = ({
                 return (
                   <article
                     key={comment.id}
-                    className="content-visibility-list-item min-w-0 overflow-hidden border-b border-border px-3 py-3 last:border-b-0 sm:px-4"
+                    className="content-visibility-list-item min-w-0 overflow-hidden border-b border-border px-3 py-2.5 last:border-b-0"
                   >
-                    <div className="flex gap-3">
+                    <div className="flex gap-2.5">
                       <img
                         alt=""
                         className="mt-0.5 size-7 shrink-0 rounded-full"
@@ -419,7 +423,7 @@ export const FlaggedCommentsCard = ({
                       />
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-                          <span className="font-bold leading-5 text-foreground">
+                          <span className="font-semibold leading-5 text-foreground">
                             {authorLabel}
                           </span>
                           <span
@@ -472,7 +476,7 @@ export const FlaggedCommentsCard = ({
                         </div>
                         <p
                           className={cn(
-                            'mt-1.5 break-words text-sm leading-5 text-foreground/90',
+                            'mt-1 break-words text-sm leading-5 text-foreground/90',
                             expandedCommentIds.has(comment.id)
                               ? ''
                               : 'line-clamp-3'
@@ -496,13 +500,13 @@ export const FlaggedCommentsCard = ({
                           <CommentContextBlock context={threadContext} />
                         ) : null}
 
-                        <div className="mt-3 flex flex-wrap items-center gap-1.5 sm:gap-2">
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5 sm:gap-2">
                           {permalink ? (
                             <Button
                               className="max-w-full"
                               size="sm"
                               variant="ghost"
-                              onClick={() => navigateTo(permalink)}
+                              onClick={() => openRedditUrlInNewTab(permalink)}
                             >
                               <RedditLinkIcon data-icon="inline-start" />
                               Open context
@@ -567,26 +571,29 @@ export const FlaggedCommentsCard = ({
                         </div>
 
                         {hasAdvancedCommentActions || showUserTools ? (
-                          <div className="mt-4">
-                            <DisclosurePanel title="More actions">
-                              <div className="flex flex-col gap-3">
+                          <div className="mt-3">
+                            <RedditOverflowMenu
+                              align="start"
+                              label="More actions"
+                            >
+                              <>
                                 {hasAdvancedCommentActions ? (
-                                  <ActionGroup label="Comment tools">
+                                  <>
                                     {controls.markCommentSpam ? (
-                                      <RedditActionButton
-                                        action={spamAction}
-                                        busyAction={busyAction}
-                                        disabled={!commentOpen}
-                                        icon={
-                                          <RedditSpamIcon data-icon="inline-start" />
+                                      <RedditMenuItem
+                                        destructive
+                                        disabled={
+                                          Boolean(busyAction) || !commentOpen
                                         }
+                                        icon={<RedditSpamIcon />}
                                         label={
-                                          commentState.spammed
-                                            ? 'Spam'
-                                            : 'Spam comment'
+                                          busyAction === spamAction
+                                            ? 'Working'
+                                            : commentState.spammed
+                                              ? 'Marked as spam'
+                                              : 'Mark as spam'
                                         }
-                                        variant="destructive"
-                                        onClick={() =>
+                                        onSelect={() =>
                                           setActivePrep({
                                             commentId: comment.id,
                                             kind: 'spam',
@@ -596,16 +603,18 @@ export const FlaggedCommentsCard = ({
                                     ) : null}
                                     {controls.removeCommentThreads &&
                                     controls.removeComments ? (
-                                      <RedditActionButton
-                                        action={threadAction}
-                                        busyAction={busyAction}
-                                        disabled={!commentOpen}
-                                        icon={
-                                          <RedditRemoveIcon data-icon="inline-start" />
+                                      <RedditMenuItem
+                                        destructive
+                                        disabled={
+                                          Boolean(busyAction) || !commentOpen
                                         }
-                                        label="Remove thread"
-                                        variant="destructive"
-                                        onClick={() =>
+                                        icon={<RedditRemoveIcon />}
+                                        label={
+                                          busyAction === threadAction
+                                            ? 'Working'
+                                            : 'Remove thread'
+                                        }
+                                        onSelect={() =>
                                           setActivePrep({
                                             commentId: comment.id,
                                             kind: 'thread',
@@ -614,114 +623,114 @@ export const FlaggedCommentsCard = ({
                                       />
                                     ) : null}
                                     {controls.lockComments ? (
-                                      <RedditActionButton
-                                        action={lockAction}
-                                        busyAction={busyAction}
-                                        disabled={!commentOpen}
-                                        icon={
-                                          <RedditLockIcon data-icon="inline-start" />
+                                      <RedditMenuItem
+                                        disabled={
+                                          Boolean(busyAction) || !commentOpen
                                         }
+                                        icon={<RedditLockIcon />}
                                         label={
-                                          commentState.locked
-                                            ? 'Unlock'
-                                            : 'Lock'
+                                          busyAction === lockAction
+                                            ? 'Working'
+                                            : commentState.locked
+                                              ? 'Unlock'
+                                              : 'Lock'
                                         }
-                                        variant={
-                                          commentState.locked
-                                            ? 'outline'
-                                            : 'secondary'
-                                        }
-                                        onClick={() =>
-                                          onAction(
+                                        onSelect={() => {
+                                          void onAction(
                                             lockAction,
                                             `/api/incidents/${incident.postId}/comments/${comment.id}/native-action`,
                                             { action: lockToggle }
-                                          )
-                                        }
+                                          );
+                                        }}
                                       />
                                     ) : null}
                                     {controls.ignoreCommentReports ? (
-                                      <RedditActionButton
-                                        action={reportsAction}
-                                        busyAction={busyAction}
-                                        disabled={!commentOpen}
-                                        icon={
-                                          <RedditReportIcon data-icon="inline-start" />
+                                      <RedditMenuItem
+                                        disabled={
+                                          Boolean(busyAction) || !commentOpen
                                         }
+                                        icon={<RedditReportIcon />}
                                         label={
-                                          commentState.reportsIgnored
-                                            ? 'Unignore reports'
-                                            : 'Ignore reports'
+                                          busyAction === reportsAction
+                                            ? 'Working'
+                                            : commentState.reportsIgnored
+                                              ? 'Unignore reports'
+                                              : 'Ignore reports'
                                         }
-                                        variant={
-                                          commentState.reportsIgnored
-                                            ? 'outline'
-                                            : 'secondary'
-                                        }
-                                        onClick={() =>
-                                          onAction(
+                                        onSelect={() => {
+                                          void onAction(
                                             reportsAction,
                                             `/api/incidents/${incident.postId}/comments/${comment.id}/native-action`,
                                             { action: reportsToggle }
-                                          )
-                                        }
+                                          );
+                                        }}
                                       />
                                     ) : null}
                                     {controls.showComments ? (
-                                      <RedditActionButton
-                                        action={showAction}
-                                        busyAction={busyAction}
+                                      <RedditMenuItem
                                         disabled={
-                                          !commentOpen || commentState.shown
+                                          Boolean(busyAction) ||
+                                          !commentOpen ||
+                                          commentState.shown
                                         }
-                                        icon={
-                                          <RedditHideIcon data-icon="inline-start" />
-                                        }
+                                        icon={<RedditHideIcon />}
                                         label={
-                                          commentState.shown ? 'Shown' : 'Show'
+                                          busyAction === showAction
+                                            ? 'Working'
+                                            : commentState.shown
+                                              ? 'Shown'
+                                              : 'Show comment'
                                         }
-                                        onClick={() =>
-                                          onAction(
+                                        onSelect={() => {
+                                          void onAction(
                                             showAction,
                                             `/api/incidents/${incident.postId}/comments/${comment.id}/native-action`,
                                             { action: 'show-comment' }
-                                          )
-                                        }
+                                          );
+                                        }}
                                       />
                                     ) : null}
-                                  </ActionGroup>
+                                  </>
+                                ) : null}
+
+                                {hasAdvancedCommentActions && showUserTools ? (
+                                  <RedditMenuSeparator />
                                 ) : null}
 
                                 {showUserTools ? (
-                                  <ActionGroup label="User tools">
+                                  <>
                                     {controls.approveUsers ? (
-                                      <RedditActionButton
-                                        action={approveUserAction}
-                                        busyAction={busyAction}
-                                        disabled={!canBanAuthor}
-                                        icon={
-                                          <RedditUsersIcon data-icon="inline-start" />
+                                      <RedditMenuItem
+                                        disabled={
+                                          Boolean(busyAction) || !canBanAuthor
                                         }
-                                        label="Approve user"
-                                        onClick={() =>
-                                          onAction(
+                                        icon={<RedditUsersIcon />}
+                                        label={
+                                          busyAction === approveUserAction
+                                            ? 'Working'
+                                            : 'Approve user'
+                                        }
+                                        onSelect={() => {
+                                          void onAction(
                                             approveUserAction,
                                             `/api/incidents/${incident.postId}/users/${encodeURIComponent(comment.author)}/native-action`,
                                             { action: 'approve' }
-                                          )
-                                        }
+                                          );
+                                        }}
                                       />
                                     ) : null}
                                     {controls.muteUsers ? (
-                                      <RedditActionButton
-                                        action={muteUserAction}
-                                        busyAction={busyAction}
-                                        disabled={!canBanAuthor}
-                                        icon={
-                                          <RedditUsersIcon data-icon="inline-start" />
+                                      <RedditMenuItem
+                                        disabled={
+                                          Boolean(busyAction) || !canBanAuthor
                                         }
-                                        label="Mute"
-                                        onClick={() =>
+                                        icon={<RedditUsersIcon />}
+                                        label={
+                                          busyAction === muteUserAction
+                                            ? 'Working'
+                                            : 'Mute user'
+                                        }
+                                        onSelect={() =>
                                           setActivePrep({
                                             commentId: comment.id,
                                             kind: 'mute',
@@ -730,15 +739,17 @@ export const FlaggedCommentsCard = ({
                                       />
                                     ) : null}
                                     {controls.addModNotes ? (
-                                      <RedditActionButton
-                                        action={modNoteAction}
-                                        busyAction={busyAction}
-                                        disabled={!canBanAuthor}
-                                        icon={
-                                          <RedditReportIcon data-icon="inline-start" />
+                                      <RedditMenuItem
+                                        disabled={
+                                          Boolean(busyAction) || !canBanAuthor
                                         }
-                                        label="Add mod note"
-                                        onClick={() =>
+                                        icon={<RedditReportIcon />}
+                                        label={
+                                          busyAction === modNoteAction
+                                            ? 'Working'
+                                            : 'Add mod note'
+                                        }
+                                        onSelect={() =>
                                           setActivePrep({
                                             commentId: comment.id,
                                             kind: 'note',
@@ -747,16 +758,18 @@ export const FlaggedCommentsCard = ({
                                       />
                                     ) : null}
                                     {controls.removeUserContent ? (
-                                      <RedditActionButton
-                                        action={removeContentAction}
-                                        busyAction={busyAction}
-                                        disabled={!canBanAuthor}
-                                        icon={
-                                          <RedditBanIcon data-icon="inline-start" />
+                                      <RedditMenuItem
+                                        destructive
+                                        disabled={
+                                          Boolean(busyAction) || !canBanAuthor
                                         }
-                                        label="Remove recent user content"
-                                        variant="destructive"
-                                        onClick={() =>
+                                        icon={<RedditBanIcon />}
+                                        label={
+                                          busyAction === removeContentAction
+                                            ? 'Working'
+                                            : 'Remove recent user content'
+                                        }
+                                        onSelect={() =>
                                           setActivePrep({
                                             commentId: comment.id,
                                             kind: 'content',
@@ -764,10 +777,10 @@ export const FlaggedCommentsCard = ({
                                         }
                                       />
                                     ) : null}
-                                  </ActionGroup>
+                                  </>
                                 ) : null}
-                              </div>
-                            </DisclosurePanel>
+                              </>
+                            </RedditOverflowMenu>
                           </div>
                         ) : null}
                         {activePrep?.commentId === comment.id ? (
@@ -798,7 +811,7 @@ export const FlaggedCommentsCard = ({
         {alreadyActioned.length > 0 ? (
           <>
             <Separator className="my-0" />
-            <div className="px-3 py-3 sm:px-4">
+            <div className="px-3 py-2.5">
               <PanelLabel>ALREADY ACTIONED</PanelLabel>
             </div>
             <div className="flex flex-col">
@@ -816,7 +829,7 @@ export const FlaggedCommentsCard = ({
                 return (
                   <div
                     key={comment.id}
-                    className="content-visibility-list-item border-t border-border px-3 py-3 sm:px-4"
+                    className="content-visibility-list-item border-t border-border px-3 py-2.5"
                   >
                     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                       <div className="min-w-0">
@@ -851,7 +864,7 @@ export const FlaggedCommentsCard = ({
                           className="shrink-0"
                           size="sm"
                           variant="ghost"
-                          onClick={() => navigateTo(permalink)}
+                          onClick={() => openRedditUrlInNewTab(permalink)}
                         >
                           <RedditLinkIcon data-icon="inline-start" />
                           Open context
@@ -874,11 +887,11 @@ const CommentContextBlock = ({
 }: {
   context: CommentThreadContext;
 }) => (
-  <div className="mt-3 rounded-lg border bg-muted/45 p-3">
-    <p className="text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">
+  <div className="mt-2 border-l-2 border-border py-1 pl-3">
+    <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
       Thread context
     </p>
-    <div className="mt-2 flex flex-col gap-2">
+    <div className="mt-1.5 flex flex-col gap-1.5">
       {context.lines.map((line) => (
         <ContextLine key={line.id} label={line.label} signal={line.signal} />
       ))}
@@ -901,21 +914,6 @@ const ContextLine = ({
     <p className="line-clamp-2 break-words text-sm leading-5 text-foreground/85">
       {signal.body}
     </p>
-  </div>
-);
-
-const ActionGroup = ({
-  children,
-  label,
-}: {
-  children: ReactNode;
-  label: string;
-}) => (
-  <div className="flex flex-col gap-2">
-    <p className="text-xs font-semibold leading-5 text-muted-foreground">
-      {label}
-    </p>
-    <div className="flex min-w-0 flex-wrap gap-2">{children}</div>
   </div>
 );
 
@@ -1134,7 +1132,7 @@ const CommentActionPrepPanel = ({
 };
 
 export const RepeatedPhrasesCard = ({ incident }: { incident: Incident }) => (
-  <Card>
+  <Card size="sm">
     <CardHeader>
       <CardTitle>Repeated wording</CardTitle>
     </CardHeader>
@@ -1142,9 +1140,12 @@ export const RepeatedPhrasesCard = ({ incident }: { incident: Incident }) => (
       {incident.repeatedPhrases.length === 0 ? (
         <EmptyText>No repeated wording yet.</EmptyText>
       ) : (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col">
           {incident.repeatedPhrases.map((phrase) => (
-            <div key={phrase.phrase} className="min-w-0 rounded-lg border p-3">
+            <div
+              key={phrase.phrase}
+              className="min-w-0 border-t border-border py-2.5 first:border-t-0 first:pt-0 last:pb-0"
+            >
               <p className="break-words text-sm font-semibold leading-5">
                 {phrase.phrase}
               </p>

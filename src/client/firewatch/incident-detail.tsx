@@ -103,11 +103,17 @@ export const IncidentDetail = ({
         </TabsList>
 
         <TabsContent
-          className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 sm:gap-4 xl:grid-cols-[minmax(0,1fr)_360px]"
+          className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 sm:gap-4 xl:grid-cols-[minmax(0,1fr)_340px]"
           value="overview"
         >
-          <div className="flex flex-col gap-4">
-            <RiskReasonsCard incident={incident} />
+          <div className="flex flex-col gap-3">
+            <IncidentHero
+              busyAction={busyAction}
+              config={config}
+              incident={incident}
+              onReviewComments={() => setActiveTab('comments')}
+              onAction={runModAction}
+            />
             <NativePostControlsCard
               busyAction={busyAction}
               config={config}
@@ -121,15 +127,9 @@ export const IncidentDetail = ({
               onAction={runModAction}
               onEditRules={onEditRules}
             />
+            <RiskReasonsCard incident={incident} />
           </div>
-          <div className="flex flex-col gap-4">
-            <IncidentHero
-              busyAction={busyAction}
-              config={config}
-              incident={incident}
-              onReviewComments={() => setActiveTab('comments')}
-              onAction={runModAction}
-            />
+          <div className="flex flex-col gap-3">
             <ResponseCard incident={incident} />
             <ParticipantsCard
               busyAction={busyAction}

@@ -134,7 +134,7 @@ export const AutomationsCard = ({
   };
 
   return (
-    <Card>
+    <Card size="sm">
       <CardHeader>
         <CardTitle>Automations</CardTitle>
       </CardHeader>
@@ -235,10 +235,10 @@ const RuleListItem = ({
   onEdit: () => void;
   onTest: () => void;
 }) => (
-  <article className="flex min-w-0 flex-col gap-3 rounded-lg border bg-muted/35 p-3">
+  <article className="flex min-w-0 flex-col gap-3 rounded-md border bg-background p-3">
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
-        <p className="truncate text-sm font-bold leading-5">
+        <p className="truncate text-sm font-semibold leading-5">
           {rule.enabled ? '✓ ' : ''}
           {rule.name}
         </p>
@@ -685,7 +685,7 @@ const RuleBuilder = ({
   };
 
   return (
-    <div className="rounded-lg border bg-muted/40 p-3">
+    <div className="rounded-md border bg-muted/40 p-3">
       <div className="grid min-w-0 gap-3 md:grid-cols-2">
         <FieldBlock htmlFor="fw-rule-name" label="Automation name">
           <Input
@@ -844,8 +844,8 @@ const RuleSelect = <Value extends string>({
 );
 
 const RuleTestResultCard = ({ result }: { result: RuleTestResponse }) => (
-  <div className="rounded-lg border bg-card p-3">
-    <p className="text-sm font-bold leading-5">
+  <div className="rounded-md border bg-card p-3">
+    <p className="text-sm font-semibold leading-5">
       Matched {result.matchedCount} item
       {result.matchedCount === 1 ? '' : 's'} in this queue.
     </p>
@@ -880,8 +880,8 @@ const RuleTestResultCard = ({ result }: { result: RuleTestResponse }) => (
 );
 
 const RuleLogPreview = ({ logs }: { logs: RuleExecutionLog[] }) => (
-  <div className="rounded-lg border bg-card p-3">
-    <p className="text-sm font-bold leading-5">Recent matches</p>
+  <div className="rounded-md border bg-card p-3">
+    <p className="text-sm font-semibold leading-5">Recent matches</p>
     {logs.length === 0 ? (
       <p className="mt-2 text-sm leading-5 text-muted-foreground">
         No automation matches yet.
@@ -965,7 +965,7 @@ const CommunityFiltersCard = ({
         onSave={saveSettings}
       />
 
-      <Card>
+      <Card size="sm">
         <CardHeader>
           <CardTitle>Subreddit filters</CardTitle>
         </CardHeader>
@@ -996,7 +996,7 @@ const CommunityFiltersCard = ({
         </CardContent>
       </Card>
 
-      <Card>
+      <Card size="sm">
         <CardHeader>
           <CardTitle>Scoring</CardTitle>
         </CardHeader>
@@ -1061,7 +1061,7 @@ const CommunityFiltersCard = ({
         </CardContent>
       </Card>
 
-      <Card>
+      <Card size="sm">
         <CardHeader>
           <CardTitle>Sticky comment</CardTitle>
         </CardHeader>
@@ -1078,7 +1078,7 @@ const CommunityFiltersCard = ({
         </CardContent>
       </Card>
 
-      <Card>
+      <Card size="sm">
         <CardHeader>
           <CardTitle>Available mod actions</CardTitle>
         </CardHeader>
@@ -1102,7 +1102,7 @@ const SettingsSaveBar = ({
   disabled: boolean;
   onSave: () => void;
 }) => (
-  <div className="flex flex-col gap-3 rounded-lg border bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
+  <div className="flex flex-col gap-3 rounded-md border bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
     <p className="text-sm leading-5 text-muted-foreground">
       These settings apply across the subreddit.
     </p>
@@ -1187,7 +1187,7 @@ const ActionToggleGroup = ({
       {fields.map((field) => (
         <label
           key={field.id}
-          className="group flex min-h-11 cursor-pointer items-center justify-between gap-3 rounded-lg border bg-card px-3 py-2 text-sm font-semibold transition-colors hover:bg-accent"
+          className="group flex min-h-11 cursor-pointer items-center justify-between gap-3 rounded-md border bg-card px-3 py-2 text-sm font-semibold transition-colors hover:bg-accent"
         >
           <span className="min-w-0 truncate">{field.label}</span>
           <span className="relative inline-flex h-6 w-10 shrink-0 items-center">
@@ -1217,7 +1217,7 @@ const SettingsTextarea = ({
 }: ComponentProps<'textarea'>) => (
   <textarea
     className={cn(
-      'min-h-24 w-full min-w-0 resize-y rounded-lg border border-transparent bg-secondary px-4 py-3 text-sm leading-6 outline-none transition-colors placeholder:text-muted-foreground hover:bg-accent focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/25 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-50',
+      'min-h-24 w-full min-w-0 resize-y rounded-md border border-transparent bg-secondary px-4 py-3 text-sm leading-6 outline-none transition-colors placeholder:text-muted-foreground hover:bg-accent focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/25 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-50',
       className
     )}
     {...props}
@@ -1266,7 +1266,7 @@ const CommunityToolsCard = ({
 }) => {
   const [scenarioId, setScenarioId] = useState(DEFAULT_DEMO_SCENARIO_ID);
   return (
-    <Card>
+    <Card size="sm">
       <CardHeader>
         <CardTitle>Demo data</CardTitle>
       </CardHeader>

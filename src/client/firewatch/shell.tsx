@@ -62,8 +62,8 @@ export const FirewatchShell = ({
           onViewChange={onViewChange}
           subredditName={subredditName}
         />
-        <main className="flex min-h-0 min-w-0 flex-1 justify-center overflow-x-hidden overflow-y-auto overscroll-contain bg-background px-2 py-0 sm:px-5 lg:px-6">
-          <div className="flex min-w-0 w-full max-w-[1520px] flex-col gap-3 py-3 sm:gap-4 sm:py-4 lg:py-5">
+        <main className="flex min-h-0 min-w-0 flex-1 justify-center overflow-x-hidden overflow-y-auto overscroll-contain bg-background px-2 py-0 sm:px-4 lg:px-5">
+          <div className="flex min-w-0 w-full max-w-[1440px] flex-col gap-3 py-3 sm:py-4">
             {activeView === 'queue' ? (
               <MobileIncidentStrip
                 incidents={incidents}
@@ -96,16 +96,16 @@ const CommandPanel = ({
   onSelectIncident: (postId: string) => void;
   onViewChange: (view: FirewatchView) => void;
 }) => (
-  <aside className="relative hidden h-full w-[292px] shrink-0 flex-col overflow-hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground lg:flex">
-    <div className="flex min-h-0 flex-1 flex-col gap-5 px-4 py-5">
+  <aside className="relative hidden h-full w-[272px] shrink-0 flex-col overflow-hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground lg:flex">
+    <div className="flex min-h-0 flex-1 flex-col px-3 py-4">
       <button
-        className="ui-feedback flex h-10 items-center gap-3 text-left text-sidebar-foreground transition-colors hover:text-sidebar-foreground/80 focus-visible:ring-2 focus-visible:ring-sidebar-ring/35 focus-visible:outline-none"
+        className="ui-feedback flex h-10 items-center gap-2.5 text-left text-sidebar-foreground transition-colors hover:text-sidebar-foreground/80 focus-visible:ring-2 focus-visible:ring-sidebar-ring/35 focus-visible:outline-none"
         type="button"
         onClick={() => onViewChange('queue')}
       >
         <SubredditAvatar />
         <div className="min-w-0">
-          <p className="truncate text-sm font-bold leading-5">
+          <p className="truncate text-sm font-semibold leading-5">
             r/{subredditName || 'subreddit'}
           </p>
           <p className="truncate text-xs leading-4 text-sidebar-foreground/60">
@@ -114,27 +114,22 @@ const CommandPanel = ({
         </div>
       </button>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-2">
-        <div className="flex items-start justify-between gap-3">
+      <div className="mt-5 flex min-h-0 flex-1 flex-col">
+        <div className="flex items-center justify-between gap-3 px-1 pb-2">
           <div className="min-w-0">
             <PanelLabel surface="sidebar">POSTS TO REVIEW</PanelLabel>
-            {incidents.length > 1 ? (
-              <p className="mt-1 text-[11px] leading-4 text-sidebar-foreground/50">
-                Open comments and reports first
-              </p>
-            ) : null}
           </div>
           <span className="text-xs font-semibold tabular-nums text-sidebar-foreground/60">
             {incidents.length}
           </span>
         </div>
         {incidents.length === 0 ? (
-          <p className="rounded-lg border border-sidebar-border bg-transparent p-3 text-xs leading-5 text-sidebar-foreground/70">
+          <p className="border-t border-sidebar-border px-1 py-3 text-xs leading-5 text-sidebar-foreground/70">
             No posts need review right now.
           </p>
         ) : (
-          <ScrollArea className="min-h-0 flex-1 pr-2">
-            <div className="flex flex-col gap-1">
+          <ScrollArea className="min-h-0 flex-1">
+            <div className="flex flex-col border-t border-sidebar-border">
               {incidents.map((incident) => (
                 <IncidentQueueItem
                   key={incident.postId}
@@ -149,7 +144,7 @@ const CommandPanel = ({
         )}
       </div>
     </div>
-    <div className="flex flex-col gap-3 px-4 pb-4">
+    <div className="flex flex-col gap-1 border-t border-sidebar-border px-3 py-3">
       <SidebarNavButton
         active={activeView === 'automations'}
         icon={<RedditListIcon />}
@@ -181,7 +176,7 @@ const SidebarNavButton = ({
   <button
     type="button"
     className={cn(
-      'ui-feedback flex h-10 items-center justify-between gap-3 rounded-md border px-3 text-left text-sm font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-sidebar-ring/35 focus-visible:outline-none',
+      'ui-feedback flex h-9 items-center justify-between gap-3 rounded-full border px-3 text-left text-sm font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-sidebar-ring/35 focus-visible:outline-none',
       active
         ? 'border-transparent bg-sidebar-accent text-sidebar-foreground'
         : 'border-transparent bg-transparent text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-foreground'
@@ -208,7 +203,7 @@ const SidebarAccountCard = ({ username }: { username: string }) => {
   return (
     <section
       aria-label="Current moderator"
-      className="border-t border-sidebar-border pt-3"
+      className="mt-2 pt-2"
     >
       <div className="flex items-center gap-2.5">
         <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-sidebar-accent text-sm font-bold text-sidebar-foreground">
@@ -277,11 +272,11 @@ const WorkspaceHeader = ({
   };
 
   return (
-    <header className="flex min-h-14 items-center justify-between gap-3 border-b border-border bg-background px-3 py-2 sm:gap-4 sm:px-5 lg:px-6">
+    <header className="flex min-h-12 items-center justify-between gap-3 border-b border-border bg-background px-3 py-2 sm:gap-4 sm:px-4 lg:px-5">
       <div className="flex min-w-0 items-center gap-3 lg:hidden">
         <SubredditAvatar size="sm" />
         <div className="min-w-0">
-          <p className="truncate text-base font-bold">Firewatch</p>
+          <p className="truncate text-base font-semibold">Firewatch</p>
           <p className="truncate text-xs leading-5 text-muted-foreground">
             r/{subredditName || 'subreddit'}
           </p>
@@ -292,7 +287,7 @@ const WorkspaceHeader = ({
           <span className="text-muted-foreground [&_svg]:size-5">
             {headerIcon}
           </span>
-          <h1 className="text-xl font-bold leading-7 tracking-normal">
+          <h1 className="text-lg font-semibold leading-6 tracking-normal">
             {headerTitle}
           </h1>
         </div>
@@ -336,7 +331,7 @@ const NoticeToast = ({ notice }: { notice: Notice }) => (
     <div
       role={notice.type === 'error' ? 'alert' : 'status'}
       className={cn(
-        'pointer-events-auto flex min-h-14 w-[min(22rem,calc(100vw-2rem))] items-center gap-3 overflow-hidden rounded-lg border bg-popover px-4 py-3 text-foreground shadow-lg shadow-black/30',
+        'pointer-events-auto flex min-h-14 w-[min(22rem,calc(100vw-2rem))] items-center gap-3 overflow-hidden rounded-md border bg-popover px-4 py-3 text-foreground shadow-lg shadow-black/30',
         'animate-in fade-in-0 slide-in-from-right-8 duration-200',
         notice.type === 'error' ? 'border-destructive/35' : 'border-border'
       )}
@@ -461,14 +456,14 @@ const IncidentQueueItem = ({
       type="button"
       aria-pressed={selected}
       className={cn(
-        'ui-feedback w-full rounded-md border p-3 text-left transition-colors focus-visible:ring-2 focus-visible:ring-ring/35 focus-visible:outline-none',
+        'ui-feedback relative w-full border text-left transition-colors focus-visible:ring-2 focus-visible:ring-ring/35 focus-visible:outline-none',
         'content-visibility-list-item',
         surface === 'dark'
-          ? 'border-transparent bg-transparent hover:bg-sidebar-accent'
-          : 'w-[min(18.5rem,calc(100vw-1rem))] snap-start border-border bg-card hover:bg-accent',
+          ? 'border-x-0 border-t-0 border-sidebar-border bg-transparent px-2 py-2.5 hover:bg-sidebar-accent'
+          : 'w-[min(18.5rem,calc(100vw-1rem))] snap-start rounded-md border-border bg-card p-3 hover:bg-accent',
         selected &&
           (surface === 'dark'
-            ? 'border-sidebar-border bg-sidebar-accent'
+            ? 'bg-sidebar-accent before:absolute before:inset-y-2 before:left-0 before:w-0.5 before:rounded-full before:bg-primary'
             : 'border-border bg-accent')
       )}
       onClick={onSelect}
@@ -476,7 +471,7 @@ const IncidentQueueItem = ({
       <div className="flex items-start justify-between gap-3">
         <p
           className={cn(
-            'line-clamp-2 text-sm font-bold leading-5',
+            'line-clamp-2 text-sm font-semibold leading-5',
             surface === 'dark' ? 'text-sidebar-foreground' : 'text-foreground'
           )}
         >
@@ -486,7 +481,7 @@ const IncidentQueueItem = ({
       </div>
       <div
         className={cn(
-          'mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs leading-5',
+          'mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs leading-5',
           surface === 'dark'
             ? 'text-sidebar-foreground/60'
             : 'text-muted-foreground'
@@ -503,7 +498,7 @@ const IncidentQueueItem = ({
           {stateLabel}
         </span>
         <span aria-hidden="true">·</span>
-        <span>Updated {formatTime(incident.updatedAt)}</span>
+        <span>{formatTime(incident.updatedAt)}</span>
       </div>
       {surface === 'light' && signalParts.length > 0 ? (
         <p className="mt-1 line-clamp-1 text-xs leading-5 text-muted-foreground">

@@ -5,7 +5,17 @@ import { devvit } from '@devvit/start/vite';
 import { fileURLToPath, URL } from 'node:url';
 
 export default defineConfig({
-  plugins: [react(), tailwind(), devvit()],
+  plugins: [
+    react(),
+    tailwind(),
+    devvit({
+      server: {
+        build: {
+          chunkSizeWarningLimit: 2500,
+        },
+      },
+    }),
+  ],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src/client', import.meta.url)),

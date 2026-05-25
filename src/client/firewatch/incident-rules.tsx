@@ -33,7 +33,7 @@ export const MatchedRulesCard = ({
   if (matchedRules.length === 0) return null;
 
   return (
-    <Card>
+    <Card size="sm">
       <CardHeader>
         <CardTitle>Prepared automation</CardTitle>
       </CardHeader>
@@ -94,10 +94,10 @@ const MatchedRuleItem = ({
   };
 
   return (
-    <article className="rounded-lg border bg-muted/35 p-3">
+    <article className="rounded-md border bg-background p-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-base font-bold leading-6">{rule.ruleName}</p>
+          <p className="text-sm font-semibold leading-5">{rule.ruleName}</p>
           <div className="mt-1 flex flex-wrap gap-1.5">
             <Badge variant="secondary">{RULE_MODE_LABELS[rule.mode]}</Badge>
             {rule.username ? (
@@ -111,7 +111,7 @@ const MatchedRuleItem = ({
 
       <div className="mt-3 grid min-w-0 gap-3 lg:grid-cols-2">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">
+          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
             Why it matched
           </p>
           <ul className="mt-2 flex flex-col gap-1.5">
@@ -124,7 +124,7 @@ const MatchedRuleItem = ({
           </ul>
         </div>
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">
+          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
             Actions ready
           </p>
           <div className="mt-2 flex flex-col gap-1.5">

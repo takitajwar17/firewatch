@@ -21,7 +21,7 @@ export const LatestSignalsCard = ({ incident }: { incident: Incident }) => {
   const visibleSignals = incident.recentSignals;
 
   return (
-    <Card>
+    <Card size="sm">
       <CardHeader>
         <CardTitle>Reddit activity</CardTitle>
       </CardHeader>
@@ -61,7 +61,7 @@ export const LatestSignalsCard = ({ incident }: { incident: Incident }) => {
 };
 
 export const SummariesCard = ({ incident }: { incident: Incident }) => (
-  <Card>
+  <Card size="sm">
     <CardHeader>
       <CardTitle>Handoff notes</CardTitle>
     </CardHeader>
@@ -93,7 +93,7 @@ export const HandoffActionCard = ({
   incident: Incident;
   onAction: ActionRunner;
 }) => (
-  <Card>
+  <Card size="sm">
     <CardHeader>
       <CardTitle>Handoff</CardTitle>
     </CardHeader>
@@ -136,7 +136,7 @@ const SummaryBlock = ({ label, value }: { label: string; value: string }) => {
   };
 
   return (
-    <div className="rounded-lg border bg-muted/60 p-3">
+    <div className="rounded-md border bg-background p-3">
       <div className="flex items-center justify-between gap-3">
         <Badge variant="outline">{label}</Badge>
         <Button size="sm" variant="outline" onClick={onCopy}>
@@ -144,7 +144,7 @@ const SummaryBlock = ({ label, value }: { label: string; value: string }) => {
           {copied ? 'Copied' : 'Copy'}
         </Button>
       </div>
-      <pre className="mt-3 max-h-72 overflow-auto rounded-lg border bg-card p-3 text-xs leading-6 text-foreground">
+      <pre className="mt-3 max-h-72 overflow-auto rounded-md border bg-card p-3 text-xs leading-6 text-foreground">
         {value}
       </pre>
     </div>
@@ -158,7 +158,7 @@ export const ActionLogCard = ({
   compact?: boolean;
   incident: Incident;
 }) => (
-  <Card>
+  <Card size="sm">
     <CardHeader>
       <CardTitle>Mod log</CardTitle>
     </CardHeader>
