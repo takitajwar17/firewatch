@@ -106,9 +106,7 @@ const templateRules = (subredditName: string) =>
     subredditId: subredditName,
   });
 
-export const getAutomations = async (
-  subredditName = context.subredditName
-) => {
+export const getAutomations = async (subredditName = context.subredditName) => {
   const stored = parseJsonList<FirewatchRule>(
     await redis.get(responseRulesKey(subredditName))
   );
@@ -372,7 +370,10 @@ const signalAllowedByScope = ({
   const normalizedSignal = normalizeSignal(signal);
   const author = normalizedSignal.author;
 
-  if (scope.excludeFirewatchNotices && normalizedSignal.source === 'firewatch_notice') {
+  if (
+    scope.excludeFirewatchNotices &&
+    normalizedSignal.source === 'firewatch_notice'
+  ) {
     return false;
   }
   if (
@@ -568,7 +569,8 @@ const candidateUsers = (
     ) {
       continue;
     }
-    if (scope.excludeAutoModerator && isAutoModerator(summary.username)) continue;
+    if (scope.excludeAutoModerator && isAutoModerator(summary.username))
+      continue;
     if (
       scope.excludeApprovedUsers &&
       approvedUsers.has(summary.username.toLowerCase())
@@ -617,7 +619,10 @@ const candidatesForRule = (
         ) {
           return false;
         }
-        if (rule.scope.excludeAutoModerator && isAutoModerator(comment.author)) {
+        if (
+          rule.scope.excludeAutoModerator &&
+          isAutoModerator(comment.author)
+        ) {
           return false;
         }
         if (
@@ -656,7 +661,12 @@ const candidatesForRule = (
   }
 
   if (rule.scope.target === 'user') {
-    return candidateUsers(incident, moderatorUsers, rule.scope, strikeSummaries);
+    return candidateUsers(
+      incident,
+      moderatorUsers,
+      rule.scope,
+      strikeSummaries
+    );
   }
 
   const postText = signalText(

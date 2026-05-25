@@ -199,7 +199,7 @@ export const getResponseSuggestion = (
           : `${unresolvedCount} comments still need a mod decision before this post can be handled.`,
       level,
       steps: [
-        'Open the Comments tab.',
+        'Open Comments.',
         'Approve acceptable comments or remove comments that break the rules.',
         'Mark handled after comment review is clear.',
       ],
@@ -235,13 +235,13 @@ export const getResponseSuggestion = (
   }
 
   return {
-    label: 'Monitor',
-    detail: `Review score is ${score}/100. Keep an eye on reports, comment volume, and repeated user wording.`,
+    label: 'Watch post',
+    detail: `Review score is ${score}/100. Watch reports, comment volume, and repeated user wording.`,
     level,
     steps: [
       'Leave the post open.',
       'Watch new reports and user comments.',
-      'Take this post if more reports come in.',
+      'Claim this post if more reports come in.',
     ],
   };
 };
@@ -515,7 +515,10 @@ const buildImpactSnapshot = ({
   const resolvedAt = incident.resolvedAt ?? now();
 
   return {
-    reportsGrouped: Math.max(reportsGrouped, incident.impact?.reportsGrouped ?? 0),
+    reportsGrouped: Math.max(
+      reportsGrouped,
+      incident.impact?.reportsGrouped ?? 0
+    ),
     commentsReviewed: reviewedComments.length,
     commentsAwaitingReview: activeFlaggedComments.length,
     usersInReview: usersInReview.size,
@@ -537,7 +540,9 @@ const buildImpactSnapshot = ({
       incident.actions.some((action) => action.type === 'resolved'),
     timeOpenMinutes: Math.max(
       0,
-      Math.round((resolvedAt - (incident.openedAt ?? incident.createdAt)) / 60000)
+      Math.round(
+        (resolvedAt - (incident.openedAt ?? incident.createdAt)) / 60000
+      )
     ),
     peakAttention: incident.peakScore ?? 0,
   };
@@ -936,9 +941,9 @@ export const calculateIncident = (
   );
   const flaggedComments = [
     ...openFlaggedComments,
-    ...alreadyActionedComments.filter(
-      (comment) => !openIds.has(comment.id)
-    ).slice(0, actionedCommentLimit),
+    ...alreadyActionedComments
+      .filter((comment) => !openIds.has(comment.id))
+      .slice(0, actionedCommentLimit),
   ];
   const level = getLevel(score, config);
   const peakScore = Math.max(incident.peakScore ?? 0, score);

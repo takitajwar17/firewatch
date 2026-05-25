@@ -18,9 +18,10 @@ export type T1 = `t1_${string}`;
 export type T3 = `t3_${string}`;
 
 export const incidentKey = (postId: string) => `fw:incident:${postId}`;
-export const configKey = (subredditName: string) => `fw:config:${subredditName}`;
+export const configKey = (subredditName: string) =>
+  `fw:config:${subredditName}`;
 export const boardPostKey = (subredditName: string) =>
-  `fw:board-post:inline-v2:${subredditName}`;
+  `fw:board-post:native-v11:${subredditName}`;
 export const claimKey = (postId: string) => `fw:claim:${postId}`;
 export const selectionKey = (subredditName: string, username: string) =>
   `fw:selected:${subredditName}:${username}`;
@@ -28,8 +29,7 @@ export const selectionKey = (subredditName: string, username: string) =>
 export const now = () => Date.now();
 export const retentionExpiration = () =>
   new Date(now() + INCIDENT_RETENTION_MS);
-export const selectionExpiration = () =>
-  new Date(now() + 24 * 60 * 60 * 1000);
+export const selectionExpiration = () => new Date(now() + 24 * 60 * 60 * 1000);
 
 export const makeId = (prefix: string) =>
   `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
@@ -41,9 +41,7 @@ export const normalizePostId = (postId: string): T3 =>
   postId.startsWith('t3_') ? `t3_${postId.slice(3)}` : `t3_${postId}`;
 
 export const normalizeCommentId = (commentId: string): T1 =>
-  commentId.startsWith('t1_')
-    ? `t1_${commentId.slice(3)}`
-    : `t1_${commentId}`;
+  commentId.startsWith('t1_') ? `t1_${commentId.slice(3)}` : `t1_${commentId}`;
 
 export const normalizeUsername = (username: string | undefined) => {
   const normalized = username?.trim().replace(/^u\//i, '');

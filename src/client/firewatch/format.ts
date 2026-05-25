@@ -54,7 +54,7 @@ export const formatStatus = (status: string) => {
     open: 'Open',
     watching: 'Watching',
     review: 'Review',
-    claimed: 'Taken',
+    claimed: 'Claimed',
     cooldown: 'Reminder posted',
     locked: 'Locked',
     handled: 'Handled',
@@ -160,12 +160,12 @@ export const actionLabel = (action: string) => {
   }
 
   const labels: Record<string, string> = {
-    claim: 'Take post',
+    claim: 'Claim post',
     'cool-down': 'Add sticky comment',
     lock: 'Lock post',
     escalate: 'Save handoff note',
     resolve: 'Mark handled',
-    demo: 'Create demo post',
+    demo: 'Create demo thread',
     config: 'Save settings',
   };
 
@@ -180,12 +180,57 @@ export const actionLabel = (action: string) => {
 
 export const actionSuccessMessage = (action: string) => {
   if (action.startsWith('ban:')) {
-    return 'User banned.';
+    return 'Comment removed and user banned.';
   }
-  if (action.startsWith('post:')) return 'Saved.';
-  if (action.startsWith('comment:')) return 'Saved.';
-  if (action.startsWith('user:')) return 'Saved.';
-  if (action.startsWith('rule:')) return 'Done.';
+  if (action === 'post:approve') return 'Post approved.';
+  if (action === 'post:remove') return 'Post removed.';
+  if (action === 'post:spam') return 'Post marked as spam.';
+  if (action === 'post:unlock') return 'Post unlocked.';
+  if (action === 'post:mark-nsfw') return 'Post marked NSFW.';
+  if (action === 'post:unmark-nsfw') return 'NSFW label removed.';
+  if (action === 'post:mark-spoiler') return 'Post marked spoiler.';
+  if (action === 'post:unmark-spoiler') return 'Spoiler label removed.';
+  if (action === 'post:ignore-reports') return 'Post reports ignored.';
+  if (action === 'post:unignore-reports') return 'Post reports unignored.';
+  if (action === 'post:crowd-control') return 'Crowd Control updated.';
+  if (action === 'post:set-flair') return 'Post flair updated.';
+  if (action.startsWith('comment:') && action.endsWith(':spam')) {
+    return 'Comment marked as spam.';
+  }
+  if (action.startsWith('comment:') && action.endsWith(':lock')) {
+    return 'Comment locked.';
+  }
+  if (action.startsWith('comment:') && action.endsWith(':unlock')) {
+    return 'Comment unlocked.';
+  }
+  if (action.startsWith('comment:') && action.endsWith(':ignore-reports')) {
+    return 'Comment reports ignored.';
+  }
+  if (action.startsWith('comment:') && action.endsWith(':unignore-reports')) {
+    return 'Comment reports unignored.';
+  }
+  if (action.startsWith('comment:') && action.endsWith(':thread')) {
+    return 'Comment thread removed.';
+  }
+  if (action.startsWith('comment:') && action.endsWith(':show')) {
+    return 'Comment shown.';
+  }
+  if (action.startsWith('user:') && action.endsWith(':approve')) {
+    return 'User approved.';
+  }
+  if (action.startsWith('user:') && action.endsWith(':mute')) {
+    return 'User muted.';
+  }
+  if (action.startsWith('user:') && action.endsWith(':note')) {
+    return 'Mod note added.';
+  }
+  if (action.startsWith('user:') && action.endsWith(':content')) {
+    return 'Recent user content removed.';
+  }
+  if (action.startsWith('post:')) return 'Post updated.';
+  if (action.startsWith('comment:')) return 'Comment updated.';
+  if (action.startsWith('user:')) return 'User updated.';
+  if (action.startsWith('rule:')) return 'Automation actions run.';
   if (action.startsWith('clear-strikes:')) return 'Strikes cleared.';
   if (action.startsWith('approve:')) return 'Comment approved.';
   if (action.startsWith('remove:') || action.startsWith('t1_')) {
@@ -193,7 +238,7 @@ export const actionSuccessMessage = (action: string) => {
   }
 
   const messages: Record<string, string> = {
-    claim: 'Post taken.',
+    claim: 'Post claimed.',
     'cool-down': 'Sticky comment posted.',
     lock: 'Post locked.',
     escalate: 'Handoff saved.',

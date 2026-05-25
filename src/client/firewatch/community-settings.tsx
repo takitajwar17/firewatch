@@ -1,11 +1,6 @@
 import { useState, type ComponentProps } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import {
@@ -73,7 +68,10 @@ export const CommunitySettingsPage = ({
 }) => {
   return (
     <div className="flex min-w-0 flex-col gap-4 sm:gap-5">
-      <SectionHeader title="Settings" />
+      <SectionHeader
+        description="Subreddit-wide filters, scoring, sticky text, and action access."
+        title="Settings"
+      />
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 sm:gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         <CommunityFiltersCard
           key={[
@@ -122,6 +120,7 @@ export const AutomationsCard = ({
 }) => {
   const [editingRule, setEditingRule] = useState<FirewatchRule | undefined>();
   const [creating, setCreating] = useState(false);
+  const [confirmDisableAll, setConfirmDisableAll] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
   const [testResult, setTestResult] = useState<RuleTestResponse | undefined>();
   const showBuilder = creating || Boolean(editingRule);
@@ -148,6 +147,7 @@ export const AutomationsCard = ({
             onClick={() => {
               setCreating(true);
               setEditingRule(undefined);
+              setConfirmDisableAll(false);
             }}
           />
           <PlaybookButton
@@ -162,15 +162,22 @@ export const AutomationsCard = ({
           <PlaybookButton
             disabled={busyAction === 'rule-disable-all' || rules.length === 0}
             icon={<RedditRemoveIcon data-icon="inline-start" />}
-            label="Disable all"
+            label={confirmDisableAll ? 'Confirm disable all' : 'Disable all'}
             loading={busyAction === 'rule-disable-all'}
             loadingLabel="Disabling"
-            variant="ghost"
-            onClick={onDisableAllRules}
+            variant={confirmDisableAll ? 'destructive' : 'ghost'}
+            onClick={() => {
+              if (!confirmDisableAll) {
+                setConfirmDisableAll(true);
+                return;
+              }
+              setConfirmDisableAll(false);
+              onDisableAllRules();
+            }}
           />
           <PlaybookButton
             icon={<RedditReportIcon data-icon="inline-start" />}
-            label="View log"
+            label="Recent matches"
             variant={showLogs ? 'secondary' : 'ghost'}
             onClick={() => setShowLogs((current) => !current)}
           />
@@ -510,7 +517,9 @@ const RuleBuilder = ({
   const [conditionType, setConditionType] = useState<BuilderConditionType>(
     initialRuleState.conditionType
   );
-  const [phrase, setPhrase] = useState(initialRuleState.conditionDefaults.phrase);
+  const [phrase, setPhrase] = useState(
+    initialRuleState.conditionDefaults.phrase
+  );
   const [threshold, setThreshold] = useState(
     initialRuleState.conditionDefaults.threshold
   );
@@ -837,7 +846,8 @@ const RuleSelect = <Value extends string>({
 const RuleTestResultCard = ({ result }: { result: RuleTestResponse }) => (
   <div className="rounded-lg border bg-card p-3">
     <p className="text-sm font-bold leading-5">
-      Matched {result.matchedCount} item{result.matchedCount === 1 ? '' : 's'}.
+      Matched {result.matchedCount} item
+      {result.matchedCount === 1 ? '' : 's'} in this queue.
     </p>
     {result.examples.length ? (
       <div className="mt-3 flex flex-col gap-2">
@@ -851,7 +861,7 @@ const RuleTestResultCard = ({ result }: { result: RuleTestResponse }) => (
       </div>
     ) : (
       <p className="mt-2 text-sm leading-5 text-muted-foreground">
-        No matches.
+        No automation matches yet.
       </p>
     )}
     {result.preparedActions.length ? (
@@ -871,10 +881,10 @@ const RuleTestResultCard = ({ result }: { result: RuleTestResponse }) => (
 
 const RuleLogPreview = ({ logs }: { logs: RuleExecutionLog[] }) => (
   <div className="rounded-lg border bg-card p-3">
-    <p className="text-sm font-bold leading-5">Log</p>
+    <p className="text-sm font-bold leading-5">Recent matches</p>
     {logs.length === 0 ? (
       <p className="mt-2 text-sm leading-5 text-muted-foreground">
-        No matches.
+        No automation matches yet.
       </p>
     ) : (
       <div className="mt-2 flex flex-col gap-2">
@@ -919,7 +929,9 @@ const CommunityFiltersCard = ({
   const [actionControls, setActionControls] = useState(
     () => config.actionControls
   );
-  const [signalWeights, setSignalWeights] = useState(() => config.signalWeights);
+  const [signalWeights, setSignalWeights] = useState(
+    () => config.signalWeights
+  );
 
   const parsedHeat = Number(heatThreshold);
   const parsedFire = Number(fireThreshold);
@@ -933,142 +945,179 @@ const CommunityFiltersCard = ({
     parsedWildfire <= parsedFire ||
     parsedWildfire > 100;
 
+  const saveSettings = () =>
+    onSave({
+      keywords,
+      suspiciousDomains,
+      heatThreshold: parsedHeat,
+      fireThreshold: parsedFire,
+      wildfireThreshold: parsedWildfire,
+      reminderText,
+      actionControls,
+      signalWeights,
+    });
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Filters</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-5">
-        <FieldBlock
-          htmlFor="fw-keywords"
-          label={`Watched words (${splitList(keywords).length})`}
-        >
-          <SettingsTextarea
-            id="fw-keywords"
-            rows={4}
-            value={keywords}
-            onChange={(event) => setKeywords(event.target.value)}
-          />
-        </FieldBlock>
+    <div className="flex min-w-0 flex-col gap-4">
+      <SettingsSaveBar
+        busy={busy}
+        disabled={invalidThresholds}
+        onSave={saveSettings}
+      />
 
-        <FieldBlock
-          htmlFor="fw-domains"
-          label={`Watched domains (${splitList(suspiciousDomains).length})`}
-        >
-          <SettingsTextarea
-            id="fw-domains"
-            rows={3}
-            value={suspiciousDomains}
-            onChange={(event) => setSuspiciousDomains(event.target.value)}
-          />
-        </FieldBlock>
+      <Card>
+        <CardHeader>
+          <CardTitle>Subreddit filters</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-5">
+          <FieldBlock
+            htmlFor="fw-keywords"
+            label={`Watched words (${splitList(keywords).length})`}
+          >
+            <SettingsTextarea
+              id="fw-keywords"
+              rows={4}
+              value={keywords}
+              onChange={(event) => setKeywords(event.target.value)}
+            />
+          </FieldBlock>
 
-        <DisclosurePanel title="Scores and sticky">
-          <div className="flex flex-col gap-5">
-            <div className="flex flex-col gap-3">
-              <p className="text-sm font-semibold leading-5">
-                Review thresholds
-              </p>
-              <div className="grid min-w-0 gap-3 md:grid-cols-3">
-                <ThresholdInput
-                  id="review"
-                  label="Review at"
-                  value={heatThreshold}
-                  onChange={setHeatThreshold}
-                />
-                <ThresholdInput
-                  id="act"
-                  label="Act at"
-                  value={fireThreshold}
-                  onChange={setFireThreshold}
-                />
-                <ThresholdInput
-                  id="lock"
-                  label="Lock at"
-                  value={wildfireThreshold}
-                  onChange={setWildfireThreshold}
-                />
-              </div>
-            </div>
+          <FieldBlock
+            htmlFor="fw-domains"
+            label={`Watched domains (${splitList(suspiciousDomains).length})`}
+          >
+            <SettingsTextarea
+              id="fw-domains"
+              rows={3}
+              value={suspiciousDomains}
+              onChange={(event) => setSuspiciousDomains(event.target.value)}
+            />
+          </FieldBlock>
+        </CardContent>
+      </Card>
 
-            <div className="flex flex-col gap-3">
-              <p className="text-sm font-semibold leading-5">Signal weights</p>
-              <div className="grid min-w-0 gap-3 md:grid-cols-2">
-                {CONFIG_SIGNAL_WEIGHT_FIELDS.map((field) => (
-                  <ThresholdInput
-                    key={field.id}
-                    id={`weight-${field.id}`}
-                    label={field.label}
-                    max={50}
-                    min={0}
-                    value={String(signalWeights[field.id])}
-                    onChange={(value) =>
-                      setSignalWeights((current) => ({
-                        ...current,
-                        [field.id]: parseNumberInput(value, current[field.id]),
-                      }))
-                    }
-                  />
-                ))}
-              </div>
-            </div>
-
-            <FieldBlock
-              htmlFor="fw-reminder-text"
-              label="Sticky comment text"
-            >
-              <SettingsTextarea
-                id="fw-reminder-text"
-                maxLength={800}
-                rows={4}
-                value={reminderText}
-                onChange={(event) => setReminderText(event.target.value)}
+      <Card>
+        <CardHeader>
+          <CardTitle>Scoring</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-5">
+          <div className="flex flex-col gap-3">
+            <p className="text-sm font-semibold leading-5">
+              When a post enters review
+            </p>
+            <div className="grid min-w-0 gap-3 md:grid-cols-3">
+              <ThresholdInput
+                id="review"
+                label="Review at"
+                value={heatThreshold}
+                onChange={setHeatThreshold}
               />
-            </FieldBlock>
+              <ThresholdInput
+                id="act"
+                label="Priority at"
+                value={fireThreshold}
+                onChange={setFireThreshold}
+              />
+              <ThresholdInput
+                id="lock"
+                label="High priority at"
+                value={wildfireThreshold}
+                onChange={setWildfireThreshold}
+              />
+            </div>
           </div>
-        </DisclosurePanel>
 
-        <ActionPermissionsControl
-          actionControls={actionControls}
-          onChange={setActionControls}
-        />
+          <DisclosurePanel title="Signal weights">
+            <div className="grid min-w-0 gap-3 md:grid-cols-2">
+              {CONFIG_SIGNAL_WEIGHT_FIELDS.map((field) => (
+                <ThresholdInput
+                  key={field.id}
+                  id={`weight-${field.id}`}
+                  label={field.label}
+                  max={50}
+                  min={0}
+                  value={String(signalWeights[field.id])}
+                  onChange={(value) =>
+                    setSignalWeights((current) => ({
+                      ...current,
+                      [field.id]: parseNumberInput(value, current[field.id]),
+                    }))
+                  }
+                />
+              ))}
+            </div>
+          </DisclosurePanel>
 
-        {invalidThresholds ? (
-          <Alert variant="destructive">
-            <RedditReportIcon />
-            <AlertTitle>Scores need ordering</AlertTitle>
-            <AlertDescription>
-              Use numbers from 1 to 100 where Review is below Act and Act is
-              below Lock.
-            </AlertDescription>
-          </Alert>
-        ) : null}
+          {invalidThresholds ? (
+            <Alert variant="destructive">
+              <RedditReportIcon />
+              <AlertTitle>Scores need ordering</AlertTitle>
+              <AlertDescription>
+                Use numbers from 1 to 100 where Review is below Priority and
+                Priority is below High priority.
+              </AlertDescription>
+            </Alert>
+          ) : null}
+        </CardContent>
+      </Card>
 
-        <PlaybookButton
-          className="w-full sm:w-fit"
-          disabled={busy || invalidThresholds}
-          icon={<RedditApproveIcon data-icon="inline-start" />}
-          label="Save settings"
-          loading={busy}
-          loadingLabel="Saving"
-          variant="default"
-          onClick={() =>
-            onSave({
-              keywords,
-              suspiciousDomains,
-              heatThreshold: parsedHeat,
-              fireThreshold: parsedFire,
-              wildfireThreshold: parsedWildfire,
-              reminderText,
-              actionControls,
-              signalWeights,
-            })
-          }
-        />
-      </CardContent>
-    </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Sticky comment</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <FieldBlock htmlFor="fw-reminder-text" label="Comment text">
+            <SettingsTextarea
+              id="fw-reminder-text"
+              maxLength={800}
+              rows={4}
+              value={reminderText}
+              onChange={(event) => setReminderText(event.target.value)}
+            />
+          </FieldBlock>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Available mod actions</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-5">
+          <ActionPermissionsControl
+            actionControls={actionControls}
+            onChange={setActionControls}
+          />
+        </CardContent>
+      </Card>
+    </div>
   );
 };
+
+const SettingsSaveBar = ({
+  busy,
+  disabled,
+  onSave,
+}: {
+  busy: boolean;
+  disabled: boolean;
+  onSave: () => void;
+}) => (
+  <div className="flex flex-col gap-3 rounded-lg border bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
+    <p className="text-sm leading-5 text-muted-foreground">
+      These settings apply across the subreddit.
+    </p>
+    <PlaybookButton
+      className="w-full sm:w-fit"
+      disabled={busy || disabled}
+      icon={<RedditApproveIcon data-icon="inline-start" />}
+      label="Save settings"
+      loading={busy}
+      loadingLabel="Saving"
+      variant="default"
+      onClick={onSave}
+    />
+  </div>
+);
 
 const ActionPermissionsControl = ({
   actionControls,
@@ -1089,17 +1138,13 @@ const ActionPermissionsControl = ({
 
   return (
     <div className="flex flex-col gap-3">
-      <div>
-        <p className="text-sm font-semibold leading-5">Allowed mod actions</p>
-      </div>
-
       <ActionToggleGroup
         actionControls={actionControls}
         fields={CONFIG_CORE_ACTION_FIELDS}
         onChange={toggleAction}
       />
 
-      <DisclosurePanel title="More Reddit actions">
+      <DisclosurePanel title="Post, comment, and user actions">
         <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
           {CONFIG_ACTION_CONTROL_GROUPS.slice(1).map((group) => (
             <ActionToggleGroup
@@ -1223,9 +1268,12 @@ const CommunityToolsCard = ({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Demos</CardTitle>
+        <CardTitle>Demo data</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
+        <p className="text-sm leading-5 text-muted-foreground">
+          For testing the app. Does not change subreddit settings.
+        </p>
         <FieldBlock htmlFor="fw-demo-scenario" label="Demo scenario">
           <div className="relative min-w-0">
             <select
@@ -1252,7 +1300,7 @@ const CommunityToolsCard = ({
           <PlaybookButton
             disabled={busyAction === 'demo'}
             icon={<RedditAddIcon data-icon="inline-start" />}
-            label="Create demo"
+            label="Create demo thread"
             loading={busyAction === 'demo'}
             loadingLabel="Creating"
             variant="outline"

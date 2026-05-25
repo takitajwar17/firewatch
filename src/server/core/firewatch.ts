@@ -224,7 +224,10 @@ const shouldShowInQueue = (incident: Incident) => {
     (comment) => !comment.removed && !comment.reviewed
   );
 
-  if ((status === 'handled' || status === 'resolved') && !hasUnresolvedComments) {
+  if (
+    (status === 'handled' || status === 'resolved') &&
+    !hasUnresolvedComments
+  ) {
     return false;
   }
 
@@ -362,7 +365,8 @@ const applyNativeCommentState = async (
     const redditComment = await reddit.getCommentById(
       normalizeCommentId(comment.id)
     );
-    const removed = comment.removed || redditComment.removed || redditComment.spam;
+    const removed =
+      comment.removed || redditComment.removed || redditComment.spam;
     const reviewed = comment.reviewed || redditComment.approved;
 
     return {
@@ -676,8 +680,8 @@ export const claimIncident = async (postId: string) => {
     actor,
     detail:
       storedClaim.username !== actor
-        ? `Already taken by u/${storedClaim.username}`
-        : `Taken by u/${actor}`,
+        ? `Already claimed by u/${storedClaim.username}`
+        : `Claimed by u/${actor}`,
   });
 };
 
@@ -1066,9 +1070,7 @@ export const applyNativePostAction = async (
   const config = await getConfig(incident.subredditName);
   const control = postActionControl(values.action);
   if (!config.actionControls[control]) {
-    throw new Error(
-      'This Reddit post action is disabled in Settings'
-    );
+    throw new Error('This Reddit post action is disabled in Settings');
   }
 
   const actor = await actorName();
@@ -1183,9 +1185,7 @@ export const applyNativeCommentAction = async (
   const config = await getConfig(incident.subredditName);
   const control = commentActionControl(values.action);
   if (!config.actionControls[control]) {
-    throw new Error(
-      'This Reddit comment action is disabled in Settings'
-    );
+    throw new Error('This Reddit comment action is disabled in Settings');
   }
   if (
     values.action === 'remove-thread' &&
@@ -1337,9 +1337,7 @@ export const applyNativeUserAction = async (
   const config = await getConfig(incident.subredditName);
   const control = userActionControl(values.action);
   if (!config.actionControls[control]) {
-    throw new Error(
-      'This Reddit user action is disabled in Settings'
-    );
+    throw new Error('This Reddit user action is disabled in Settings');
   }
 
   const actor = await actorName();
@@ -1543,7 +1541,9 @@ export const runPreparedRuleActions = async (
   const executedActions: string[] = [];
   const skippedActions: string[] = [];
   let currentIncident = incident;
-  const existingLogs = await getRuleExecutionLogs(currentIncident.subredditName);
+  const existingLogs = await getRuleExecutionLogs(
+    currentIncident.subredditName
+  );
   const alreadyExecuted = new Set(
     existingLogs
       .filter(
@@ -1903,16 +1903,16 @@ const buildSummary = (incident: Incident) => {
   const handler =
     incident.claim?.username ??
     incident.actions.find((action) => action.type === 'claimed')?.actor;
-  const topReasons = (incident.peakReasons?.length
-    ? incident.peakReasons
-    : incident.reasons
+  const topReasons = (
+    incident.peakReasons?.length ? incident.peakReasons : incident.reasons
   )
     .slice(0, 3)
     .map((reason) => `${reason.label} (+${reason.points})`)
     .join(', ');
-  const commonPhrases = (incident.peakRepeatedPhrases?.length
-    ? incident.peakRepeatedPhrases
-    : incident.repeatedPhrases
+  const commonPhrases = (
+    incident.peakRepeatedPhrases?.length
+      ? incident.peakRepeatedPhrases
+      : incident.repeatedPhrases
   )
     .slice(0, 3)
     .map((phrase) => `"${phrase.phrase}" x${phrase.count}`)
@@ -1989,7 +1989,7 @@ const buildEscalationSummary = (incident: Incident) => {
 
   return [
     `Mod handoff note: ${incident.title}`,
-    `Review score: ${incident.score}/100 (${formatLevel(incident.level)}); peak review score: ${incident.peakScore}/100; recommended next step: ${incident.responseSuggestion.label}`,
+    `Review score: ${incident.score}/100 (${formatLevel(incident.level)}); peak score: ${incident.peakScore}/100; next mod move: ${incident.responseSuggestion.label}`,
     `Post: ${incident.permalink ?? incident.postId}`,
     `Handled by: ${handler ? formatUserHandle(handler) : 'unclaimed'}`,
     `Impact so far: ${incident.impact.reportsGrouped} reports grouped, ${incident.impact.commentsReviewed} comments reviewed, ${incident.impact.commentsAwaitingReview} comments still waiting`,
@@ -2281,7 +2281,7 @@ export const createDemoIncident = async (
     text: [
       `This is a Firewatch demo post for: ${scenario.label}.`,
       'Posts show up in Firewatch through the same path used by comments, reports, and posts sent by mods.',
-      'Mods can test taking the post, adding a sticky comment, removing comments, locking the post, saving a handoff note, and marking it handled without waiting for real reports.',
+      'Mods can test claiming the post, adding a sticky comment, removing comments, locking the post, saving a handoff note, and marking it handled without waiting for real reports.',
     ].join('\n\n'),
   });
   const branchParentId = `t1_fw_demo_branch_${seed.toString(36)}`;
@@ -2436,6 +2436,10 @@ export const createFirewatchPost = async (options?: {
       ? `Firewatch review: ${sourcePost.title.slice(0, 220)}`
       : 'Firewatch posts to review',
     entry: 'default',
+    splash: {
+      appDisplayName: 'Firewatch',
+      appIconUri: 'icon.png',
+    },
     postData: normalizedIncidentPostId
       ? {
           incidentPostId: normalizedIncidentPostId,

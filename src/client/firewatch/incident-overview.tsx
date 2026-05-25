@@ -2,12 +2,7 @@ import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { navigateTo } from '@devvit/web/client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import {
@@ -83,15 +78,6 @@ export const IncidentIntro = ({ incident }: { incident: Incident }) => {
               ·
             </span>
             <span>{formatTime(incident.createdAt)}</span>
-            <InlineState variant="review">
-              {formatStatus(incident.status)}
-            </InlineState>
-            {incident.demo ? <InlineState>Demo</InlineState> : null}
-            {incident.claim ? (
-              <InlineState variant="outline">
-                Taken by {formatUsername(incident.claim.username)}
-              </InlineState>
-            ) : null}
           </div>
 
           <div className="mt-3 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
@@ -117,6 +103,24 @@ export const IncidentIntro = ({ incident }: { incident: Incident }) => {
               Updated {formatTime(incident.updatedAt)}
             </span>
           </div>
+
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <InlineState
+              variant={
+                incident.status === 'review' || incident.status === 'locked'
+                  ? 'workflow'
+                  : 'outline'
+              }
+            >
+              Firewatch: {formatStatus(incident.status)}
+            </InlineState>
+            {incident.claim ? (
+              <InlineState variant="outline">
+                Claimed by {formatUsername(incident.claim.username)}
+              </InlineState>
+            ) : null}
+            {incident.demo ? <InlineState>Demo</InlineState> : null}
+          </div>
         </article>
         <AttentionScoreRail incident={incident} />
       </div>
@@ -126,6 +130,9 @@ export const IncidentIntro = ({ incident }: { incident: Incident }) => {
 
 const AttentionScoreRail = ({ incident }: { incident: Incident }) => {
   const score = clampScore(incident.score);
+  const unresolvedComments = incident.flaggedComments.filter(
+    (comment) => !comment.removed && !comment.reviewed
+  ).length;
   const attentionTone =
     incident.level === 'watch'
       ? 'bg-primary/70'
@@ -160,9 +167,15 @@ const AttentionScoreRail = ({ incident }: { incident: Incident }) => {
         <span className="truncate">{incident.responseSuggestion.label}</span>
       </div>
       <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs leading-5 text-muted-foreground">
+        <span>{pluralize(unresolvedComments, 'comment')} open</span>
+        <span aria-hidden="true">·</span>
         <span className="inline-flex items-center gap-1">
           <RedditReportIcon className="size-3.5" />
           {pluralize(incident.stats.reportSignals, 'report')}
+        </span>
+        <span aria-hidden="true">·</span>
+        <span>
+          {pluralize(incident.stats.suspiciousLinkHits, 'watched link')}
         </span>
         <span aria-hidden="true">·</span>
         <span>{pluralize(incident.stats.keywordHits, 'keyword hit')}</span>
@@ -176,12 +189,12 @@ const InlineState = ({
   variant = 'default',
 }: {
   children: ReactNode;
-  variant?: 'default' | 'outline' | 'review';
+  variant?: 'default' | 'outline' | 'workflow';
 }) => (
   <span
     className={cn(
       'inline-flex h-5 items-center rounded-full px-2 text-xs font-bold leading-none',
-      variant === 'review'
+      variant === 'workflow'
         ? 'bg-destructive/15 text-destructive'
         : variant === 'outline'
           ? 'border border-border bg-transparent text-muted-foreground'
@@ -195,6 +208,8 @@ const InlineState = ({
 const isPostLocked = (incident: Incident) =>
   incident.postState?.locked ?? incident.status === 'locked';
 
+type PostPrepKind = NativePostAction | 'sticky';
+
 const PostStateBadges = ({ incident }: { incident: Incident }) => {
   const state = incident.postState;
   if (!state) return null;
@@ -204,9 +219,7 @@ const PostStateBadges = ({ incident }: { incident: Incident }) => {
       {state.flair ? <PostFlairChip state={state.flair} /> : null}
       {state.nsfw ? <PostLabelChip tone="danger">NSFW</PostLabelChip> : null}
       {state.spoiler ? <PostLabelChip>Spoiler</PostLabelChip> : null}
-      {state.locked && incident.status !== 'locked' ? (
-        <PostLabelChip>Locked</PostLabelChip>
-      ) : null}
+      {state.locked ? <PostLabelChip>Locked</PostLabelChip> : null}
       {state.ignoringReports ? (
         <PostLabelChip>Reports ignored</PostLabelChip>
       ) : null}
@@ -295,23 +308,16 @@ export const IncidentHero = ({
   busyAction,
   config,
   incident,
+  onReviewComments,
   onAction,
 }: {
   busyAction: string | undefined;
   config: FirewatchConfig;
   incident: Incident;
+  onReviewComments: () => void;
   onAction: ActionRunner;
 }) => {
-  const [showStickyPrep, setShowStickyPrep] = useState(false);
-  const [stickyText, setStickyText] = useState(config.reminderText);
   const terminal = isTerminalStatus(incident.status);
-  const reminderAlreadyPosted = incident.actions.some(
-    (action) => action.type === 'cool_down'
-  );
-  const postLocked = isPostLocked(incident);
-  const canToggleLock = postLocked
-    ? config.actionControls.unlockPost
-    : config.actionControls.lockPost;
   const permalink = incident.permalink;
   const unresolvedCount = incident.flaggedComments.filter(
     (comment) => !comment.removed && !comment.reviewed
@@ -321,101 +327,56 @@ export const IncidentHero = ({
     <section className="rounded-lg border border-border bg-background">
       <div className="flex flex-col gap-3 p-3 sm:p-4">
         <div className="flex min-w-0 flex-col">
-          <h2 className="text-base font-bold leading-5">Mod actions</h2>
+          <h2 className="text-base font-bold leading-5">Review controls</h2>
+          <p className="mt-1 text-sm leading-5 text-muted-foreground">
+            Open context, claim the post, or close it when review is done.
+          </p>
         </div>
 
         <div className="flex flex-col gap-3 border-t border-border pt-3">
-          <PanelLabel>QUICK ACTIONS</PanelLabel>
+          <PanelLabel>CONTEXT</PanelLabel>
+          <div className="flex flex-wrap items-center gap-2">
+            {permalink ? (
+              <Button variant="secondary" onClick={() => navigateTo(permalink)}>
+                <RedditLinkIcon data-icon="inline-start" />
+                Open on Reddit
+              </Button>
+            ) : null}
+            {unresolvedCount > 0 ? (
+              <Button variant="outline" onClick={onReviewComments}>
+                <RedditCommentIcon data-icon="inline-start" />
+                Review comments
+              </Button>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3 border-t border-border pt-3">
+          <PanelLabel>OWNERSHIP</PanelLabel>
           <div className="flex flex-wrap items-center gap-2">
             <PlaybookButton
               disabled={
                 Boolean(incident.claim) || Boolean(busyAction) || terminal
               }
               icon={<RedditUsersIcon data-icon="inline-start" />}
-              label={incident.claim ? 'Taken' : 'Take'}
+              label={incident.claim ? 'Claimed' : 'Claim'}
               loading={busyAction === 'claim'}
               onClick={() =>
                 onAction('claim', `/api/incidents/${incident.postId}/claim`)
               }
             />
-            {config.actionControls.stickyReminder ? (
-              <PlaybookButton
-                disabled={
-                  Boolean(busyAction) ||
-                  terminal ||
-                  postLocked ||
-                  reminderAlreadyPosted
-                }
-                icon={<RedditPinIcon data-icon="inline-start" />}
-                label={reminderAlreadyPosted ? 'Sticky posted' : 'Add sticky'}
-                loading={busyAction === 'cool-down'}
-                variant="secondary"
-                onClick={() => {
-                  setStickyText(config.reminderText);
-                  setShowStickyPrep(true);
-                }}
-              />
-            ) : null}
-            {canToggleLock ? (
-              <PlaybookButton
-                disabled={Boolean(busyAction) || terminal}
-                icon={<RedditLockIcon data-icon="inline-start" />}
-                label={postLocked ? 'Unlock' : 'Lock'}
-                loading={busyAction === (postLocked ? 'post:unlock' : 'lock')}
-                variant={postLocked ? 'outline' : 'destructive'}
-                onClick={() =>
-                  postLocked
-                    ? onAction(
-                        'post:unlock',
-                        `/api/incidents/${incident.postId}/post-action`,
-                        { action: 'unlock' }
-                      )
-                    : onAction(
-                        'lock',
-                        `/api/incidents/${incident.postId}/lock`
-                      )
-                }
-              />
-            ) : null}
           </div>
-          {showStickyPrep ? (
-            <ActionPrepPanel
-              busy={busyAction === 'cool-down'}
-              disabled={stickyText.trim().length === 0}
-              primaryIcon={<RedditPinIcon data-icon="inline-start" />}
-              primaryLabel="Post sticky"
-              title="Add sticky comment"
-              onCancel={() => setShowStickyPrep(false)}
-              onSubmit={() => {
-                void onAction(
-                  'cool-down',
-                  `/api/incidents/${incident.postId}/cool-down`,
-                  { reminderText: stickyText }
-                ).then((updatedIncident) => {
-                  if (updatedIncident) setShowStickyPrep(false);
-                });
-              }}
-            >
-              <ActionTextArea
-                id="fw-sticky-reminder"
-                label="Comment text"
-                rows={4}
-                value={stickyText}
-                onChange={setStickyText}
-              />
-            </ActionPrepPanel>
-          ) : null}
         </div>
 
         <div className="flex flex-col gap-3 border-t border-border pt-3">
-          <PanelLabel>MOD NOTES</PanelLabel>
+          <PanelLabel>CLOSE REVIEW</PanelLabel>
           <div className="flex flex-wrap items-center gap-2">
             <PlaybookButton
               disabled={
                 Boolean(busyAction) || !config.actionControls.handoffNotes
               }
               icon={<RedditShieldIcon data-icon="inline-start" />}
-              label="Save handoff"
+              label="Save handoff note"
               loading={busyAction === 'escalate'}
               variant="secondary"
               onClick={() =>
@@ -425,12 +386,6 @@ export const IncidentHero = ({
                 )
               }
             />
-            {permalink ? (
-              <Button variant="ghost" onClick={() => navigateTo(permalink)}>
-                <RedditLinkIcon data-icon="inline-start" />
-                Open post
-              </Button>
-            ) : null}
             <PlaybookButton
               disabled={
                 Boolean(busyAction) ||
@@ -443,7 +398,7 @@ export const IncidentHero = ({
                 terminal
                   ? 'Handled'
                   : unresolvedCount > 0
-                    ? 'Review comments'
+                    ? 'Review comments first'
                     : 'Mark handled'
               }
               loading={busyAction === 'resolve'}
@@ -453,6 +408,11 @@ export const IncidentHero = ({
               }
             />
           </div>
+          {unresolvedCount > 0 && !terminal ? (
+            <p className="text-xs leading-5 text-muted-foreground">
+              {pluralize(unresolvedCount, 'comment')} still needs a decision.
+            </p>
+          ) : null}
         </div>
       </div>
     </section>
@@ -472,14 +432,16 @@ export const NativePostControlsCard = ({
   postFlairOptions: PostFlairOption[];
   onAction: ActionRunner;
 }) => {
-  const [activePrep, setActivePrep] = useState<NativePostAction | undefined>();
+  const [activePrep, setActivePrep] = useState<PostPrepKind | undefined>();
   const [reason, setReason] = useState('Rule-breaking post');
+  const [stickyText, setStickyText] = useState(config.reminderText);
   const [flairText, setFlairText] = useState('Needs mod review');
   const [flairTemplateId, setFlairTemplateId] = useState('');
   const [crowdControlLevel, setCrowdControlLevel] =
     useState<CrowdControlLevel>('MEDIUM');
   const controls = config.actionControls;
   const disabled = Boolean(busyAction);
+  const terminal = isTerminalStatus(incident.status);
   const postState = incident.postState;
   const postApproved = Boolean(
     postState?.approved && !postState.removed && !postState.spam
@@ -489,9 +451,12 @@ export const NativePostControlsCard = ({
   const postNsfw = Boolean(postState?.nsfw);
   const postSpoiler = Boolean(postState?.spoiler);
   const postIgnoringReports = Boolean(postState?.ignoringReports);
-  const nsfwAction: NativePostAction = postNsfw
-    ? 'unmark-nsfw'
-    : 'mark-nsfw';
+  const postLocked = isPostLocked(incident);
+  const canToggleLock = postLocked ? controls.unlockPost : controls.lockPost;
+  const reminderAlreadyPosted = incident.actions.some(
+    (action) => action.type === 'cool_down'
+  );
+  const nsfwAction: NativePostAction = postNsfw ? 'unmark-nsfw' : 'mark-nsfw';
   const spoilerAction: NativePostAction = postSpoiler
     ? 'unmark-spoiler'
     : 'mark-spoiler';
@@ -501,12 +466,14 @@ export const NativePostControlsCard = ({
   const hasPrimaryActions =
     controls.approvePosts ||
     controls.removePosts ||
-    controls.markPostSpam;
+    controls.markPostSpam ||
+    canToggleLock ||
+    controls.setPostFlair;
   const hasAdvancedActions =
+    controls.stickyReminder ||
     controls.markPostNsfw ||
     controls.markPostSpoiler ||
     controls.ignoreReports ||
-    controls.setPostFlair ||
     controls.crowdControl;
   const runPostAction = (
     action: NativePostAction,
@@ -524,6 +491,25 @@ export const NativePostControlsCard = ({
       if (updatedIncident) setActivePrep(undefined);
     });
   };
+  const toggleLock = () => {
+    if (postLocked) {
+      void onAction(
+        'post:unlock',
+        `/api/incidents/${incident.postId}/post-action`,
+        { action: 'unlock' }
+      );
+      return;
+    }
+
+    void onAction('lock', `/api/incidents/${incident.postId}/lock`);
+  };
+  const postStickyComment = () => {
+    void onAction('cool-down', `/api/incidents/${incident.postId}/cool-down`, {
+      reminderText: stickyText,
+    }).then((updatedIncident) => {
+      if (updatedIncident) setActivePrep(undefined);
+    });
+  };
   const selectFlairTemplate = (value: string) => {
     setFlairTemplateId(value);
     const selected = postFlairOptions.find((option) => option.id === value);
@@ -538,7 +524,7 @@ export const NativePostControlsCard = ({
   return (
     <section className="rounded-lg border border-border bg-background">
       <div className="border-b border-border px-3 py-3 sm:px-4">
-        <h3 className="text-base font-bold leading-5">Post actions</h3>
+        <h3 className="text-base font-bold leading-5">Post tools</h3>
       </div>
       <div className="flex flex-col gap-3 p-3 sm:p-4">
         {hasPrimaryActions ? (
@@ -574,6 +560,26 @@ export const NativePostControlsCard = ({
                   onClick={() => setActivePrep('spam')}
                 />
               ) : null}
+              {canToggleLock ? (
+                <PlaybookButton
+                  disabled={disabled || terminal}
+                  icon={<RedditLockIcon data-icon="inline-start" />}
+                  label={postLocked ? 'Unlock' : 'Lock'}
+                  loading={busyAction === (postLocked ? 'post:unlock' : 'lock')}
+                  variant={postLocked ? 'outline' : 'secondary'}
+                  onClick={toggleLock}
+                />
+              ) : null}
+              {controls.setPostFlair ? (
+                <PlaybookButton
+                  disabled={disabled}
+                  icon={<RedditTagIcon data-icon="inline-start" />}
+                  label={postState?.flair?.text ? 'Change flair' : 'Set flair'}
+                  loading={busyAction === 'post:set-flair'}
+                  variant="secondary"
+                  onClick={() => setActivePrep('set-flair')}
+                />
+              ) : null}
             </div>
             {activePrep === 'remove' || activePrep === 'spam' ? (
               <ActionPrepPanel
@@ -593,9 +599,46 @@ export const NativePostControlsCard = ({
               >
                 <ActionTextArea
                   id="fw-post-removal-reason"
-                  label="Reason"
+                  label="Removal reason"
                   value={reason}
                   onChange={setReason}
+                />
+              </ActionPrepPanel>
+            ) : null}
+            {activePrep === 'set-flair' ? (
+              <ActionPrepPanel
+                busy={busyAction === 'post:set-flair'}
+                disabled={flairText.trim().length === 0 && !selectedFlair}
+                primaryIcon={<RedditTagIcon data-icon="inline-start" />}
+                primaryLabel="Set flair"
+                title="Set post flair"
+                variant="outline"
+                onCancel={() => setActivePrep(undefined)}
+                onSubmit={() =>
+                  runPostAction('set-flair', {
+                    flairTemplateId: selectedFlair?.id,
+                    flairText,
+                  })
+                }
+              >
+                <ActionSelect
+                  id="fw-post-flair-template"
+                  label="Flair template"
+                  value={flairTemplateId}
+                  onChange={selectFlairTemplate}
+                >
+                  <option value="">Custom flair text</option>
+                  {postFlairOptions.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.text}
+                    </option>
+                  ))}
+                </ActionSelect>
+                <ActionInput
+                  id="fw-post-flair-text"
+                  label="Flair text"
+                  value={flairText}
+                  onChange={setFlairText}
                 />
               </ActionPrepPanel>
             ) : null}
@@ -603,9 +646,26 @@ export const NativePostControlsCard = ({
         ) : null}
 
         {hasAdvancedActions ? (
-          <DisclosurePanel title="More actions">
+          <DisclosurePanel title="More post actions">
             <div className="flex flex-col gap-3">
               <div className="grid min-w-0 gap-2 sm:grid-cols-2">
+                {controls.stickyReminder ? (
+                  <PlaybookButton
+                    disabled={disabled || terminal || reminderAlreadyPosted}
+                    icon={<RedditPinIcon data-icon="inline-start" />}
+                    label={
+                      reminderAlreadyPosted
+                        ? 'Sticky posted'
+                        : 'Add sticky comment'
+                    }
+                    loading={busyAction === 'cool-down'}
+                    variant="outline"
+                    onClick={() => {
+                      setStickyText(config.reminderText);
+                      setActivePrep('sticky');
+                    }}
+                  />
+                ) : null}
                 {controls.markPostNsfw ? (
                   <PlaybookButton
                     disabled={disabled}
@@ -640,21 +700,11 @@ export const NativePostControlsCard = ({
                     onClick={() => runPostAction(reportsAction)}
                   />
                 ) : null}
-                {controls.setPostFlair ? (
-                  <PlaybookButton
-                    disabled={disabled}
-                    icon={<RedditTagIcon data-icon="inline-start" />}
-                    label="Set flair"
-                    loading={busyAction === 'post:set-flair'}
-                    variant="outline"
-                    onClick={() => setActivePrep('set-flair')}
-                  />
-                ) : null}
                 {controls.crowdControl ? (
                   <PlaybookButton
                     disabled={disabled}
                     icon={<RedditListIcon data-icon="inline-start" />}
-                    label="Crowd Control"
+                    label="Crowd control"
                     loading={busyAction === 'post:crowd-control'}
                     variant="outline"
                     onClick={() => setActivePrep('crowd-control')}
@@ -662,40 +712,23 @@ export const NativePostControlsCard = ({
                 ) : null}
               </div>
 
-              {activePrep === 'set-flair' ? (
+              {activePrep === 'sticky' ? (
                 <ActionPrepPanel
-                  busy={busyAction === 'post:set-flair'}
-                  disabled={flairText.trim().length === 0 && !selectedFlair}
-                  primaryIcon={<RedditTagIcon data-icon="inline-start" />}
-                  primaryLabel="Set flair"
-                  title="Set post flair"
+                  busy={busyAction === 'cool-down'}
+                  disabled={stickyText.trim().length === 0}
+                  primaryIcon={<RedditPinIcon data-icon="inline-start" />}
+                  primaryLabel="Post sticky"
+                  title="Add sticky comment"
                   variant="outline"
                   onCancel={() => setActivePrep(undefined)}
-                  onSubmit={() =>
-                    runPostAction('set-flair', {
-                      flairTemplateId: selectedFlair?.id,
-                      flairText,
-                    })
-                  }
+                  onSubmit={postStickyComment}
                 >
-                  <ActionSelect
-                    id="fw-post-flair-template"
-                    label="Flair template"
-                    value={flairTemplateId}
-                    onChange={selectFlairTemplate}
-                  >
-                    <option value="">Custom flair text</option>
-                    {postFlairOptions.map((option) => (
-                      <option key={option.id} value={option.id}>
-                        {option.text}
-                      </option>
-                    ))}
-                  </ActionSelect>
-                  <ActionInput
-                    id="fw-post-flair-text"
-                    label="Flair text"
-                    value={flairText}
-                    onChange={setFlairText}
+                  <ActionTextArea
+                    id="fw-sticky-reminder"
+                    label="Comment text"
+                    rows={4}
+                    value={stickyText}
+                    onChange={setStickyText}
                   />
                 </ActionPrepPanel>
               ) : null}
@@ -739,7 +772,7 @@ export const NativePostControlsCard = ({
 export const ResponseCard = ({ incident }: { incident: Incident }) => (
   <Card>
     <CardHeader>
-      <CardTitle>Next</CardTitle>
+      <CardTitle>Recommended next step</CardTitle>
     </CardHeader>
     <CardContent className="flex flex-col gap-3">
       {incident.responseSuggestion.steps.map((step, index) => (
@@ -776,18 +809,18 @@ export const ImpactSnapshotCard = ({ incident }: { incident: Incident }) => {
       detail: `${impact.usersInReview} in review`,
     },
     {
-      label: 'Mod actions',
+      label: 'Actions taken',
       value: String(impact.actionsTaken),
       detail: `${impact.approvals} approved, ${impact.removals} removed, ${impact.bans} banned`,
     },
   ];
 
   return (
-    <Card>
+    <Card className="h-full">
       <CardHeader>
-        <CardTitle>Impact</CardTitle>
+        <CardTitle>Review progress</CardTitle>
       </CardHeader>
-      <CardContent className="flex flex-col gap-3">
+      <CardContent className="flex flex-1 flex-col gap-3">
         <div className="rounded-lg border bg-muted/60">
           {rows.map((row) => (
             <div
@@ -818,6 +851,7 @@ export const ImpactSnapshotCard = ({ incident }: { incident: Incident }) => {
             <Badge variant="secondary">Final note saved</Badge>
           ) : null}
         </div>
+        <ScoreHistoryBlock className="mt-auto" incident={incident} />
       </CardContent>
     </Card>
   );
@@ -826,11 +860,11 @@ export const ImpactSnapshotCard = ({ incident }: { incident: Incident }) => {
 export const RiskReasonsCard = ({ incident }: { incident: Incident }) => (
   <Card>
     <CardHeader>
-      <CardTitle>Signals</CardTitle>
+      <CardTitle>Why this is here</CardTitle>
     </CardHeader>
     <CardContent>
       {incident.reasons.length === 0 ? (
-        <EmptyText>No signals.</EmptyText>
+        <EmptyText>No active reasons.</EmptyText>
       ) : (
         <div className="flex flex-col gap-3">
           {incident.reasons.map((reason) => (
@@ -859,37 +893,39 @@ export const RiskReasonsCard = ({ incident }: { incident: Incident }) => (
   </Card>
 );
 
-export const TrendCard = ({ incident }: { incident: Incident }) => (
-  <Card>
-    <CardHeader>
-      <CardTitle>Trend</CardTitle>
-    </CardHeader>
-    <CardContent>
-      {incident.trend.length === 0 ? (
-        <EmptyText>No trend.</EmptyText>
-      ) : (
-        <div className="flex h-40 items-stretch gap-2 rounded-lg border bg-muted/60 p-3">
-          {incident.trend.map((point) => (
-            <div
-              key={point.timestamp}
-              className="flex min-w-0 flex-1 flex-col gap-2"
-              title={`${formatTime(point.timestamp)} review score ${point.score}`}
-            >
-              <div className="flex min-h-0 flex-1 items-end">
-                <div
-                  className="w-full rounded-t-lg bg-primary"
-                  style={{ height: `${Math.max(8, clampScore(point.score))}%` }}
-                />
-              </div>
-              <span className="text-[11px] font-semibold leading-none text-muted-foreground">
-                {formatTime(point.timestamp)}
-              </span>
+const ScoreHistoryBlock = ({
+  className,
+  incident,
+}: {
+  className?: string;
+  incident: Incident;
+}) => (
+  <div className={cn('flex flex-col gap-2', className)}>
+    <p className="text-sm font-semibold leading-5">Review score history</p>
+    {incident.trend.length === 0 ? (
+      <EmptyText>No score history yet.</EmptyText>
+    ) : (
+      <div className="flex h-32 items-stretch gap-2 rounded-lg border bg-muted/60 p-3">
+        {incident.trend.map((point) => (
+          <div
+            key={point.timestamp}
+            className="flex min-w-0 flex-1 flex-col gap-2"
+            title={`${formatTime(point.timestamp)} review score ${point.score}`}
+          >
+            <div className="flex min-h-0 flex-1 items-end">
+              <div
+                className="w-full rounded-t-lg bg-primary"
+                style={{ height: `${Math.max(8, clampScore(point.score))}%` }}
+              />
             </div>
-          ))}
-        </div>
-      )}
-    </CardContent>
-  </Card>
+            <span className="text-[11px] font-semibold leading-none text-muted-foreground">
+              {formatTime(point.timestamp)}
+            </span>
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
 );
 
 export const ParticipantsCard = ({
@@ -915,11 +951,11 @@ export const ParticipantsCard = ({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Users</CardTitle>
+        <CardTitle>Authors with open comments</CardTitle>
       </CardHeader>
       <CardContent>
         {incident.involvedUsers.length === 0 ? (
-          <EmptyText>No users.</EmptyText>
+          <EmptyText>No authors with open comments.</EmptyText>
         ) : (
           <div className="flex flex-col">
             {incident.involvedUsers.map((user, index) => {
@@ -940,9 +976,13 @@ export const ParticipantsCard = ({
                           {formatUsername(user.username)}
                         </p>
                         <p className="break-words text-xs leading-5 text-muted-foreground">
-                          {pluralize(user.flagged, 'comment')} to review -{' '}
-                          {pluralize(user.signals, 'recent event')} -{' '}
-                          {pluralize(user.branchCount, 'branch', 'branches')}
+                          {pluralize(user.flagged, 'open comment')} ·{' '}
+                          {pluralize(user.signals, 'recent event')} ·{' '}
+                          {pluralize(
+                            user.branchCount,
+                            'reply branch',
+                            'reply branches'
+                          )}
                         </p>
                       </div>
                       <span className="shrink-0 text-xs leading-5 text-muted-foreground">
@@ -958,8 +998,8 @@ export const ParticipantsCard = ({
                         </p>
                         <p className="text-xs leading-5 text-muted-foreground">
                           {strikeSummary.removedComments} removed comments -{' '}
-                          {strikeSummary.suspiciousDomainHits} suspicious
-                          domain hits
+                          {strikeSummary.suspiciousDomainHits} suspicious domain
+                          hits
                           {strikeSummary.preparedAction
                             ? ` - Prepared action: ${strikeSummary.preparedAction}`
                             : ''}

@@ -58,7 +58,7 @@ export const EmptyBoard = ({
   <div className="mx-auto flex w-full max-w-md flex-col gap-4 py-6 sm:py-8">
     <div className="flex flex-col gap-2.5">
       <h1 className="text-xl font-semibold leading-tight">
-        No posts need review
+        No posts need review right now
       </h1>
     </div>
     <div className="flex flex-col gap-2">
@@ -72,7 +72,7 @@ export const EmptyBoard = ({
         >
           <RedditAddIcon className="size-4 shrink-0" data-icon="inline-start" />
           <span className="flex min-w-0 flex-col gap-0.5">
-            <span>{busy ? 'Creating demo post' : scenario.label}</span>
+            <span>{busy ? 'Creating demo thread' : scenario.label}</span>
           </span>
         </Button>
       ))}

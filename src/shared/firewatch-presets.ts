@@ -5,30 +5,30 @@ export const DEFAULT_DEMO_SCENARIO_ID: FirewatchDemoScenarioId =
 
 const HEATED_THREAD_SCENARIO: FirewatchDemoScenario = {
   id: 'heated_thread',
-  label: 'Heated thread',
+  label: 'Crowded reply thread',
   description:
-    'Repeated wording, personal replies, reports, and one crowded reply branch.',
+    'Same phrases, personal replies, reports, and one crowded reply branch.',
 };
 
 export const FIREWATCH_DEMO_SCENARIOS: FirewatchDemoScenario[] = [
   {
     id: 'suspicious_giveaway_escalating',
-    label: 'Suspicious giveaway thread escalating',
+    label: 'Suspicious giveaway thread',
     description:
-      'Scam links, repeated behavior, user notes, matched automations, and prepared mod actions.',
+      'Giveaway bait, watched links, repeat user behavior, and prepared cleanup actions.',
   },
   HEATED_THREAD_SCENARIO,
   {
     id: 'scam_link_cleanup',
     label: 'Scam link cleanup',
     description:
-      'Watched domains, scam language, multiple reports, and comments ready for remove or ban decisions.',
+      'Watched domains, scam language, reports, and comments ready for remove or ban decisions.',
   },
   {
     id: 'support_safety_cleanup',
     label: 'Support cleanup',
     description:
-      'Unsafe advice and personal-info requests in a help thread, with acceptable comments mixed in.',
+      'Unsafe advice and personal-info requests mixed into an otherwise useful help thread.',
   },
 ];
 

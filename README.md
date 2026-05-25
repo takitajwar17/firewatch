@@ -1,8 +1,8 @@
-# Firewatch: Hot Thread Queue
+# Firewatch: Posts To Review
 
 One Reddit post can turn into 40 comments, 7 reports, and three mods opening
-the same thread. Firewatch puts that thread in one queue, shows why it is
-heating up, lets one mod take it, and keeps the cleanup trail in one place.
+the same thread. Firewatch puts that post in one queue, shows why it needs
+review, lets one mod claim it, and keeps the cleanup trail in one place.
 
 Firewatch is built for posts that need more than a single approve/remove click:
 scam links, heated arguments, support-safety cleanup, repeated wording, report
@@ -18,13 +18,13 @@ context before acting.
 - Shows the reasons in plain Reddit terms: reports, comments waiting for a mod
   decision, users in review, reply clusters, watched words, watched domains,
   repeated phrases, and recent activity.
-- Lets one moderator take the thread so the team can see who is handling it.
+- Lets one moderator claim the post so the team can see who is handling it.
 - Keeps Reddit-native controls close to the evidence: approve comments, remove
   comments with a removal note, ban a user after cleanup, lock or unlock posts,
   set flair, mark NSFW or spoiler, ignore reports, add mod notes, mute users,
   approve users, and remove recent user content.
 - Runs Automations as visible playbooks for scam cleanup, repeated offenders,
-  heated thread cooldowns, and lock recommendations.
+  crowded thread cooldowns, and lock recommendations.
 - Saves handoff notes and final notes with the reasons, users, actions, and
   remaining review work.
 - Excludes moderator comments, AutoModerator, and Firewatch notices from user
@@ -36,14 +36,14 @@ context before acting.
 ## How Moderators Use It
 
 1. Install Firewatch in a subreddit you moderate.
-2. Open the subreddit menu and choose **Open Firewatch queue**.
+2. Open the subreddit menu and choose **Open Firewatch**.
 3. Open **Firewatch settings** to tune watched words, watched domains, score
    thresholds, reminder text, signal weights, and available mod actions.
 4. Let Firewatch queue matching activity from triggers, or choose **Send to
    Firewatch** from a post menu when a thread needs attention.
 5. Review the score, visible reasons, impact snapshot, comments, users,
    activity, mod notes, and matched automations.
-6. Take ownership, approve acceptable comments, remove rule-breaking comments,
+6. Claim the post, approve acceptable comments, remove rule-breaking comments,
    lock the thread, run prepared automation actions, or save a handoff note.
 7. Mark the incident handled once the queue item no longer needs active review.
 

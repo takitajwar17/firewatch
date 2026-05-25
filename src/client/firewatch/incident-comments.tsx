@@ -2,30 +2,23 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { navigateTo } from '@devvit/web/client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { cn } from '@/lib/utils';
 import {
   DisclosurePanel,
   EmptyText,
   PanelLabel,
   RedditActionButton,
 } from './common';
-import {
-  ActionPrepPanel,
-  ActionSelect,
-  ActionTextArea,
-} from './action-prep';
-import { formatUsername } from './format';
+import { ActionPrepPanel, ActionSelect, ActionTextArea } from './action-prep';
+import { formatTime, formatUsername } from './format';
 import type { ActionRunner } from './types';
 import type {
   FirewatchConfig,
   FlaggedComment,
   Incident,
+  IncidentSignal,
   IncidentActionType,
 } from '../../shared/api';
 import {
@@ -74,7 +67,18 @@ type CommentActionSnapshot = {
   latestLockAction?: LatestLockAction;
   latestReportAction?: LatestReportAction;
   latestResolutionAction?: LatestResolutionAction;
+  resolutionActor?: string;
+  resolutionAt?: number;
+  resolutionDetail?: string;
   shown?: boolean;
+};
+
+type CommentThreadContext = {
+  lines: {
+    id: string;
+    label: 'Parent' | 'Reply' | 'Nearby comment';
+    signal: IncidentSignal;
+  }[];
 };
 
 const BAN_DURATION_OPTIONS = [
@@ -88,6 +92,22 @@ const BAN_DURATION_OPTIONS = [
 const parseBanDuration = (value: string) => {
   const duration = Number.parseInt(value, 10);
   return Number.isFinite(duration) && duration > 0 ? duration : 0;
+};
+
+const commentAuthorKey = (author: string) => author.trim().toLowerCase();
+
+const contextSignalKey = (signal: IncidentSignal) =>
+  `${signal.author ?? ''}:${signal.body?.trim().toLowerCase()}`;
+
+const isBetterContextSignal = (
+  current: IncidentSignal | undefined,
+  next: IncidentSignal
+) => {
+  if (!current) return true;
+  if (current.type !== 'comment_create' && next.type === 'comment_create') {
+    return true;
+  }
+  return !current.body && Boolean(next.body);
 };
 
 const getSnapshot = (
@@ -105,7 +125,11 @@ const getSnapshot = (
 const buildCommentActionSnapshots = (incident: Incident) => {
   const snapshots = new Map<string, CommentActionSnapshot>();
 
-  for (const action of incident.actions) {
+  const newestActions = [...incident.actions].sort(
+    (a, b) => b.createdAt - a.createdAt
+  );
+
+  for (const action of newestActions) {
     if (!action.targetIds?.length) continue;
 
     for (const targetId of action.targetIds) {
@@ -135,6 +159,9 @@ const buildCommentActionSnapshots = (incident: Incident) => {
         !snapshot.latestResolutionAction
       ) {
         snapshot.latestResolutionAction = action.type;
+        snapshot.resolutionActor = action.actor;
+        snapshot.resolutionAt = action.createdAt;
+        snapshot.resolutionDetail = action.detail;
       }
 
       if (action.type === 'comment_shown') {
@@ -174,7 +201,8 @@ const getCommentActionState = (
           latestReportAction === 'comment_reports_ignored',
     reviewed: nativeReviewed || approvedByAction,
     shown: Boolean(actionSnapshot?.shown),
-    spammed: Boolean(comment.spam) || latestResolutionAction === 'comment_spammed',
+    spammed:
+      Boolean(comment.spam) || latestResolutionAction === 'comment_spammed',
   };
 };
 
@@ -193,42 +221,136 @@ export const FlaggedCommentsCard = ({
   const [reason, setReason] = useState('Rule-breaking comment');
   const [userNote, setUserNote] = useState('Firewatch moderator action');
   const [banDuration, setBanDuration] = useState('0');
-  const { alreadyActioned, commentStateById, needsReview } = useMemo(() => {
-    const actionSnapshots = buildCommentActionSnapshots(incident);
-    const nextNeedsReview: FlaggedComment[] = [];
-    const nextAlreadyActioned: FlaggedComment[] = [];
-    const nextCommentStateById = new Map<
-      string,
-      ReturnType<typeof getCommentActionState>
-    >();
+  const [expandedCommentIds, setExpandedCommentIds] = useState<Set<string>>(
+    () => new Set()
+  );
+  const { actionSnapshotById, alreadyActioned, commentStateById, needsReview } =
+    useMemo(() => {
+      const actionSnapshots = buildCommentActionSnapshots(incident);
+      const nextNeedsReview: FlaggedComment[] = [];
+      const nextAlreadyActioned: FlaggedComment[] = [];
+      const nextCommentStateById = new Map<
+        string,
+        ReturnType<typeof getCommentActionState>
+      >();
 
-    for (const comment of incident.flaggedComments) {
-      const commentState = getCommentActionState(
-        actionSnapshots.get(comment.id),
-        comment
-      );
-      nextCommentStateById.set(comment.id, commentState);
+      for (const comment of incident.flaggedComments) {
+        const commentState = getCommentActionState(
+          actionSnapshots.get(comment.id),
+          comment
+        );
+        nextCommentStateById.set(comment.id, commentState);
 
-      if (commentState.removed || commentState.reviewed) {
-        nextAlreadyActioned.push(comment);
-      } else {
-        nextNeedsReview.push(comment);
+        if (commentState.removed || commentState.reviewed) {
+          nextAlreadyActioned.push(comment);
+        } else {
+          nextNeedsReview.push(comment);
+        }
+      }
+
+      return {
+        actionSnapshotById: actionSnapshots,
+        alreadyActioned: nextAlreadyActioned,
+        commentStateById: nextCommentStateById,
+        needsReview: nextNeedsReview,
+      };
+    }, [incident]);
+  const firstOpenCommentIdByAuthor = useMemo(() => {
+    const firstByAuthor = new Map<string, string>();
+    for (const comment of needsReview) {
+      const authorKey = commentAuthorKey(comment.author);
+      if (!authorKey || firstByAuthor.has(authorKey)) continue;
+      firstByAuthor.set(authorKey, comment.id);
+    }
+    return firstByAuthor;
+  }, [needsReview]);
+  const contextByCommentId = useMemo(() => {
+    const signalsByCommentId = new Map<string, IncidentSignal>();
+    const commentSignals = incident.recentSignals
+      .filter((signal) => signal.commentId && signal.body)
+      .sort((a, b) => a.createdAt - b.createdAt);
+
+    for (const signal of commentSignals) {
+      if (
+        signal.commentId &&
+        isBetterContextSignal(signalsByCommentId.get(signal.commentId), signal)
+      ) {
+        signalsByCommentId.set(signal.commentId, signal);
       }
     }
 
-    return {
-      alreadyActioned: nextAlreadyActioned,
-      commentStateById: nextCommentStateById,
-      needsReview: nextNeedsReview,
-    };
-  }, [incident]);
+    const context = new Map<string, CommentThreadContext>();
+    for (const comment of incident.flaggedComments) {
+      const signal = signalsByCommentId.get(comment.id);
+      if (!signal) continue;
+
+      const lines: CommentThreadContext['lines'] = [];
+      const seen = new Set<string>();
+      const addContextLine = (
+        label: CommentThreadContext['lines'][number]['label'],
+        contextSignal: IncidentSignal | undefined
+      ) => {
+        if (!contextSignal?.body || contextSignal.commentId === comment.id) {
+          return;
+        }
+
+        const key = contextSignalKey(contextSignal);
+        if (seen.has(key)) return;
+
+        seen.add(key);
+        lines.push({
+          id: `${label}:${key}`,
+          label,
+          signal: contextSignal,
+        });
+      };
+
+      if (signal.parentId?.startsWith('t1_')) {
+        addContextLine('Parent', signalsByCommentId.get(signal.parentId));
+      }
+
+      for (const candidate of commentSignals) {
+        if (candidate.parentId === comment.id) {
+          addContextLine('Reply', candidate);
+        }
+      }
+
+      if (lines.length < 2 && signal.parentId) {
+        for (const candidate of commentSignals) {
+          if (candidate.parentId === signal.parentId) {
+            addContextLine('Nearby comment', candidate);
+          }
+          if (lines.length >= 2) break;
+        }
+      }
+
+      if (lines.length > 0) {
+        context.set(comment.id, {
+          lines: lines.slice(0, 2),
+        });
+      }
+    }
+
+    return context;
+  }, [incident.flaggedComments, incident.recentSignals]);
   const controls = config.actionControls;
+  const toggleExpanded = (commentId: string) => {
+    setExpandedCommentIds((current) => {
+      const next = new Set(current);
+      if (next.has(commentId)) {
+        next.delete(commentId);
+      } else {
+        next.add(commentId);
+      }
+      return next;
+    });
+  };
 
   return (
     <section className="min-w-0 rounded-lg border border-border bg-background">
       <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border px-3 py-3 sm:px-4">
         <div className="min-w-0">
-          <h3 className="text-base font-bold leading-5">Needs review</h3>
+          <h3 className="text-base font-bold leading-5">Comments to review</h3>
         </div>
         <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-bold text-secondary-foreground">
           {needsReview.length} open
@@ -237,7 +359,7 @@ export const FlaggedCommentsCard = ({
       <div className="flex flex-col gap-0">
         {needsReview.length === 0 ? (
           <div className="p-3 sm:p-4">
-            <EmptyText>No comments.</EmptyText>
+            <EmptyText>No comments waiting on review.</EmptyText>
           </div>
         ) : (
           <>
@@ -277,6 +399,12 @@ export const FlaggedCommentsCard = ({
                   controls.muteUsers ||
                   controls.addModNotes ||
                   controls.removeUserContent;
+                const showUserTools =
+                  hasAdvancedUserActions &&
+                  firstOpenCommentIdByAuthor.get(
+                    commentAuthorKey(comment.author)
+                  ) === comment.id;
+                const threadContext = contextByCommentId.get(comment.id);
 
                 return (
                   <article
@@ -303,6 +431,20 @@ export const FlaggedCommentsCard = ({
                           <span className="text-xs font-semibold leading-5 text-muted-foreground">
                             score {comment.score}
                           </span>
+                          <span
+                            aria-hidden="true"
+                            className="text-muted-foreground/70"
+                          >
+                            ·
+                          </span>
+                          <span className="text-xs font-semibold leading-5 text-muted-foreground">
+                            {formatTime(comment.createdAt)}
+                          </span>
+                          {comment.numReports ? (
+                            <Badge className="max-w-full" variant="outline">
+                              {comment.numReports} reports
+                            </Badge>
+                          ) : null}
                           {comment.reasons.map((reason) => (
                             <Badge
                               key={reason}
@@ -328,9 +470,31 @@ export const FlaggedCommentsCard = ({
                             </Badge>
                           ) : null}
                         </div>
-                        <p className="mt-1.5 line-clamp-3 text-sm leading-5 text-foreground/90">
+                        <p
+                          className={cn(
+                            'mt-1.5 break-words text-sm leading-5 text-foreground/90',
+                            expandedCommentIds.has(comment.id)
+                              ? ''
+                              : 'line-clamp-3'
+                          )}
+                        >
                           {comment.body}
                         </p>
+                        {comment.body.length > 220 ? (
+                          <button
+                            className="mt-1 text-xs font-semibold leading-5 text-primary hover:underline"
+                            type="button"
+                            onClick={() => toggleExpanded(comment.id)}
+                          >
+                            {expandedCommentIds.has(comment.id)
+                              ? 'Show less'
+                              : 'Show full comment'}
+                          </button>
+                        ) : null}
+
+                        {threadContext ? (
+                          <CommentContextBlock context={threadContext} />
+                        ) : null}
 
                         <div className="mt-3 flex flex-wrap items-center gap-1.5 sm:gap-2">
                           {permalink ? (
@@ -341,7 +505,7 @@ export const FlaggedCommentsCard = ({
                               onClick={() => navigateTo(permalink)}
                             >
                               <RedditLinkIcon data-icon="inline-start" />
-                              Open
+                              Open context
                             </Button>
                           ) : null}
                           {controls.approveComments ? (
@@ -390,7 +554,7 @@ export const FlaggedCommentsCard = ({
                               busyAction={busyAction}
                               disabled={!canBanAuthor || !commentOpen}
                               icon={<RedditBanIcon data-icon="inline-start" />}
-                              label="Ban user"
+                              label="Remove and ban"
                               variant="destructive"
                               onClick={() =>
                                 setActivePrep({
@@ -402,14 +566,12 @@ export const FlaggedCommentsCard = ({
                           ) : null}
                         </div>
 
-                        {hasAdvancedCommentActions || hasAdvancedUserActions ? (
+                        {hasAdvancedCommentActions || showUserTools ? (
                           <div className="mt-4">
-                            <DisclosurePanel
-                              title="More actions"
-                            >
+                            <DisclosurePanel title="More actions">
                               <div className="flex flex-col gap-3">
                                 {hasAdvancedCommentActions ? (
-                                  <ActionGroup label="Comment">
+                                  <ActionGroup label="Comment tools">
                                     {controls.markCommentSpam ? (
                                       <RedditActionButton
                                         action={spamAction}
@@ -515,7 +677,9 @@ export const FlaggedCommentsCard = ({
                                         icon={
                                           <RedditHideIcon data-icon="inline-start" />
                                         }
-                                        label={commentState.shown ? 'Shown' : 'Show'}
+                                        label={
+                                          commentState.shown ? 'Shown' : 'Show'
+                                        }
                                         onClick={() =>
                                           onAction(
                                             showAction,
@@ -528,8 +692,8 @@ export const FlaggedCommentsCard = ({
                                   </ActionGroup>
                                 ) : null}
 
-                                {hasAdvancedUserActions ? (
-                                  <ActionGroup label="User">
+                                {showUserTools ? (
+                                  <ActionGroup label="User tools">
                                     {controls.approveUsers ? (
                                       <RedditActionButton
                                         action={approveUserAction}
@@ -590,7 +754,7 @@ export const FlaggedCommentsCard = ({
                                         icon={
                                           <RedditBanIcon data-icon="inline-start" />
                                         }
-                                        label="Remove recent content"
+                                        label="Remove recent user content"
                                         variant="destructive"
                                         onClick={() =>
                                           setActivePrep({
@@ -635,13 +799,19 @@ export const FlaggedCommentsCard = ({
           <>
             <Separator className="my-0" />
             <div className="px-3 py-3 sm:px-4">
-              <PanelLabel>ACTIONED</PanelLabel>
+              <PanelLabel>ALREADY ACTIONED</PanelLabel>
             </div>
             <div className="flex flex-col">
               {alreadyActioned.map((comment) => {
                 const permalink = comment.permalink;
                 const commentState = commentStateById.get(comment.id);
+                const actionSnapshot = actionSnapshotById.get(comment.id);
                 if (!commentState) return null;
+                const actionLabel = commentState.removed
+                  ? commentState.spammed
+                    ? 'spammed'
+                    : 'removed'
+                  : 'approved';
 
                 return (
                   <div
@@ -651,9 +821,16 @@ export const FlaggedCommentsCard = ({
                     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                       <div className="min-w-0">
                         <p className="text-sm font-semibold leading-5">
-                          {formatUsername(comment.author)} -{' '}
-                          {commentState.removed ? 'removed' : 'approved'}
+                          {formatUsername(comment.author)} · {actionLabel}
                         </p>
+                        {actionSnapshot?.resolutionActor ? (
+                          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                            by {formatUsername(actionSnapshot.resolutionActor)}
+                            {actionSnapshot.resolutionAt
+                              ? ` at ${formatTime(actionSnapshot.resolutionAt)}`
+                              : ''}
+                          </p>
+                        ) : null}
                         <p className="mt-2 line-clamp-2 break-words text-sm leading-5 text-muted-foreground">
                           {comment.body}
                         </p>
@@ -677,7 +854,7 @@ export const FlaggedCommentsCard = ({
                           onClick={() => navigateTo(permalink)}
                         >
                           <RedditLinkIcon data-icon="inline-start" />
-                          Open
+                          Open context
                         </Button>
                       ) : null}
                     </div>
@@ -691,6 +868,41 @@ export const FlaggedCommentsCard = ({
     </section>
   );
 };
+
+const CommentContextBlock = ({
+  context,
+}: {
+  context: CommentThreadContext;
+}) => (
+  <div className="mt-3 rounded-lg border bg-muted/45 p-3">
+    <p className="text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">
+      Thread context
+    </p>
+    <div className="mt-2 flex flex-col gap-2">
+      {context.lines.map((line) => (
+        <ContextLine key={line.id} label={line.label} signal={line.signal} />
+      ))}
+    </div>
+  </div>
+);
+
+const ContextLine = ({
+  label,
+  signal,
+}: {
+  label: string;
+  signal: IncidentSignal;
+}) => (
+  <div className="min-w-0">
+    <p className="text-xs font-semibold leading-5 text-muted-foreground">
+      {label}
+      {signal.author ? ` by ${formatUsername(signal.author)}` : ''}
+    </p>
+    <p className="line-clamp-2 break-words text-sm leading-5 text-foreground/85">
+      {signal.body}
+    </p>
+  </div>
+);
 
 const ActionGroup = ({
   children,
@@ -739,7 +951,11 @@ const CommentActionPrepPanel = ({
   const removeAction = `remove:${comment.id}`;
   const banAction = `ban:${comment.author}`;
   const userAction = `user:${comment.author}:${activePrep}`;
-  const run = (action: string, endpoint: string, body: Record<string, unknown>) => {
+  const run = (
+    action: string,
+    endpoint: string,
+    body: Record<string, unknown>
+  ) => {
     void onAction(action, endpoint, body).then((updatedIncident) => {
       if (updatedIncident) onCancel();
     });
@@ -782,10 +998,14 @@ const CommentActionPrepPanel = ({
         variant="destructive"
         onCancel={onCancel}
         onSubmit={() =>
-          run(banAction, `/api/incidents/${incident.postId}/users/${encodedAuthor}/ban`, {
-            durationDays: parseBanDuration(banDuration),
-            reason,
-          })
+          run(
+            banAction,
+            `/api/incidents/${incident.postId}/users/${encodedAuthor}/ban`,
+            {
+              durationDays: parseBanDuration(banDuration),
+              reason,
+            }
+          )
         }
       >
         <ActionSelect
@@ -802,7 +1022,7 @@ const CommentActionPrepPanel = ({
         </ActionSelect>
         <ActionTextArea
           id={`fw-ban-reason-${comment.id}`}
-          label="Reason"
+          label="Ban reason"
           value={reason}
           onChange={onReasonChange}
         />
@@ -811,8 +1031,7 @@ const CommentActionPrepPanel = ({
   }
 
   if (activePrep === 'spam' || activePrep === 'thread') {
-    const nativeAction =
-      activePrep === 'spam' ? 'spam' : 'remove-thread';
+    const nativeAction = activePrep === 'spam' ? 'spam' : 'remove-thread';
 
     return (
       <ActionPrepPanel
@@ -841,7 +1060,7 @@ const CommentActionPrepPanel = ({
       >
         <ActionTextArea
           id={`fw-comment-native-reason-${comment.id}`}
-          label="Reason"
+          label="Removal reason"
           value={reason}
           onChange={onReasonChange}
         />
@@ -906,7 +1125,7 @@ const CommentActionPrepPanel = ({
     >
       <ActionTextArea
         id={`fw-content-removal-reason-${comment.id}`}
-        label="Reason"
+        label="Removal reason"
         value={reason}
         onChange={onReasonChange}
       />
@@ -921,7 +1140,7 @@ export const RepeatedPhrasesCard = ({ incident }: { incident: Incident }) => (
     </CardHeader>
     <CardContent>
       {incident.repeatedPhrases.length === 0 ? (
-        <EmptyText>No repeats.</EmptyText>
+        <EmptyText>No repeated wording yet.</EmptyText>
       ) : (
         <div className="flex flex-col gap-3">
           {incident.repeatedPhrases.map((phrase) => (

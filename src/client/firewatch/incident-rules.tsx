@@ -1,11 +1,6 @@
 import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { RULE_MODE_LABELS } from '../../shared/automation-rules';
 import type { Incident, MatchedAutomationRule } from '../../shared/api';
 import { EmptyText, PlaybookButton } from './common';
@@ -40,7 +35,7 @@ export const MatchedRulesCard = ({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Automations</CardTitle>
+        <CardTitle>Prepared automation</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         {matchedRules.map((rule) => (
@@ -88,6 +83,15 @@ const MatchedRuleItem = ({
 }) => {
   const actionId = `rule:${rule.ruleId}:${rule.targetId}`;
   const canRun = rule.mode !== 'suggest_only';
+  const [confirmRun, setConfirmRun] = useState(false);
+  const runActions = () => {
+    if (!confirmRun) {
+      setConfirmRun(true);
+      return;
+    }
+    setConfirmRun(false);
+    onRun();
+  };
 
   return (
     <article className="rounded-lg border bg-muted/35 p-3">
@@ -121,7 +125,7 @@ const MatchedRuleItem = ({
         </div>
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">
-            Prepared actions
+            Actions ready
           </p>
           <div className="mt-2 flex flex-col gap-1.5">
             {rule.preparedActions.map((action) => (
@@ -140,13 +144,26 @@ const MatchedRuleItem = ({
       </div>
 
       <div className="mt-3 flex flex-wrap gap-2">
+        {canRun ? (
+          <p className="w-full text-xs leading-5 text-muted-foreground">
+            {confirmRun
+              ? 'Confirm to run every action listed above.'
+              : 'Review the actions above before running them.'}
+          </p>
+        ) : null}
         <PlaybookButton
           disabled={!canRun || Boolean(busyAction)}
           icon={<RedditApproveIcon data-icon="inline-start" />}
-          label={canRun ? 'Run prepared actions' : 'Suggested only'}
+          label={
+            canRun
+              ? confirmRun
+                ? 'Confirm run'
+                : 'Run automation'
+              : 'Suggestion only'
+          }
           loading={busyAction === actionId}
-          variant="default"
-          onClick={onRun}
+          variant={confirmRun ? 'destructive' : 'default'}
+          onClick={runActions}
         />
         <PlaybookButton
           icon={<RedditSettingsIcon data-icon="inline-start" />}
@@ -154,12 +171,19 @@ const MatchedRuleItem = ({
           variant="outline"
           onClick={onEditRules}
         />
-        <PlaybookButton label="Dismiss" variant="ghost" onClick={onDismiss} />
+        <PlaybookButton
+          label="Hide for now"
+          variant="ghost"
+          onClick={() => {
+            setConfirmRun(false);
+            onDismiss();
+          }}
+        />
       </div>
     </article>
   );
 };
 
 export const RuleLogEmptyState = () => (
-  <EmptyText>No matches.</EmptyText>
+  <EmptyText>No automation matches yet.</EmptyText>
 );

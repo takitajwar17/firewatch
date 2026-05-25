@@ -597,38 +597,38 @@ export const CONFIG_SIGNAL_WEIGHT_FIELDS: ConfigSignalWeightField[] = [
   {
     id: 'commentVelocity',
     formName: 'weightCommentVelocity',
-    label: 'New comments weight',
+    label: 'New comments',
   },
-  { id: 'reports', formName: 'weightReports', label: 'Reports weight' },
+  { id: 'reports', formName: 'weightReports', label: 'Reports' },
   {
     id: 'watchedWords',
     formName: 'weightWatchedWords',
-    label: 'Watched words weight',
+    label: 'Watched words',
   },
   {
     id: 'watchedDomains',
     formName: 'weightWatchedDomains',
-    label: 'Watched domains weight',
+    label: 'Watched domains',
   },
   {
     id: 'replyPileOns',
     formName: 'weightReplyPileOns',
-    label: 'Reply clusters weight',
+    label: 'Reply clusters',
   },
   {
     id: 'repeatedWording',
     formName: 'weightRepeatedWording',
-    label: 'Repeated wording weight',
+    label: 'Repeated wording',
   },
   {
     id: 'recentRemovals',
     formName: 'weightRecentRemovals',
-    label: 'Recent removals weight',
+    label: 'Recent removals',
   },
   {
     id: 'manualSend',
     formName: 'weightManualSend',
-    label: 'Manual send weight',
+    label: 'Manual send',
   },
 ];
 
@@ -742,7 +742,7 @@ export const buildConfigFormFields = (
   {
     type: 'number',
     name: 'heatThreshold',
-    label: 'Review score',
+    label: 'Review at',
     defaultValue: defaults.heatThreshold,
   },
   {

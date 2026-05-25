@@ -8,10 +8,7 @@
     "dir": "dist/client",
     "entrypoints": {
       "default": {
-        "inline": true,
-        "entry": "splash.html"
-      },
-      "dashboard": {
+        "inline": false,
         "entry": "game.html"
       }
     }
@@ -30,29 +27,29 @@
   "menu": {
     "items": [
       {
-        "label": "Open Firewatch queue",
-        "description": "Open the existing Firewatch mod queue for this subreddit.",
+        "label": "Open Firewatch",
+        "description": "Open the posts-to-review queue for this subreddit.",
         "location": "subreddit",
         "forUserType": "moderator",
         "endpoint": "/internal/menu/open-board"
       },
       {
         "label": "Firewatch settings",
-        "description": "Set watched words, domains, review scores, reminders, and available mod actions.",
+        "description": "Set watched words, domains, score thresholds, sticky text, and available mod actions.",
         "location": "subreddit",
         "forUserType": "moderator",
         "endpoint": "/internal/menu/configure"
       },
       {
-        "label": "Create Firewatch demo post",
-        "description": "Create a demo post with reports and comments so mods can test the workflow.",
+        "label": "Create Firewatch demo thread",
+        "description": "Create a demo thread with reports and comments so mods can test the workflow.",
         "location": "subreddit",
         "forUserType": "moderator",
         "endpoint": "/internal/menu/create-demo-incident"
       },
       {
         "label": "Send to Firewatch",
-        "description": "Send this post to the Firewatch mod queue.",
+        "description": "Send this post to Firewatch review.",
         "location": "post",
         "forUserType": "moderator",
         "endpoint": "/internal/menu/escalate-post"

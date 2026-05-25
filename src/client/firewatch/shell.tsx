@@ -8,10 +8,13 @@ import { PanelLabel, ScoreBadge } from './common';
 import { formatStatus, formatTime, formatUsername, pluralize } from './format';
 import {
   RedditApproveIcon,
+  RedditCommentIcon,
   RedditListIcon,
+  RedditLockIcon,
   RedditQueueIcon,
   RedditRefreshIcon,
   RedditReportIcon,
+  RedditRemoveIcon,
   RedditSettingsIcon,
 } from './reddit-icons';
 import type { FirewatchView, Notice } from './types';
@@ -112,15 +115,22 @@ const CommandPanel = ({
       </button>
 
       <div className="flex min-h-0 flex-1 flex-col gap-2">
-        <div className="flex items-center justify-between gap-3">
-          <PanelLabel surface="sidebar">POSTS TO REVIEW</PanelLabel>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <PanelLabel surface="sidebar">POSTS TO REVIEW</PanelLabel>
+            {incidents.length > 1 ? (
+              <p className="mt-1 text-[11px] leading-4 text-sidebar-foreground/50">
+                Open comments and reports first
+              </p>
+            ) : null}
+          </div>
           <span className="text-xs font-semibold tabular-nums text-sidebar-foreground/60">
             {incidents.length}
           </span>
         </div>
         {incidents.length === 0 ? (
           <p className="rounded-lg border border-sidebar-border bg-transparent p-3 text-xs leading-5 text-sidebar-foreground/70">
-            No posts need review.
+            No posts need review right now.
           </p>
         ) : (
           <ScrollArea className="min-h-0 flex-1 pr-2">
@@ -347,7 +357,7 @@ const NoticeToast = ({ notice }: { notice: Notice }) => (
       </span>
       <div className="min-w-0 flex-1 overflow-hidden">
         <p className="truncate text-sm font-semibold leading-5">
-          {notice.type === 'error' ? 'Needs attention' : 'Done'}
+          {notice.type === 'error' ? 'Needs attention' : 'Action complete'}
         </p>
         <p className="mt-0.5 truncate text-sm leading-5 text-muted-foreground">
           {notice.message}
@@ -382,7 +392,7 @@ const MobileIncidentStrip = ({
       <div>
         <PanelLabel>POSTS TO REVIEW</PanelLabel>
         <p className="mt-1 text-sm leading-6 text-muted-foreground">
-          {pluralize(incidents.length, 'post')} tracked
+          {pluralize(incidents.length, 'post')} waiting
         </p>
       </div>
       <Badge variant="outline">{incidents.length}</Badge>
@@ -415,44 +425,101 @@ const IncidentQueueItem = ({
   onSelect: () => void;
   selected: boolean;
   surface: 'dark' | 'light';
-}) => (
-  <button
-    type="button"
-    aria-pressed={selected}
-    className={cn(
-      'ui-feedback w-full rounded-md border p-3 text-left transition-colors focus-visible:ring-2 focus-visible:ring-ring/35 focus-visible:outline-none',
-      'content-visibility-list-item',
-      surface === 'dark'
-        ? 'border-transparent bg-transparent hover:bg-sidebar-accent'
-        : 'w-[min(17.5rem,calc(100vw-1rem))] snap-start border-border bg-card hover:bg-accent',
-      selected &&
-        (surface === 'dark'
-          ? 'border-sidebar-border bg-sidebar-accent'
-          : 'border-border bg-accent')
-    )}
-    onClick={onSelect}
-  >
-    <div className="flex items-start justify-between gap-3">
-      <p
+}) => {
+  const unresolvedComments = incident.flaggedComments.filter(
+    (comment) => !comment.removed && !comment.reviewed
+  ).length;
+  const postState = incident.postState;
+  const stateLabel = postState?.spam
+    ? 'Spam'
+    : postState?.removed
+      ? 'Removed'
+      : postState?.approved
+        ? 'Approved'
+        : postState?.locked
+          ? 'Locked'
+          : formatStatus(incident.status);
+  const firstReason = incident.reasons[0]?.label;
+  const secondReason = incident.reasons[1]?.label;
+  const signalParts = [
+    unresolvedComments > 0
+      ? pluralize(unresolvedComments, 'comment')
+      : undefined,
+    incident.stats.reportSignals > 0
+      ? pluralize(incident.stats.reportSignals, 'report')
+      : undefined,
+    incident.stats.suspiciousLinkHits > 0
+      ? pluralize(incident.stats.suspiciousLinkHits, 'watched link')
+      : undefined,
+    incident.stats.keywordHits > 0
+      ? pluralize(incident.stats.keywordHits, 'keyword hit')
+      : undefined,
+  ].filter(Boolean);
+
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      className={cn(
+        'ui-feedback w-full rounded-md border p-3 text-left transition-colors focus-visible:ring-2 focus-visible:ring-ring/35 focus-visible:outline-none',
+        'content-visibility-list-item',
+        surface === 'dark'
+          ? 'border-transparent bg-transparent hover:bg-sidebar-accent'
+          : 'w-[min(18.5rem,calc(100vw-1rem))] snap-start border-border bg-card hover:bg-accent',
+        selected &&
+          (surface === 'dark'
+            ? 'border-sidebar-border bg-sidebar-accent'
+            : 'border-border bg-accent')
+      )}
+      onClick={onSelect}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <p
+          className={cn(
+            'line-clamp-2 text-sm font-bold leading-5',
+            surface === 'dark' ? 'text-sidebar-foreground' : 'text-foreground'
+          )}
+        >
+          {incident.title}
+        </p>
+        <ScoreBadge incident={incident} />
+      </div>
+      <div
         className={cn(
-          'line-clamp-2 text-sm font-bold leading-5',
-          surface === 'dark' ? 'text-sidebar-foreground' : 'text-foreground'
+          'mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs leading-5',
+          surface === 'dark'
+            ? 'text-sidebar-foreground/60'
+            : 'text-muted-foreground'
         )}
       >
-        {incident.title}
-      </p>
-      <ScoreBadge incident={incident} />
-    </div>
-    <div
-      className={cn(
-        'mt-2 flex items-center justify-between gap-3 text-xs leading-5',
-        surface === 'dark'
-          ? 'text-sidebar-foreground/60'
-          : 'text-muted-foreground'
-      )}
-    >
-      <span>{formatStatus(incident.status)}</span>
-      <span>{formatTime(incident.createdAt)}</span>
-    </div>
-  </button>
-);
+        <span className="inline-flex items-center gap-1">
+          {postState?.removed || postState?.spam ? (
+            <RedditRemoveIcon className="size-3.5" />
+          ) : postState?.locked ? (
+            <RedditLockIcon className="size-3.5" />
+          ) : (
+            <RedditCommentIcon className="size-3.5" />
+          )}
+          {stateLabel}
+        </span>
+        <span aria-hidden="true">·</span>
+        <span>Updated {formatTime(incident.updatedAt)}</span>
+      </div>
+      {surface === 'light' && signalParts.length > 0 ? (
+        <p className="mt-1 line-clamp-1 text-xs leading-5 text-muted-foreground">
+          {signalParts.join(' · ')}
+        </p>
+      ) : null}
+      {surface === 'light' && firstReason ? (
+        <p className="mt-1 line-clamp-1 text-xs font-semibold leading-5 text-foreground/80">
+          {secondReason ? `${firstReason} · ${secondReason}` : firstReason}
+        </p>
+      ) : null}
+      {surface === 'light' && incident.claim ? (
+        <p className="mt-1 line-clamp-1 text-xs leading-5 text-muted-foreground">
+          Claimed by {formatUsername(incident.claim.username)}
+        </p>
+      ) : null}
+    </button>
+  );
+};

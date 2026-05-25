@@ -1,16 +1,11 @@
 import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
-import { EmptyText } from './common';
+import { EmptyText, PlaybookButton } from './common';
 import {
   copyTextToClipboard,
   formatSignalDetail,
@@ -18,8 +13,9 @@ import {
   formatTime,
   formatUsername,
 } from './format';
+import type { ActionRunner } from './types';
 import type { Incident } from '../../shared/api';
-import { RedditLinkIcon } from './reddit-icons';
+import { RedditCopyIcon, RedditShieldIcon } from './reddit-icons';
 
 export const LatestSignalsCard = ({ incident }: { incident: Incident }) => {
   const visibleSignals = incident.recentSignals;
@@ -27,11 +23,11 @@ export const LatestSignalsCard = ({ incident }: { incident: Incident }) => {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Activity</CardTitle>
+        <CardTitle>Reddit activity</CardTitle>
       </CardHeader>
       <CardContent>
         {visibleSignals.length === 0 ? (
-          <EmptyText>No activity.</EmptyText>
+          <EmptyText>No Reddit activity yet.</EmptyText>
         ) : (
           <ScrollArea className="pr-0 sm:max-h-[460px] sm:pr-3">
             <div className="flex flex-col">
@@ -43,7 +39,7 @@ export const LatestSignalsCard = ({ incident }: { incident: Incident }) => {
                       <p className="break-words text-sm font-semibold capitalize leading-5">
                         {formatSignalType(signal)}
                         {signal.author
-                          ? ` - ${formatUsername(signal.author)}`
+                          ? ` · ${formatUsername(signal.author)}`
                           : ''}
                       </p>
                       <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
@@ -67,7 +63,7 @@ export const LatestSignalsCard = ({ incident }: { incident: Incident }) => {
 export const SummariesCard = ({ incident }: { incident: Incident }) => (
   <Card>
     <CardHeader>
-      <CardTitle>Mod notes</CardTitle>
+      <CardTitle>Handoff notes</CardTitle>
     </CardHeader>
     <CardContent>
       {incident.escalationSummary || incident.summary ? (
@@ -76,12 +72,50 @@ export const SummariesCard = ({ incident }: { incident: Incident }) => (
             <SummaryBlock label="Handoff" value={incident.escalationSummary} />
           ) : null}
           {incident.summary ? (
-            <SummaryBlock label="Final note" value={incident.summary} />
+            <SummaryBlock label="Closeout" value={incident.summary} />
           ) : null}
         </div>
       ) : (
-        <EmptyText>No notes.</EmptyText>
+        <EmptyText>No handoff saved yet.</EmptyText>
       )}
+    </CardContent>
+  </Card>
+);
+
+export const HandoffActionCard = ({
+  busyAction,
+  canSaveHandoff,
+  incident,
+  onAction,
+}: {
+  busyAction: string | undefined;
+  canSaveHandoff: boolean;
+  incident: Incident;
+  onAction: ActionRunner;
+}) => (
+  <Card>
+    <CardHeader>
+      <CardTitle>Handoff</CardTitle>
+    </CardHeader>
+    <CardContent className="flex flex-col gap-3">
+      <p className="text-sm leading-5 text-muted-foreground">
+        Generate a mod note with the review reasons, open comments, matched
+        automations, and recent actions.
+      </p>
+      <PlaybookButton
+        className="w-full sm:w-fit"
+        disabled={Boolean(busyAction) || !canSaveHandoff}
+        icon={<RedditShieldIcon data-icon="inline-start" />}
+        label={
+          incident.escalationSummary ? 'Refresh handoff' : 'Generate handoff'
+        }
+        loading={busyAction === 'escalate'}
+        loadingLabel="Generating"
+        variant="secondary"
+        onClick={() =>
+          onAction('escalate', `/api/incidents/${incident.postId}/escalate`)
+        }
+      />
     </CardContent>
   </Card>
 );
@@ -106,7 +140,7 @@ const SummaryBlock = ({ label, value }: { label: string; value: string }) => {
       <div className="flex items-center justify-between gap-3">
         <Badge variant="outline">{label}</Badge>
         <Button size="sm" variant="outline" onClick={onCopy}>
-          <RedditLinkIcon data-icon="inline-start" />
+          <RedditCopyIcon data-icon="inline-start" />
           {copied ? 'Copied' : 'Copy'}
         </Button>
       </div>
@@ -130,7 +164,7 @@ export const ActionLogCard = ({
     </CardHeader>
     <CardContent>
       {incident.actions.length === 0 ? (
-        <EmptyText>No actions.</EmptyText>
+        <EmptyText>No mod actions yet.</EmptyText>
       ) : (
         <ScrollArea
           className={cn(

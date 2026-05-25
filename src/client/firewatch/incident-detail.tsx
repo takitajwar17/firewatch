@@ -1,11 +1,11 @@
-import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   ActionLogCard,
+  HandoffActionCard,
   LatestSignalsCard,
   SummariesCard,
 } from './incident-activity';
-import { formatUsername } from './format';
 import { FlaggedCommentsCard, RepeatedPhrasesCard } from './incident-comments';
 import {
   ImpactSnapshotCard,
@@ -15,7 +15,6 @@ import {
   ParticipantsCard,
   ResponseCard,
   RiskReasonsCard,
-  TrendCard,
 } from './incident-overview';
 import { MatchedRulesCard } from './incident-rules';
 import type { ActionRunner } from './types';
@@ -24,12 +23,6 @@ import type {
   Incident,
   PostFlairOption,
 } from '../../shared/api';
-import {
-  RedditCommentIcon,
-  RedditListIcon,
-  RedditReportIcon,
-  RedditUsersIcon,
-} from './reddit-icons';
 
 export const IncidentDetail = ({
   busyAction,
@@ -53,18 +46,7 @@ export const IncidentDetail = ({
       ),
     [incident.flaggedComments]
   );
-  const unresolvedUsers = useMemo(
-    () =>
-      new Set(
-        unresolvedComments
-          .map((comment) => formatUsername(comment.author))
-          .filter((author) => author !== 'unknown user')
-      ),
-    [unresolvedComments]
-  );
-  const [activeTab, setActiveTab] = useState(
-    unresolvedComments.length > 0 ? 'comments' : 'overview'
-  );
+  const [activeTab, setActiveTab] = useState('overview');
 
   const runModAction: ActionRunner = useCallback(
     async (action, endpoint, body) => {
@@ -72,7 +54,7 @@ export const IncidentDetail = ({
       if (!updatedIncident) return undefined;
 
       if (action === 'escalate' || action === 'resolve') {
-        setActiveTab('reports');
+        setActiveTab('notes');
       }
       if (action.startsWith('rule:') || action.startsWith('clear-strikes:')) {
         setActiveTab('overview');
@@ -80,6 +62,8 @@ export const IncidentDetail = ({
 
       if (
         action.startsWith('t1_') ||
+        action.startsWith('comment:') ||
+        action.startsWith('user:') ||
         action.startsWith('remove:') ||
         action.startsWith('approve:') ||
         action.startsWith('ban:')
@@ -96,43 +80,13 @@ export const IncidentDetail = ({
     <div className="flex min-w-0 flex-col gap-3 sm:gap-4">
       <IncidentIntro incident={incident} />
 
-      <IncidentHero
-        busyAction={busyAction}
-        config={config}
-        incident={incident}
-        onAction={runModAction}
-      />
-
-      <div className="grid overflow-hidden rounded-lg border border-border bg-background sm:grid-cols-2 xl:grid-cols-4">
-        <InsightItem
-          icon={<RedditReportIcon />}
-          label="Reports"
-          value={String(incident.stats.reportSignals)}
-        />
-        <InsightItem
-          icon={<RedditCommentIcon />}
-          label="Comments"
-          value={String(unresolvedComments.length)}
-        />
-        <InsightItem
-          icon={<RedditUsersIcon />}
-          label="Users"
-          value={String(unresolvedUsers.size)}
-        />
-        <InsightItem
-          icon={<RedditListIcon />}
-          label="Reply clusters"
-          value={String(incident.stats.branchPileOns)}
-        />
-      </div>
-
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList
           aria-label="Post review sections"
           className="no-scrollbar w-full max-w-full justify-start gap-1 overflow-x-auto overscroll-x-contain border-b border-border pb-2"
         >
           <TabsTrigger className="flex-none" value="overview">
-            Post
+            Post review
           </TabsTrigger>
           <TabsTrigger className="flex-none" value="comments">
             Comments
@@ -143,8 +97,8 @@ export const IncidentDetail = ({
           <TabsTrigger className="flex-none" value="signals">
             Activity
           </TabsTrigger>
-          <TabsTrigger className="flex-none" value="reports">
-            Mod notes
+          <TabsTrigger className="flex-none" value="notes">
+            Handoff
           </TabsTrigger>
         </TabsList>
 
@@ -153,12 +107,6 @@ export const IncidentDetail = ({
           value="overview"
         >
           <div className="flex flex-col gap-4">
-            <MatchedRulesCard
-              busyAction={busyAction}
-              incident={incident}
-              onAction={runModAction}
-              onEditRules={onEditRules}
-            />
             <RiskReasonsCard incident={incident} />
             <NativePostControlsCard
               busyAction={busyAction}
@@ -167,10 +115,21 @@ export const IncidentDetail = ({
               postFlairOptions={postFlairOptions}
               onAction={runModAction}
             />
-            <TrendCard incident={incident} />
+            <MatchedRulesCard
+              busyAction={busyAction}
+              incident={incident}
+              onAction={runModAction}
+              onEditRules={onEditRules}
+            />
           </div>
           <div className="flex flex-col gap-4">
-            <ImpactSnapshotCard incident={incident} />
+            <IncidentHero
+              busyAction={busyAction}
+              config={config}
+              incident={incident}
+              onReviewComments={() => setActiveTab('comments')}
+              onAction={runModAction}
+            />
             <ResponseCard incident={incident} />
             <ParticipantsCard
               busyAction={busyAction}
@@ -198,41 +157,23 @@ export const IncidentDetail = ({
           value="signals"
         >
           <LatestSignalsCard incident={incident} />
+          <ImpactSnapshotCard incident={incident} />
           <ActionLogCard incident={incident} />
         </TabsContent>
 
         <TabsContent
-          className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 sm:gap-4 xl:grid-cols-2"
-          value="reports"
+          className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 sm:gap-4"
+          value="notes"
         >
+          <HandoffActionCard
+            busyAction={busyAction}
+            canSaveHandoff={config.actionControls.handoffNotes}
+            incident={incident}
+            onAction={runModAction}
+          />
           <SummariesCard incident={incident} />
-          <ActionLogCard incident={incident} compact />
         </TabsContent>
       </Tabs>
     </div>
   );
 };
-
-const InsightItem = ({
-  icon,
-  label,
-  value,
-}: {
-  icon: ReactNode;
-  label: string;
-  value: string;
-}) => (
-  <div className="flex min-w-0 items-center justify-between gap-3 border-b border-border p-3 last:border-b-0 xl:border-r xl:border-b-0 xl:last:border-r-0">
-    <div className="min-w-0">
-      <p className="text-xs font-semibold leading-4 text-muted-foreground">
-        {label}
-      </p>
-    </div>
-    <div className="flex shrink-0 items-center gap-2 text-muted-foreground">
-      <span className="[&_svg]:size-4">{icon}</span>
-      <span className="text-base font-bold tabular-nums text-foreground">
-        {value}
-      </span>
-    </div>
-  </div>
-);

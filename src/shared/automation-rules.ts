@@ -32,9 +32,8 @@ export const RULE_MODE_LABELS: Record<RuleMode, string> = {
 };
 
 export const RULE_MODE_DESCRIPTIONS: Record<RuleMode, string> = {
-  suggest_only: 'Show the match and recommended actions without running them.',
-  prepare_for_approval:
-    'Prepare actions for mods to review and run manually.',
+  suggest_only: 'Show the match and suggested actions without running them.',
+  prepare_for_approval: 'Prepare actions for mods to review and run manually.',
   auto_run_safe_actions:
     'Run safe Firewatch-only actions and prepare risky Reddit actions.',
   auto_run_all_selected_actions:
@@ -285,7 +284,7 @@ export const defaultRuleTemplates = ({
   },
   {
     id: 'rule_heated_thread_cooldown',
-    name: 'Heated thread cooldown',
+    name: 'Crowded thread cooldown',
     description:
       'Prepares a sticky comment draft when the review score reaches action level.',
     enabled: true,
@@ -307,7 +306,7 @@ export const defaultRuleTemplates = ({
       {
         type: 'generate_handoff',
         template:
-          'Heated thread cooldown matched. Review flagged comments, then decide whether to post the sticky comment.',
+          'Crowded thread cooldown matched. Review flagged comments, then decide whether to post the sticky comment.',
       },
     ],
     mode: 'prepare_for_approval',
