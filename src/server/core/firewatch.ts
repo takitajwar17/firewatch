@@ -4,6 +4,7 @@ export {
 } from './firewatch/board';
 export {
   createDemoIncident,
+  createDemoIncidentBatch,
   createDemoIncidents,
   resetDemoIncidents,
 } from './firewatch/demo';

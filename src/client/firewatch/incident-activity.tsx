@@ -20,7 +20,7 @@ import {
   RedditRefreshIcon,
   RedditShieldIcon,
 } from './reddit-icons';
-import { undoActionLabel } from '../../shared/reddit-actions';
+import { actionCompleted, undoActionLabel } from '../../shared/reddit-actions';
 
 export const LatestSignalsCard = ({ incident }: { incident: Incident }) => {
   const visibleSignals = incident.recentSignals;
@@ -180,7 +180,7 @@ export const ActionLogCard = ({
     string | undefined
   >();
   const latestUndoableAction = incident.actions.find((action) =>
-    undoActionLabel(action.type)
+    actionCompleted(action) && undoActionLabel(action.type)
   );
 
   return (
@@ -200,7 +200,10 @@ export const ActionLogCard = ({
           >
             <div className="flex flex-col">
               {incident.actions.map((action, index) => {
-                const undoLabel = undoActionLabel(action.type);
+                const completed = actionCompleted(action);
+                const undoLabel = completed
+                  ? undoActionLabel(action.type)
+                  : undefined;
                 const canUndo =
                   Boolean(onAction) &&
                   Boolean(undoLabel) &&
@@ -219,7 +222,14 @@ export const ActionLogCard = ({
                         <p className="mt-1 text-xs leading-5 text-muted-foreground">
                           {formatUsername(action.actor)} ·{' '}
                           {formatTime(action.createdAt)}
+                          {action.status === 'pending' ? ' · pending' : ''}
+                          {action.status === 'failed' ? ' · failed' : ''}
                         </p>
+                        {action.error ? (
+                          <p className="mt-1 text-xs leading-5 text-destructive">
+                            {action.error}
+                          </p>
+                        ) : null}
                       </div>
                       {canUndo && onAction ? (
                         <Button

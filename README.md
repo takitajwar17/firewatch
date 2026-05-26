@@ -29,8 +29,9 @@ context before acting.
   remaining review work.
 - Excludes moderator comments, AutoModerator, and Firewatch notices from user
   wording scores so the app does not score its own cleanup comments.
-- Includes demo drills that create a real source post and feed the same signal
-  pipeline used by production events.
+- Includes demo drills that create a real source post, then seed sample reports
+  and comments into Firewatch's review pipeline so moderators can test the
+  workflow without posting harmful comments on Reddit.
 - Deletes stored post or comment content when Reddit delete triggers arrive.
 
 ## How Moderators Use It
@@ -57,7 +58,8 @@ strike counts. An automation can:
 - Auto-run safe Firewatch-only actions while leaving Reddit-native actions for
   moderator approval.
 - Auto-run all selected actions when a mod team deliberately enables that mode
-  for a trusted rule.
+  for a trusted rule. Reddit-native auto-run actions still require the post to
+  be claimed, and Firewatch records the claimant as the responsible actor.
 
 Automations are transparent: each match records why it matched, which actions
 were prepared, which actions ran, and which actions were skipped. Moderators
@@ -92,7 +94,8 @@ subreddit permissions before returning mod data or accepting actions.
   access.
 - Moderators who cannot change subreddit settings do not receive watched lists,
   score thresholds, automation rules, or automation logs in the webview payload.
-  They can still see the review data needed for post moderation.
+  They can still see the review data, available action controls, and reminder
+  text needed for post moderation.
 - Moderators who cannot manage post flair do not receive post flair templates or
   run flair actions.
 
@@ -105,11 +108,17 @@ data.
 Firewatch stores only the data needed to run the moderation workflow for
 installed communities: incident state, public Reddit identifiers, public content
 excerpts needed for review, moderator settings, automation logs, action
-history, user strike summaries, and handoff notes. Incident, claim, automation
-log, automation, and user strike records expire after 30 days. Per-moderator
-selected incident state expires after 24 hours. Community configuration and the
-Firewatch queue post reference do not have an app-set expiry and remain until
-changed, deleted by app logic, or removed by platform storage behavior.
+history, user strike summaries, and handoff notes. Incident, claim, and
+automation log records expire after 30 days. Per-moderator selected incident
+state expires after 24 hours. Community configuration, automations, user strike
+summaries, and the Firewatch queue post reference do not have an app-set expiry
+and remain until changed, cleared, reset by app logic, or removed by platform
+storage behavior.
+
+Firewatch is a deterministic signal queue, not a complete abuse detector. It
+handles common watched-word, watched-domain, report, repeated wording, and
+reply-cluster patterns, including simple domain obfuscation, but moderators
+should still review context and tune community-specific rules.
 
 See [Privacy Policy](https://raw.githubusercontent.com/takitajwar17/firewatch/main/PRIVACY.md) and [Terms of Service](https://raw.githubusercontent.com/takitajwar17/firewatch/main/TERMS.md) for the full
 policy text.

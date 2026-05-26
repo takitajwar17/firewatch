@@ -1,6 +1,11 @@
 import { context, redis, reddit } from '@devvit/web/server';
 import { boardPostKey, normalizePostId } from '../firewatch-utils';
 import { getPostSnapshot } from './incidents';
+import {
+  isMissingRedditThingError,
+  readRedditPost,
+} from './reddit-runtime';
+import { logFirewatchWarn } from './logging';
 
 
 // Custom post entrypoint
@@ -50,11 +55,18 @@ export const getOrCreateFirewatchBoardPost = async () => {
 
   if (storedPostId) {
     try {
-      return await reddit.getPostById(normalizePostId(storedPostId));
+      return await readRedditPost(storedPostId);
     } catch (error) {
-      console.error(
-        `Stored Firewatch review post could not be opened: ${error}`
-      );
+      if (!isMissingRedditThingError(error)) {
+        throw error;
+      }
+
+      logFirewatchWarn('board.stored_post_missing', {
+        postId: storedPostId,
+        subredditName: context.subredditName,
+        error,
+      });
+      await redis.del(boardPostKey(context.subredditName));
     }
   }
 

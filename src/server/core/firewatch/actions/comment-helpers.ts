@@ -2,6 +2,7 @@ import { reddit } from '@devvit/web/server';
 import type { Incident } from '../../../../shared/api';
 import { normalizeCommentId, normalizePostId } from '../../firewatch-utils';
 import { isDemoCommentSnapshot } from '../incidents';
+import { readRedditComment } from '../reddit-runtime';
 
 export const isDemoComment = (incident: Incident, commentId: string) =>
   isDemoCommentSnapshot(incident, commentId);
@@ -21,7 +22,7 @@ export const removeCommentIfReal = async (
   const normalizedCommentId = normalizeCommentId(commentId);
   if (isDemoComment(incident, normalizedCommentId)) return false;
 
-  const comment = await reddit.getCommentById(normalizedCommentId);
+  const comment = await readRedditComment(normalizedCommentId);
   await comment.remove(isSpam);
   const modNote = trimRemovalNote(reason);
   if (modNote) {
@@ -41,7 +42,7 @@ export const approveCommentIfReal = async (
   const normalizedCommentId = normalizeCommentId(commentId);
   if (isDemoComment(incident, normalizedCommentId)) return false;
 
-  const comment = await reddit.getCommentById(normalizedCommentId);
+  const comment = await readRedditComment(normalizedCommentId);
   await comment.approve();
   return true;
 };

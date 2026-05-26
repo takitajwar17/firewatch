@@ -37,6 +37,7 @@ export const STOP_WORDS = new Set([
   'that',
   'their',
   'there',
+  'the',
   'they',
   'this',
   'thread',

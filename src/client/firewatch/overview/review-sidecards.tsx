@@ -260,11 +260,19 @@ export const SafetyReviewCard = ({ incident }: { incident: Incident }) => {
 export const RiskReasonsCard = ({ incident }: { incident: Incident }) => (
   <Card size="sm">
     <CardHeader>
-      <CardTitle>Signals</CardTitle>
+      <CardTitle>Current signals</CardTitle>
+      {incident.stats.signalsOmitted ? (
+        <p className="text-xs leading-5 text-muted-foreground">
+          Showing the latest {incident.stats.signalsStored ?? 0} stored signals.
+          {` ${incident.stats.signalsOmitted} older signal${
+            incident.stats.signalsOmitted === 1 ? '' : 's'
+          } were capped.`}
+        </p>
+      ) : null}
     </CardHeader>
     <CardContent>
       {incident.reasons.length === 0 ? (
-        <EmptyText>No active reasons.</EmptyText>
+        <EmptyText>No current reasons.</EmptyText>
       ) : (
         <div className="flex flex-col">
           {incident.reasons.map((reason) => (

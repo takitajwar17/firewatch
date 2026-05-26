@@ -2,6 +2,11 @@ import { context, reddit } from '@devvit/web/server';
 import type { FirewatchRule, Incident, RuleScope } from '../../../shared/api';
 import { normalizeSignal, normalizeUsername } from '../firewatch-utils';
 
+export type ModeratorScopeResolution = {
+  usernames: Set<string>;
+  verified: boolean;
+};
+
 export const isAutoModerator = (username: string | undefined) =>
   normalizeUsername(username)?.toLowerCase() === 'automoderator';
 
@@ -40,10 +45,10 @@ const knownModeratorUsernames = (incident: Incident) =>
 export const getModeratorUsernames = async (
   incident: Incident,
   rules: FirewatchRule[]
-) => {
+): Promise<ModeratorScopeResolution> => {
   const moderators = knownModeratorUsernames(incident);
   if (!rules.some((rule) => rule.enabled && rule.scope.excludeModerators)) {
-    return moderators;
+    return { usernames: moderators, verified: true };
   }
 
   try {
@@ -60,10 +65,10 @@ export const getModeratorUsernames = async (
       if (username) moderators.add(username);
     }
   } catch {
-    return moderators;
+    return { usernames: moderators, verified: false };
   }
 
-  return moderators;
+  return { usernames: moderators, verified: true };
 };
 
 export const signalAllowedByScope = ({

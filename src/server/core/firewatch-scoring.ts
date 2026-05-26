@@ -5,6 +5,7 @@ import type {
   IncidentStats,
   RiskReason,
 } from '../../shared/api';
+import { actionCompleted } from '../../shared/reddit-actions';
 import {
   MAX_FLAGGED_COMMENTS,
   MAX_RECENT_SIGNALS,
@@ -132,7 +133,9 @@ export const calculateIncident = (
         .filter((comment) => comment.reviewed)
         .map((comment) => comment.id),
       ...incident.actions.flatMap((action) =>
-        action.type === 'comment_approved' ? (action.targetIds ?? []) : []
+        action.type === 'comment_approved' && actionCompleted(action)
+          ? (action.targetIds ?? [])
+          : []
       ),
     ]
       .filter(Boolean)
@@ -190,7 +193,10 @@ export const calculateIncident = (
   );
   const recordedRemovalTargets = new Set(
     incident.actions
-      .filter((action) => REMOVAL_ACTION_TYPES.has(action.type))
+      .filter(
+        (action) =>
+          REMOVAL_ACTION_TYPES.has(action.type) && actionCompleted(action)
+      )
       .flatMap((action) => action.targetIds ?? [])
       .map((targetId) =>
         targetId.startsWith('t1_')
@@ -575,6 +581,16 @@ export const calculateIncident = (
     flaggedCount: openFlaggedComments.length,
     uniqueParticipants: usersInReview.size,
     commentsLastHour: recentComments.length,
+    flaggedCommentsOmitted: Math.max(
+      0,
+      openFlaggedComments.length - MAX_FLAGGED_COMMENTS
+    ),
+    flaggedCommentsStored: Math.min(
+      openFlaggedComments.length,
+      MAX_FLAGGED_COMMENTS
+    ),
+    signalsOmitted: incident.stats.signalsOmitted ?? 0,
+    signalsStored: Math.min(normalizedSignals.length, MAX_RECENT_SIGNALS),
   };
   const impact = buildImpactSnapshot({
     activeFlaggedComments: openFlaggedComments,
@@ -583,6 +599,9 @@ export const calculateIncident = (
     reportsGrouped: totalReportCount,
   });
   const currentTrend = buildTrend(scoreSignals, config);
+  const lastSignalAt = maxTimestamp(
+    ...normalizedSignals.map((signal) => signal.createdAt)
+  );
 
   return {
     ...incident,
@@ -594,6 +613,7 @@ export const calculateIncident = (
     postCommentCount: postSnapshot.numberOfComments,
     createdAt,
     openedAt,
+    ...(lastSignalAt ? { lastSignalAt } : {}),
     score,
     level,
     peakScore,

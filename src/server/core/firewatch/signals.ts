@@ -21,6 +21,7 @@ import {
 import type { PostSnapshot } from '../firewatch-scoring/helpers';
 import { runRuleAutomationActions } from './automation';
 import { appendAction, getPostSnapshot, refreshIncident } from './incidents';
+import { logFirewatchError } from './logging';
 import {
   getConfig,
   getIncident,
@@ -90,21 +91,33 @@ export const mergeRecentSignal = (
   signal: IncidentSignal,
   recentSignals: Incident['recentSignals']
 ) => {
+  return mergeRecentSignalWithMeta(signal, recentSignals).signals;
+};
+
+const capRecentSignals = (signals: Incident['recentSignals']) => ({
+  droppedCount: Math.max(0, signals.length - MAX_RECENT_SIGNALS),
+  signals: signals.slice(0, MAX_RECENT_SIGNALS),
+});
+
+const mergeRecentSignalWithMeta = (
+  signal: IncidentSignal,
+  recentSignals: Incident['recentSignals']
+) => {
   const dedupeKey = signalDedupeKey(signal);
   if (!dedupeKey) {
-    return [signal, ...recentSignals].slice(0, MAX_RECENT_SIGNALS);
+    return capRecentSignals([signal, ...recentSignals]);
   }
 
   const duplicateIndex = recentSignals.findIndex(
     (recentSignal) => signalDedupeKey(recentSignal) === dedupeKey
   );
   if (duplicateIndex === -1) {
-    return [signal, ...recentSignals].slice(0, MAX_RECENT_SIGNALS);
+    return capRecentSignals([signal, ...recentSignals]);
   }
 
   const duplicate = recentSignals[duplicateIndex];
   if (!duplicate) {
-    return [signal, ...recentSignals].slice(0, MAX_RECENT_SIGNALS);
+    return capRecentSignals([signal, ...recentSignals]);
   }
 
   const mergedSignal: IncidentSignal = {
@@ -114,10 +127,10 @@ export const mergeRecentSignal = (
     createdAt: Math.max(duplicate.createdAt, signal.createdAt),
   };
 
-  return [
+  return capRecentSignals([
     mergedSignal,
     ...recentSignals.filter((_, index) => index !== duplicateIndex),
-  ].slice(0, MAX_RECENT_SIGNALS);
+  ]);
 };
 
 
@@ -206,13 +219,23 @@ export const recordIncidentSignal = async (input: SignalInput) => {
       ? 'open'
       : normalizeStatus(baseIncident.status);
   const config = await getConfig(postSnapshot.subredditName);
+  const mergedSignalResult = mergeRecentSignalWithMeta(
+    signal,
+    baseIncident.recentSignals
+  );
   const calculatedIncident = calculateIncident(
     {
       ...baseIncident,
+      stats: {
+        ...baseIncident.stats,
+        signalsOmitted:
+          (baseIncident.stats.signalsOmitted ?? 0) +
+          mergedSignalResult.droppedCount,
+      },
       status: nextStatus,
       resolvedAt: shouldReopen ? undefined : baseIncident.resolvedAt,
       summary: shouldReopen ? undefined : baseIncident.summary,
-      recentSignals: mergeRecentSignal(signal, baseIncident.recentSignals),
+      recentSignals: mergedSignalResult.signals,
     },
     config,
     postSnapshot
@@ -230,6 +253,27 @@ export const recordIncidentSignal = async (input: SignalInput) => {
 
 
 // Incident ingest and lookup API
+const DASHBOARD_READ_REFRESH_INTERVAL_MS = 15 * 1000;
+
+const refreshIncidentForRead = async (incident: Incident) => {
+  if (now() - incident.updatedAt < DASHBOARD_READ_REFRESH_INTERVAL_MS) {
+    return incident;
+  }
+
+  try {
+    const refreshed = await refreshIncident(incident);
+    await saveIncident(refreshed);
+    return refreshed;
+  } catch (error) {
+    logFirewatchError('incident.refresh_for_read_failed', {
+      postId: incident.postId,
+      subredditName: incident.subredditName,
+      error,
+    });
+    return incident;
+  }
+};
+
 export const deleteStoredPostContent = async (postId: string) => {
   const normalizedPostId = normalizePostId(postId);
   const index = await getIndex();
@@ -292,10 +336,12 @@ export const deleteStoredCommentContent = async (
     const refreshed = await refreshIncident(sanitizedIncident);
     await saveIncident(refreshed);
   } catch (error) {
-    console.error(
-      `Failed to refresh sanitized incident ${normalizedPostId}`,
-      error
-    );
+    logFirewatchError('incident.refresh_after_comment_delete_failed', {
+      postId: normalizedPostId,
+      commentId: normalizedCommentId,
+      subredditName: incident.subredditName,
+      error,
+    });
     await saveIncident(sanitizedIncident);
   }
 };
@@ -314,20 +360,15 @@ export const upsertIncidentSignal = async (input: SignalInput) => {
 
 export const getIncidents = async () => {
   const index = await getIndex();
+  const registry = await getIncidentRegistry();
+  const candidatePostIds = Array.from(new Set([...index, ...registry]));
   const incidents = (
     await Promise.all(
-      index.map(async (postId) => {
+      candidatePostIds.map(async (postId) => {
         const incident = await getIncident(postId);
         if (!incident) return undefined;
 
-        try {
-          const refreshed = await refreshIncident(incident);
-          await saveIncident(refreshed);
-          return refreshed;
-        } catch (error) {
-          console.error(`Failed to refresh incident ${postId}`, error);
-          return incident;
-        }
+        return incident;
       })
     )
   ).filter((incident): incident is Incident => Boolean(incident));
@@ -337,7 +378,6 @@ export const getIncidents = async () => {
   const visiblePostIds = new Set(
     visibleIncidents.map((incident) => incident.postId)
   );
-  const registry = await getIncidentRegistry();
   const resolvedIncidents = (
     await Promise.all(
       registry
@@ -347,14 +387,7 @@ export const getIncidents = async () => {
           const incident = await getIncident(postId);
           if (!incident) return undefined;
 
-          try {
-            const refreshed = await refreshIncident(incident);
-            await saveIncident(refreshed);
-            return refreshed;
-          } catch (error) {
-            console.error(`Failed to refresh incident ${postId}`, error);
-            return incident;
-          }
+          return incident;
         })
     )
   )
@@ -376,14 +409,7 @@ export const getIncidentById = async (postId: string) => {
   const incident = await getIncident(normalizedPostId);
   if (!incident) return undefined;
 
-  try {
-    const refreshed = await refreshIncident(incident);
-    await saveIncident(refreshed);
-    return refreshed;
-  } catch (error) {
-    console.error(`Failed to refresh incident ${normalizedPostId}`, error);
-    return incident;
-  }
+  return refreshIncidentForRead(incident);
 };
 
 export const recordExternalModAction = async ({

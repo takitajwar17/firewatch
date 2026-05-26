@@ -5,19 +5,10 @@ import { devvit } from '@devvit/start/vite';
 import { fileURLToPath, URL } from 'node:url';
 
 export default defineConfig({
-  build: {
-    chunkSizeWarningLimit: 2500,
-  },
   plugins: [
     react(),
     tailwind(),
-    devvit({
-      server: {
-        build: {
-          chunkSizeWarningLimit: 2500,
-        },
-      },
-    }),
+    devvit(),
   ],
   resolve: {
     alias: {

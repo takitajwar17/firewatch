@@ -79,9 +79,10 @@ Capabilities:
 - Deletes stored post/comment content when Reddit delete triggers arrive and
   expires incident records after 30 days.
 - Includes selectable demo drills for heated threads, scam-link cleanup, and
-  support-safety cleanup. Each drill creates one clean source post and feeds
-  the same signal pipeline used by production events. Demo incidents can be
-  reset from the dashboard.
+  support-safety cleanup. Each drill creates one real source post, then seeds
+  sample reports and comments into Firewatch's review pipeline so moderators
+  can test the workflow without posting harmful comments on Reddit. Demo
+  incidents can be reset from the dashboard.
 
 ## Project Impact
 

@@ -36,6 +36,10 @@ const EMPTY_DASHBOARD: DashboardInitResponse = {
 
 const fetchDashboardInit = () => requestJson<DashboardResponse>('/api/init');
 
+type RefreshOptions = {
+  preserveOnError?: boolean;
+};
+
 export const useDashboard = () => {
   const [loadState, setLoadState] = useState<LoadState>({ status: 'loading' });
   const [selectedPostId, setSelectedPostId] = useState<string | undefined>();
@@ -68,15 +72,19 @@ export const useDashboard = () => {
     [applyAccessDenied, applyDashboard]
   );
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (options: RefreshOptions = {}) => {
     try {
       applyDashboardResponse(await fetchDashboardInit());
+      return true;
     } catch (error) {
-      setLoadState({
-        status: 'error',
-        message:
-          error instanceof Error ? error.message : 'Failed to load dashboard',
-      });
+      if (!options.preserveOnError) {
+        setLoadState({
+          status: 'error',
+          message:
+            error instanceof Error ? error.message : 'Failed to load dashboard',
+        });
+      }
+      return false;
     }
   }, [applyDashboardResponse]);
 
@@ -162,7 +170,7 @@ export const useDashboard = () => {
       });
       updateIncident(payload.incident);
       setNotice({ type: 'success', message: actionSuccessMessage(action) });
-      await refresh();
+      await refresh({ preserveOnError: true });
       return payload.incident;
     } catch (error) {
       console.error(`Firewatch action failed: ${action}`, error);
@@ -223,7 +231,7 @@ export const useDashboard = () => {
       );
 
       try {
-        await refresh();
+        await refresh({ preserveOnError: true });
       } finally {
         setBusyAction(undefined);
       }
@@ -327,7 +335,7 @@ export const useDashboard = () => {
           : current
       );
       setNotice({ type: 'success', message: 'Settings saved.' });
-      await refresh();
+      await refresh({ preserveOnError: true });
     } catch (error) {
       setNotice({
         type: 'error',
@@ -366,7 +374,7 @@ export const useDashboard = () => {
       });
       applyRulesResponse(payload);
       setNotice({ type: 'success', message: 'Automation saved.' });
-      await refresh();
+      await refresh({ preserveOnError: true });
     } catch (error) {
       setNotice({
         type: 'error',
@@ -393,7 +401,7 @@ export const useDashboard = () => {
         type: 'success',
         message: 'Automation templates loaded.',
       });
-      await refresh();
+      await refresh({ preserveOnError: true });
     } catch (error) {
       setNotice({
         type: 'error',
@@ -417,7 +425,7 @@ export const useDashboard = () => {
       );
       applyRulesResponse(payload);
       setNotice({ type: 'success', message: 'All automations disabled.' });
-      await refresh();
+      await refresh({ preserveOnError: true });
     } catch (error) {
       setNotice({
         type: 'error',

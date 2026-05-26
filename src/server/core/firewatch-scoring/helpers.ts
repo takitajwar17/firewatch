@@ -12,6 +12,7 @@ import type {
   RepeatedPhrase,
   ResponseSuggestion,
 } from '../../../shared/api';
+import { actionCompleted } from '../../../shared/reddit-actions';
 import {
   MAX_INVOLVED_USERS,
   MAX_REPEATED_PHRASES,
@@ -125,13 +126,13 @@ export const extractRepeatedPhrases = (
   }
 
   return Array.from(phrases.entries())
-    .filter(([, value]) => value.count >= 2)
+    .filter(([, value]) => value.count >= 2 && value.authors.size >= 2)
     .map(([phrase, value]) => ({
       phrase,
       count: value.count,
       authors: Array.from(value.authors).slice(0, 5),
     }))
-    .sort((a, b) => b.count - a.count || b.authors.length - a.authors.length)
+    .sort((a, b) => b.authors.length - a.authors.length || b.count - a.count)
     .slice(0, MAX_REPEATED_PHRASES);
 };
 
@@ -148,6 +149,10 @@ export const makeEmptyStats = (): IncidentStats => ({
   flaggedCount: 0,
   uniqueParticipants: 0,
   commentsLastHour: 0,
+  flaggedCommentsOmitted: 0,
+  flaggedCommentsStored: 0,
+  signalsOmitted: 0,
+  signalsStored: 0,
 });
 
 export const makeEmptyImpact = (): IncidentImpactSnapshot => ({
@@ -441,7 +446,9 @@ const countActionTargets = (
 ) =>
   actions.reduce(
     (total, action) =>
-      action.type === type ? total + (action.targetIds?.length ?? 1) : total,
+      action.type === type && actionCompleted(action)
+        ? total + (action.targetIds?.length ?? 1)
+        : total,
     0
   );
 
@@ -471,14 +478,16 @@ const normalizeActionCommentTarget = (targetId: string) => {
 };
 
 export const actionCommentTargets = (action: Incident['actions'][number]) =>
-  (action.targetIds ?? [])
-    .map(normalizeActionCommentTarget)
-    .filter((targetId): targetId is ReturnType<typeof normalizeCommentId> =>
-      Boolean(targetId)
-    );
+  actionCompleted(action)
+    ? (action.targetIds ?? [])
+        .map(normalizeActionCommentTarget)
+        .filter((targetId): targetId is ReturnType<typeof normalizeCommentId> =>
+          Boolean(targetId)
+        )
+    : [];
 
 export const countRemovalTargets = (action: Incident['actions'][number]) =>
-  REMOVAL_ACTION_TYPES.has(action.type)
+  REMOVAL_ACTION_TYPES.has(action.type) && actionCompleted(action)
     ? (action.targetIds?.filter(
         (targetId) => targetId.startsWith('t1_') || targetId.startsWith('t3_')
       ).length ?? (action.type === 'user_banned' ? 0 : 1))
@@ -512,7 +521,7 @@ export const buildImpactSnapshot = ({
     usersResolved.delete(username);
   }
   const moderationActions = incident.actions.filter(
-    (action) => action.type !== 'demo_seeded'
+    (action) => action.type !== 'demo_seeded' && actionCompleted(action)
   );
   const removals = incident.actions.reduce(
     (total, action) => total + countRemovalTargets(action),
@@ -535,15 +544,20 @@ export const buildImpactSnapshot = ({
       countActionTargets(incident.actions, 'comment_approved') +
       countActionTargets(incident.actions, 'post_approved') +
       countActionTargets(incident.actions, 'user_approved'),
-    bans: incident.actions.filter((action) => action.type === 'user_banned')
-      .length,
+    bans: incident.actions.filter(
+      (action) => action.type === 'user_banned' && actionCompleted(action)
+    ).length,
     handoffSaved:
       Boolean(incident.escalationSummary) ||
-      incident.actions.some((action) => action.type === 'escalated'),
+      incident.actions.some(
+        (action) => action.type === 'escalated' && actionCompleted(action)
+      ),
     finalNoteSaved:
       Boolean(incident.summary) ||
       Boolean(incident.resolvedAt) ||
-      incident.actions.some((action) => action.type === 'resolved'),
+      incident.actions.some(
+        (action) => action.type === 'resolved' && actionCompleted(action)
+      ),
     timeOpenMinutes: Math.max(
       0,
       Math.round(

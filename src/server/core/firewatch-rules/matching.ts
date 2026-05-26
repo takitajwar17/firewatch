@@ -37,6 +37,7 @@ import {
   recordRuleExecutionLog,
 } from './store';
 import { getUserStrikeSummaries } from './strikes';
+import { logFirewatchWarn } from '../firewatch/logging';
 
 const triggerTypeForSignal = (
   signal: Incident['recentSignals'][number] | undefined
@@ -73,6 +74,11 @@ const triggerTypesForIncident = (incident: Incident) => {
 
 const AUTO_RUN_CLAIM_REQUIRED =
   'Waiting for a moderator claim before auto-running actions';
+
+const shouldSkipRuleForUnverifiedModeratorScope = (
+  rule: FirewatchRule,
+  moderatorScopeVerified: boolean
+) => rule.enabled && rule.scope.excludeModerators && !moderatorScopeVerified;
 
 type Candidate = {
   targetId: string;
@@ -491,18 +497,31 @@ export const matchIncidentAutomations = async ({
   const effectiveTriggerTypes = triggerType
     ? new Set<RuleTrigger['type']>([triggerType])
     : triggerTypesForIncident(incident);
-  const moderatorUsers = await getModeratorUsernames(incident, rules);
+  const moderatorScope = await getModeratorUsernames(incident, rules);
   const matches = rules
-    .flatMap((rule) =>
-      matchRule({
+    .flatMap((rule) => {
+      if (
+        shouldSkipRuleForUnverifiedModeratorScope(
+          rule,
+          moderatorScope.verified
+        )
+      ) {
+        logFirewatchWarn('automation.scope_moderators_unverified', {
+          ruleId: rule.id,
+          subredditName: incident.subredditName,
+        });
+        return [];
+      }
+
+      return matchRule({
         config,
         effectiveTriggerTypes,
         incident,
         rule,
         strikeSummaries,
-        moderatorUsers,
-      })
-    )
+        moderatorUsers: moderatorScope.usernames,
+      });
+    })
     .filter((match): match is MatchedAutomationRule => Boolean(match));
 
   return { matches, strikeSummaries };
@@ -627,14 +646,23 @@ export const testAutomation = async ({
 
   for (const incident of incidents) {
     const strikeSummaries = await getUserStrikeSummaries(incident);
-    const moderatorUsers = await getModeratorUsernames(incident, [rule]);
+    const moderatorScope = await getModeratorUsernames(incident, [rule]);
+    if (
+      shouldSkipRuleForUnverifiedModeratorScope(rule, moderatorScope.verified)
+    ) {
+      logFirewatchWarn('automation.test_scope_moderators_unverified', {
+        ruleId: rule.id,
+        subredditName: incident.subredditName,
+      });
+      continue;
+    }
     const matches = matchRule({
       config,
       effectiveTriggerTypes: new Set<RuleTrigger['type']>([rule.trigger.type]),
       incident,
       rule,
       strikeSummaries,
-      moderatorUsers,
+      moderatorUsers: moderatorScope.usernames,
     });
 
     for (const match of matches) {

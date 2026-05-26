@@ -9,6 +9,7 @@ import type {
   CrowdControlLevel,
   DashboardInitResponse,
   DashboardResponse,
+  DemoCreateResponse,
   DemoResetResponse,
   FirewatchConfig,
   FirewatchDemoScenarioId,
@@ -40,6 +41,7 @@ import {
   clearIncidentUserStrikes,
   coolDownIncident,
   createDemoIncidents,
+  createDemoIncidentBatch,
   escalateIncident,
   getConfig,
   getIncidentById,
@@ -64,6 +66,7 @@ import {
 } from '../core/firewatch-rules/store';
 import { testAutomation } from '../core/firewatch-rules/matching';
 import { normalizeUsername } from '../core/firewatch-utils';
+import { logFirewatchWarn } from '../core/firewatch/logging';
 import {
   CONFIG_PERMISSIONS,
   DASHBOARD_PERMISSIONS,
@@ -95,14 +98,18 @@ const reviewVisibleConfig = (
         reminderText: config.reminderText,
       };
 
-const loadDashboardData = async (): Promise<DashboardInitResponse> => {
+type ModeratorAccess = Awaited<ReturnType<typeof getModeratorAccess>>;
+
+const loadDashboardData = async (
+  initialAccess?: ModeratorAccess
+): Promise<DashboardInitResponse> => {
   const contextSelectedPostId =
     typeof context.postData?.incidentPostId === 'string'
       ? context.postData.incidentPostId
       : undefined;
   const subredditName = context.subredditName;
   const [access, incidents, config, username] = await Promise.all([
-    getModeratorAccess(DASHBOARD_PERMISSIONS),
+    initialAccess ?? getModeratorAccess(DASHBOARD_PERMISSIONS),
     getIncidents(),
     getConfig(),
     currentModeratorName(),
@@ -120,12 +127,13 @@ const loadDashboardData = async (): Promise<DashboardInitResponse> => {
     canConfigure ? getAutomations(subredditName) : Promise.resolve([]),
     canConfigure ? getRuleExecutionLogs(subredditName) : Promise.resolve([]),
   ]);
-  const selectedPostId =
+  const requestedSelectedPostId =
     contextSelectedPostId ??
     (await getRememberedIncidentPostId(username ?? undefined));
-  const selectedIncident = selectedPostId
-    ? await getIncidentById(selectedPostId)
+  const selectedIncident = requestedSelectedPostId
+    ? await getIncidentById(requestedSelectedPostId)
     : undefined;
+  const selectedPostId = selectedIncident?.postId;
   const mergedIncidents =
     selectedIncident &&
     !incidents.some((incident) => incident.postId === selectedIncident.postId)
@@ -169,7 +177,10 @@ const getPostFlairOptions = async (
 
     return options;
   } catch (error) {
-    console.error('Could not load post flair templates:', error);
+    logFirewatchWarn('api.post_flair_templates_failed', {
+      subredditName,
+      error,
+    });
     return [];
   }
 };
@@ -247,7 +258,7 @@ api.get('/init', async (c) => {
       );
     }
 
-    return c.json<DashboardInitResponse>(await loadDashboardData());
+    return c.json<DashboardInitResponse>(await loadDashboardData(access));
   } catch (error) {
     return errorResponse(c, error, {
       fallbackMessage: 'Unknown error during initialization',
@@ -326,9 +337,11 @@ api.post('/incidents/:postId/actions/:actionId/undo', async (c) => {
 });
 
 api.post('/demo/incident', async (c) => {
-  return incidentAction(
-    c,
-    async () => {
+  try {
+    await requireModeratorPermissions(
+      POST_MODERATION_PERMISSIONS,
+      'create demo review posts'
+    );
       const body = await readOptionalJson<{
         scenarioId: FirewatchDemoScenarioId;
         scenarioIds: FirewatchDemoScenarioId[];
@@ -337,13 +350,28 @@ api.post('/demo/incident', async (c) => {
         body.scenarioIds && body.scenarioIds.length > 0
           ? body.scenarioIds
           : body.scenarioId
-            ? [body.scenarioId]
-            : undefined;
-      return createDemoIncidents(scenarioIds);
-    },
-    POST_MODERATION_PERMISSIONS,
-    'create demo review posts'
-  );
+          ? [body.scenarioId]
+          : undefined;
+
+      if (body.scenarioIds && body.scenarioIds.length > 1) {
+        const result = await createDemoIncidentBatch(scenarioIds);
+        const latestIncident = result.createdIncidents.at(-1);
+        if (!latestIncident) {
+          throw new Error('No Firewatch demo posts could be created.');
+        }
+        return c.json<DemoCreateResponse>({
+          type: 'demo-create',
+          incident: latestIncident,
+          createdIncidents: result.createdIncidents,
+          failures: result.failures,
+        });
+      }
+
+      const incident = await createDemoIncidents(scenarioIds);
+      return c.json<ActionResponse>({ type: 'action', incident });
+  } catch (error) {
+    return incidentActionError(c, error);
+  }
 });
 
 api.post('/demo/reset', async (c) => {

@@ -17,7 +17,7 @@ export const normalizeDetectionText = (text: string) =>
       .toLowerCase()
       .replace(/[’‘]/g, "'")
       .replace(/[“”]/g, '"')
-      .replace(/\u200b/g, '')
+      .replace(/[\u200b-\u200d\ufeff]/g, '')
   );
 
 const normalizeTerm = (term: string) => normalizeDetectionText(term);
@@ -90,7 +90,8 @@ const urlForMatch = (match: string) => {
 };
 
 const normalizeObfuscatedDomains = (text: string) =>
-  text
+  normalizeDetectionText(text)
+    .replace(/([a-z0-9])\s*(?:\(\.\)|\[\.\]|\.)\s*([a-z0-9])/gi, '$1.$2')
     .replace(/([a-z0-9])\s*(?:\(|\[)?dot(?:\)|\])?\s*([a-z0-9])/gi, '$1.$2')
     .replace(
       /([a-z0-9])\s*(?:\(|\[)?slash(?:\)|\])?\s*([a-z0-9])/gi,

@@ -19,6 +19,7 @@ import {
 import type { PostSnapshot } from '../firewatch-scoring/helpers';
 import { runRuleAutomationActions } from './automation';
 import { appendAction } from './incidents';
+import { logFirewatchError, logFirewatchWarn } from './logging';
 import { upsertIncidentSignal } from './signals';
 import {
   actorName,
@@ -26,11 +27,13 @@ import {
   getConfig,
   getIndex,
   getIncident,
+  getIncidentRegistry,
   getRememberedIncidentPostId,
   removeFromIncidentRegistry,
   saveIncident,
   saveIndex,
 } from './store';
+import { deleteRedditPostIfExists } from './reddit-runtime';
 import {
   claimKey,
   incidentKey,
@@ -630,7 +633,12 @@ export const createDemoIncident = async (
     });
     return await runRuleAutomationActions(enrichedDemoIncident, ruleLogs);
   } catch (error) {
-    console.error('Demo review created but automation setup failed:', error);
+    logFirewatchError('demo.automation_setup_failed', {
+      postId: enrichedDemoIncident.postId,
+      scenarioId: scenario.id,
+      subredditName: enrichedDemoIncident.subredditName,
+      error,
+    });
     return enrichedDemoIncident;
   }
 };
@@ -638,54 +646,72 @@ export const createDemoIncident = async (
 export const createDemoIncidents = async (
   scenarioIds: FirewatchDemoScenarioId[] = [DEFAULT_DEMO_SCENARIO_ID]
 ) => {
-  const selectedScenarioIds =
-    scenarioIds.length > 0 ? scenarioIds : [DEFAULT_DEMO_SCENARIO_ID];
-  const createdIncidents: Incident[] = [];
-
-  for (const scenarioId of selectedScenarioIds) {
-    try {
-      createdIncidents.push(await createDemoIncident(scenarioId));
-    } catch (error) {
-      console.error(`Failed to create Firewatch demo ${scenarioId}`, error);
-    }
-  }
-
-  const latestIncident = createdIncidents.at(-1);
+  const result = await createDemoIncidentBatch(scenarioIds);
+  const latestIncident = result.createdIncidents.at(-1);
   if (latestIncident) return latestIncident;
 
   throw new Error('No Firewatch demo posts could be created.');
 };
 
-const deletedPostErrorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : String(error);
+export const createDemoIncidentBatch = async (
+  scenarioIds: FirewatchDemoScenarioId[] = [DEFAULT_DEMO_SCENARIO_ID]
+) => {
+  const selectedScenarioIds =
+    scenarioIds.length > 0 ? scenarioIds : [DEFAULT_DEMO_SCENARIO_ID];
+  const createdIncidents: Incident[] = [];
+  const failures: Array<{
+    message: string;
+    scenarioId: FirewatchDemoScenarioId;
+  }> = [];
 
-const isMissingPostError = (error: unknown) =>
-  /404|not found|does not exist|deleted/i.test(deletedPostErrorMessage(error));
+  for (const scenarioId of selectedScenarioIds) {
+    try {
+      createdIncidents.push(await createDemoIncident(scenarioId));
+    } catch (error) {
+      logFirewatchError('demo.create_failed', {
+        scenarioId,
+        subredditName: context.subredditName,
+        error,
+      });
+      failures.push({
+        scenarioId,
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Unknown demo creation failure',
+      });
+    }
+  }
+
+  return { createdIncidents, failures };
+};
 
 const deleteDemoRedditPost = async (postId: string) => {
   try {
-    const post = await reddit.getPostById(normalizePostId(postId));
-    await post.delete();
-  } catch (error) {
-    if (isMissingPostError(error)) {
-      console.warn(`Firewatch demo post ${postId} was already gone`, error);
-      return;
+    const deleted = await deleteRedditPostIfExists(postId);
+    if (!deleted) {
+      logFirewatchWarn('demo.post_already_missing', {
+        postId,
+        subredditName: context.subredditName,
+      });
     }
-
-    throw new Error(
-      `Could not delete Reddit demo post ${postId}: ${deletedPostErrorMessage(error)}`,
-      { cause: error }
-    );
+  } catch (error) {
+    logFirewatchError('demo.post_delete_failed', {
+      postId,
+      subredditName: context.subredditName,
+      error,
+    });
   }
 };
 
 export const resetDemoIncidents = async () => {
   const index = await getIndex();
+  const registry = await getIncidentRegistry(context.subredditName);
   let resetCount = 0;
   const keptPostIds: string[] = [];
   const demoStrikeCleanups: Array<{ postId: string; usernames: string[] }> = [];
 
-  for (const postId of index) {
+  for (const postId of Array.from(new Set([...index, ...registry]))) {
     const incident = await getIncident(postId);
     if (incident?.demo) {
       resetCount += 1;
@@ -705,7 +731,7 @@ export const resetDemoIncidents = async () => {
       await deleteDemoRedditPost(postId);
       await redis.del(incidentKey(postId), claimKey(postId));
       await removeFromIncidentRegistry(context.subredditName, postId);
-    } else {
+    } else if (index.includes(postId)) {
       keptPostIds.push(postId);
     }
   }

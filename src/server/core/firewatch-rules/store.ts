@@ -51,9 +51,7 @@ const saveAutomations = async (
   subredditName: string,
   rules: FirewatchRule[]
 ) => {
-  await redis.set(responseRulesKey(subredditName), JSON.stringify(rules), {
-    expiration: retentionExpiration(),
-  });
+  await redis.set(responseRulesKey(subredditName), JSON.stringify(rules));
 };
 
 const normalizeRuleScope = (

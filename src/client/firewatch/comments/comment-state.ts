@@ -4,6 +4,7 @@ import type {
   IncidentActionType,
   IncidentSignal,
 } from '../../../shared/api';
+import { actionCompleted } from '../../../shared/reddit-actions';
 
 export type CommentPrepKind =
   | 'remove'
@@ -119,6 +120,7 @@ export const buildCommentActionSnapshots = (incident: Incident) => {
   );
 
   for (const action of newestActions) {
+    if (!actionCompleted(action)) continue;
     if (!action.targetIds?.length) continue;
 
     for (const targetId of action.targetIds) {

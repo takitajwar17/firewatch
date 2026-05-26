@@ -122,16 +122,49 @@ test('detection parses domains and matches exact hosts or subdomains', () => {
     ]
   );
   assert.equal(linkCount(text), 4);
+  assert.deepEqual(extractDomains('Check bit[.]ly and safe(.)example(dot)com'), [
+    'bit.ly',
+    'safe.example.com',
+  ]);
+  assert.deepEqual(
+    watchedDomainMatches('b\u200bit[.]ly still resolves', ['bit.ly']).map(
+      (match) => [match.term, match.count]
+    ),
+    [['bit.ly', 1]]
+  );
+});
+
+test('repeated phrase extraction requires more than one author', () => {
+  const helpersSource = readFileSync(
+    'src/server/core/firewatch-scoring/helpers.ts',
+    'utf8'
+  );
+  const constantsSource = readFileSync(
+    'src/server/core/firewatch-constants.ts',
+    'utf8'
+  );
+
+  assert.match(helpersSource, /value\.count >= 2 && value\.authors\.size >= 2/);
+  assert.match(
+    helpersSource,
+    /b\.authors\.length - a\.authors\.length \|\| b\.count - a\.count/
+  );
+  assert.match(constantsSource, /'the'/);
 });
 
 test('incident refresh falls back when Reddit native post reads are cancelled', () => {
   const source = readFileSync('src/server/core/firewatch/incidents.ts', 'utf8');
+  const runtimeSource = readFileSync(
+    'src/server/core/firewatch/reddit-runtime.ts',
+    'utf8'
+  );
   const refreshStart = source.indexOf('export const refreshIncident');
   const refreshEnd = source.indexOf('export const appendAction', refreshStart);
   const refreshSource = source.slice(refreshStart, refreshEnd);
 
-  assert.match(source, /const isTransientRedditReadError/);
-  assert.match(source, /cancelled\|deadline\|unavailable\|timeout/);
+  assert.match(runtimeSource, /isTransientRedditRuntimeError/);
+  assert.match(runtimeSource, /cancelled\|deadline\|unavailable\|timeout/);
+  assert.match(runtimeSource, /readRedditPost/);
   assert.match(source, /const fallbackPostSnapshot = \(incident: Incident\)/);
   assert.match(source, /return fallbackPostSnapshot\(incident\)/);
   assert.match(
@@ -152,7 +185,7 @@ test('demo seeding reuses the submitted post snapshot instead of rereading Reddi
   assert.match(lifecycleSource, /const postSnapshot: PostSnapshot =/);
   assert.match(lifecycleSource, /postId,\n\s+commentId,/);
   assert.match(lifecycleSource, /postSnapshot,/);
-  assert.match(lifecycleSource, /Failed to create Firewatch demo/);
+  assert.match(lifecycleSource, /demo\.create_failed/);
 });
 
 test('safety lane uses narrow high-risk patterns instead of broad sentiment claims', () => {
@@ -631,9 +664,10 @@ test('auto-run safe automation actions mutate Firewatch state and avoid double e
   assert.match(autoRunSource, /action\.type === 'save_firewatch_log'/);
   assert.match(autoRunSource, /action\.type === 'queue_incident'/);
   assert.match(autoRunSource, /if \(!incident\.claim\?\.username\) return incident/);
-  assert.match(autoRunSource, /await saveIncident\(refreshedIncident\)/);
+  assert.match(autoRunSource, /saveAndRefreshIncident\(/);
   assert.match(runnerSource, /alreadyExecuted\.has\(prepared\.label\)/);
   assert.match(runnerSource, /requireAutomationClaim\(incident, actor\)/);
+  assert.match(runnerSource, /ruleAutomationErrorMessage\(error\)/);
 });
 
 test('auto-run all mode dispatches selected actions and records failures', () => {
@@ -659,10 +693,36 @@ test('auto-run all mode dispatches selected actions and records failures', () =>
   assert.match(rulesSource, /log\.skippedActions\.includes\(AUTO_RUN_CLAIM_REQUIRED\)/);
   assert.match(autoAllSource, /await runPreparedRuleActions\(/);
   assert.match(autoAllSource, /skippedActions\.includes\(AUTO_RUN_ALL_QUEUED\)/);
-  assert.match(autoAllSource, /'firewatch'/);
+  assert.match(autoAllSource, /const actor = currentIncident\.claim\?\.username/);
+  assert.match(autoAllSource, /actor,\s*log\.targetId/);
+  assert.match(autoAllSource, /actor: actor \?\? 'firewatch'/);
   assert.match(autoAllSource, /triggerType: 'auto_run_all_failed'/);
   assert.match(automationSource, /runAutoSafeRuleActions/);
   assert.match(automationSource, /runAutoAllRuleActions/);
+});
+
+test('automation scope fails closed when moderator list cannot be verified', () => {
+  const scopeSource = readFileSync(
+    'src/server/core/firewatch-rules/scope.ts',
+    'utf8'
+  );
+  const matchingSource = readFileSync(
+    'src/server/core/firewatch-rules/matching.ts',
+    'utf8'
+  );
+
+  assert.match(scopeSource, /ModeratorScopeResolution/);
+  assert.match(scopeSource, /verified: false/);
+  assert.match(
+    matchingSource,
+    /shouldSkipRuleForUnverifiedModeratorScope/
+  );
+  assert.match(
+    matchingSource,
+    /rule\.scope\.excludeModerators && !moderatorScopeVerified/
+  );
+  assert.match(matchingSource, /automation\.scope_moderators_unverified/);
+  assert.match(matchingSource, /return \[\]/);
 });
 
 test('server stores real post metadata for post-header consistency', () => {
@@ -700,7 +760,7 @@ test('comment review cards hydrate and display native Reddit comment state', () 
   assert.match(apiSource, /ignoringReports\?: boolean/);
   assert.match(apiSource, /locked\?: boolean/);
   assert.match(apiSource, /spam\?: boolean/);
-  assert.match(serverSource, /await reddit\.getCommentById/);
+  assert.match(serverSource, /await readRedditComment/);
   assert.match(serverSource, /redditComment\.locked/);
   assert.match(serverSource, /redditComment\.ignoringReports/);
   assert.match(serverSource, /reviewStateKey\(calculated\)/);
@@ -726,12 +786,108 @@ test('bulk comment review is a single typed server action with queue selection U
   assert.match(routeSource, /comments\/bulk-review/);
   assert.match(routeSource, /bulkReviewComments/);
   assert.match(serverSource, /export const bulkReviewComments/);
-  assert.match(serverSource, /appendAction\(normalizedPostId/);
+  assert.match(serverSource, /startIncidentAction\(normalizedPostId/);
+  assert.match(serverSource, /completeIncidentAction\(\s*normalizedPostId/);
+  assert.match(serverSource, /failIncidentAction\(\s*normalizedPostId/);
+  assert.match(serverSource, /successfulTargetIds/);
   assert.match(serverSource, /targetIds/);
   assert.match(clientSource, /bulk-comments:approve/);
   assert.match(clientSource, /bulk-comments:remove/);
   assert.match(clientSource, /Select all/);
   assert.match(clientSource, /Confirm remove/);
+});
+
+test('native moderation actions use a pending action ledger before Reddit writes', () => {
+  const apiTypesSource = readFileSync('src/shared/api.ts', 'utf8');
+  const sharedActionsSource = readFileSync(
+    'src/shared/reddit-actions.ts',
+    'utf8'
+  );
+  const incidentsSource = readFileSync(
+    'src/server/core/firewatch/incidents.ts',
+    'utf8'
+  );
+  const postActionsSource = readFileSync(
+    'src/server/core/firewatch/actions/post-actions.ts',
+    'utf8'
+  );
+  const commentActionsSource = readFileSync(
+    'src/server/core/firewatch/actions/comment-actions.ts',
+    'utf8'
+  );
+  const userActionsSource = readFileSync(
+    'src/server/core/firewatch/actions/user-actions.ts',
+    'utf8'
+  );
+  const scoringHelpersSource = readFileSync(
+    'src/server/core/firewatch-scoring/helpers.ts',
+    'utf8'
+  );
+  const scoringSource = readFileSync(
+    'src/server/core/firewatch-scoring.ts',
+    'utf8'
+  );
+  const commentStateSource = readFileSync(
+    'src/client/firewatch/comments/comment-state.ts',
+    'utf8'
+  );
+  const modActionsSource = readFileSync(
+    'src/client/firewatch/overview/mod-actions-card.tsx',
+    'utf8'
+  );
+  const activitySource = readFileSync(
+    'src/client/firewatch/incident-activity.tsx',
+    'utf8'
+  );
+  const undoSource = readFileSync(
+    'src/server/core/firewatch/actions/undo-actions.ts',
+    'utf8'
+  );
+  const automationSource = readFileSync(
+    'src/server/core/firewatch/automation.ts',
+    'utf8'
+  );
+
+  assert.match(apiTypesSource, /status\?: 'pending' \| 'succeeded' \| 'failed'/);
+  assert.match(apiTypesSource, /completedAt\?: number/);
+  assert.match(apiTypesSource, /error\?: string/);
+  assert.match(sharedActionsSource, /export const actionCompleted/);
+  assert.match(incidentsSource, /export const startIncidentAction/);
+  assert.match(incidentsSource, /export const completeIncidentAction/);
+  assert.match(incidentsSource, /export const failIncidentAction/);
+  assert.match(incidentsSource, /status: 'pending'/);
+  assert.match(incidentsSource, /patch\.status \?\? 'succeeded'/);
+  assert.match(incidentsSource, /status: 'failed'/);
+  assert.match(incidentsSource, /export const coolDownIncident[\s\S]*?startIncidentAction\(normalizedPostId/);
+  assert.match(incidentsSource, /export const coolDownIncident[\s\S]*?failIncidentAction\(\s*normalizedPostId/);
+  assert.match(incidentsSource, /export const coolDownIncident[\s\S]*?completeIncidentAction\(\s*normalizedPostId/);
+  assert.match(incidentsSource, /export const lockIncident[\s\S]*?startIncidentAction\(normalizedPostId/);
+  assert.match(incidentsSource, /export const lockIncident[\s\S]*?failIncidentAction\(\s*normalizedPostId/);
+  assert.match(incidentsSource, /export const lockIncident[\s\S]*?completeIncidentAction\(\s*normalizedPostId/);
+  assert.match(postActionsSource, /startIncidentAction\(normalizedPostId/);
+  assert.match(postActionsSource, /completeIncidentAction\(\s*normalizedPostId/);
+  assert.match(postActionsSource, /failIncidentAction\(\s*normalizedPostId/);
+  assert.match(commentActionsSource, /startIncidentAction\(normalizedPostId/);
+  assert.match(commentActionsSource, /completeIncidentAction\(\s*normalizedPostId/);
+  assert.match(commentActionsSource, /failIncidentAction\(\s*normalizedPostId/);
+  assert.match(commentActionsSource, /throwIfNoTargetSucceeded/);
+  assert.match(userActionsSource, /startIncidentAction\(normalizedPostId/);
+  assert.match(userActionsSource, /completeIncidentAction\(\s*normalizedPostId/);
+  assert.match(userActionsSource, /failIncidentAction\(\s*normalizedPostId/);
+  assert.match(userActionsSource, /trackedCommentIdsByUser/);
+  assert.match(scoringHelpersSource, /actionCompleted\(action\)/);
+  assert.match(scoringSource, /actionCompleted\(action\)/);
+  assert.match(commentStateSource, /if \(!actionCompleted\(action\)\) continue/);
+  assert.match(modActionsSource, /actionCompleted\(latestAction\)/);
+  assert.match(activitySource, /actionCompleted\(action\)/);
+  assert.match(undoSource, /Only completed actions can be undone from Firewatch/);
+  assert.match(undoSource, /startIncidentAction\(incident\.postId/);
+  assert.match(undoSource, /completeIncidentAction\(incident\.postId/);
+  assert.match(undoSource, /failIncidentAction\(\s*incident\.postId/);
+  assert.doesNotMatch(undoSource, /appendAction/);
+  assert.match(automationSource, /action\.type === 'add_native_mod_note'[\s\S]*?startIncidentAction\(normalizedPostId/);
+  assert.match(automationSource, /action\.type === 'add_native_mod_note'[\s\S]*?failIncidentAction\(\s*normalizedPostId/);
+  assert.match(automationSource, /action\.type === 'add_native_mod_note'[\s\S]*?completeIncidentAction\(\s*normalizedPostId/);
 });
 
 test('safety lane is typed, scored, queued, and displayed as advisory', () => {
@@ -859,7 +1015,7 @@ test('state actions expose unclaim and post flair removal without fake undo butt
   assert.match(commentsSource, /commentState\.locked\s*\?\s*'Unlock'/);
 });
 
-test('user content removal refreshes and skips content already approved on Reddit', () => {
+test('user content removal refreshes and removes only open tracked comments', () => {
   const source = readFileSync(
     'src/server/core/firewatch/actions/user-actions.ts',
     'utf8'
@@ -871,9 +1027,15 @@ test('user content removal refreshes and skips content already approved on Reddi
   const removalEnd = source.indexOf('export const applyNativeUserAction', removalStart);
   const removalSource = source.slice(removalStart, removalEnd);
 
-  assert.match(banSource, /await refreshIncident\(/);
-  assert.match(removalSource, /item\.isApproved\(\)/);
-  assert.match(removalSource, /if \(item\.isRemoved\(\)\)/);
+  assert.match(banSource, /saveAndRefreshIncident\(/);
+  assert.match(banSource, /type: 'user_content_removed'/);
+  assert.match(banSource, /type: 'user_banned'/);
+  assert.match(banSource, /refreshedRemovalIncident/);
+  assert.match(banSource, /User ban failed to record failure state/);
+  assert.match(removalSource, /trackedCommentIdsByUser/);
+  assert.match(removalSource, /runTargetedRedditActions/);
+  assert.match(removalSource, /removeCommentIfReal/);
+  assert.doesNotMatch(removalSource, /getCommentsAndPostsByUser/);
 });
 
 test('scoring keeps open review comments durable and report counts stable', () => {
@@ -899,8 +1061,35 @@ test('incident ingest dedupes retried content events but keeps reports additive'
   assert.match(source, /const signalDedupeKey/);
   assert.match(source, /if \(!DEDUPED_SIGNAL_TYPES\.has\(signal\.type\)\)/);
   assert.match(source, /return undefined/);
-  assert.match(source, /mergeRecentSignal\(signal, baseIncident\.recentSignals\)/);
+  assert.match(source, /mergeRecentSignalWithMeta\(\s*signal,\s*baseIncident\.recentSignals/);
+  assert.match(source, /signalsOmitted/);
   assert.doesNotMatch(source, /'comment_report',\s*\n\s*'post_report'/);
+});
+
+test('review UI labels current signals and warns when context is capped', () => {
+  const apiTypesSource = readFileSync('src/shared/api.ts', 'utf8');
+  const scoringSource = readFileSync(
+    'src/server/core/firewatch-scoring.ts',
+    'utf8'
+  );
+  const commentsSource = readFileSync(
+    'src/client/firewatch/comments/flagged-comments-card.tsx',
+    'utf8'
+  );
+  const sidecardsSource = readFileSync(
+    'src/client/firewatch/overview/review-sidecards.tsx',
+    'utf8'
+  );
+
+  assert.match(apiTypesSource, /signalsOmitted\?: number/);
+  assert.match(apiTypesSource, /flaggedCommentsOmitted\?: number/);
+  assert.match(apiTypesSource, /lastSignalAt\?: number/);
+  assert.match(scoringSource, /lastSignalAt/);
+  assert.match(scoringSource, /flaggedCommentsOmitted/);
+  assert.match(commentsSource, /Showing the top/);
+  assert.match(sidecardsSource, /Current signals/);
+  assert.match(sidecardsSource, /No current reasons/);
+  assert.match(sidecardsSource, /older signal/);
 });
 
 test('demo creation is additive and reset deletes Reddit demo posts', () => {
@@ -928,14 +1117,17 @@ test('demo creation is additive and reset deletes Reddit demo posts', () => {
   assert.match(createSource, /export const createDemoIncidents/);
   assert.match(createSource, /scenarioIds\.length > 0/);
   assert.match(createSource, /for \(const scenarioId of selectedScenarioIds\)/);
-  assert.match(createSource, /await post\.delete\(\)/);
+  assert.match(createSource, /deleteRedditPostIfExists\(postId\)/);
   assert.match(resetSource, /deleteDemoRedditPost\(postId\)/);
   assert.match(resetSource, /clearUserStrikesForPost\(context\.subredditName, username, cleanup\.postId\)/);
   assert.match(resetSource, /clearRememberedIncident\(\)/);
   assert.doesNotMatch(resetSource, /startsWith\('demo'\)/);
   assert.match(resetSource, /if \(normalized\) demoAuthors\.add\(normalized\)/);
   assert.match(apiSource, /scenarioIds: FirewatchDemoScenarioId\[\]/);
-  assert.match(apiSource, /return createDemoIncidents\(scenarioIds\)/);
+  assert.match(createSource, /export const createDemoIncidentBatch/);
+  assert.match(apiSource, /createDemoIncidentBatch\(scenarioIds\)/);
+  assert.match(apiSource, /type: 'demo-create'/);
+  assert.match(apiSource, /failures: result\.failures/);
   assert.match(boardStateSource, /selectedScenarioIds/);
   assert.match(boardStateSource, /onCreateDemo\(selectedScenarioIds\)/);
   assert.match(boardStateSource, /Choose demo scenarios/);
@@ -1007,6 +1199,10 @@ test('demo review data reads like real incidents with honest counting', () => {
 
 test('app reset deletes Firewatch-owned storage', () => {
   const storeSource = readFileSync('src/server/core/firewatch/store.ts', 'utf8');
+  const utilsSource = readFileSync(
+    'src/server/core/firewatch-utils.ts',
+    'utf8'
+  );
   const apiSource = readFileSync('src/server/routes/api.ts', 'utf8');
   const clientSource = readFileSync(
     'src/client/firewatch/settings/community-controls.tsx',
@@ -1017,18 +1213,152 @@ test('app reset deletes Firewatch-owned storage', () => {
 
   assert.match(apiSource, /api\.post\('\/app\/reset'/);
   assert.match(clientSource, /Delete all Firewatch data/);
+  assert.match(utilsSource, /indexKey = \(subredditName: string\)/);
+  assert.match(resetSource, /deleteRedditPostIfExists\(postId\)/);
   assert.match(resetSource, /INDEX_KEY/);
+  assert.match(resetSource, /indexKey\(subredditName\)/);
   assert.match(resetSource, /boardPostKey\(subredditName\)/);
   assert.match(resetSource, /configKey\(subredditName\)/);
   assert.match(resetSource, /incidentRegistryKey\(subredditName\)/);
   assert.match(resetSource, /responseRulesKey\(subredditName\)/);
   assert.match(resetSource, /ruleLogsKey\(subredditName\)/);
   assert.match(resetSource, /userRegistryKey\(subredditName\)/);
+  assert.match(resetSource, /userStrikeKeyRegistryKey\(subredditName\)/);
   assert.match(resetSource, /incidentKey\(postId\)/);
   assert.match(resetSource, /claimKey\(postId\)/);
   assert.match(resetSource, /selectionKey\(subredditName, username\)/);
+  assert.match(resetSource, /trackedUserStrikeKeys/);
   assert.match(resetSource, /userStrikesKey\(subredditName, username\)/);
+  assert.match(resetSource, /redditPostDeleteCount/);
   assert.match(storeSource, /await redis\.del\(\.\.\.uniqueKeys\.slice/);
+});
+
+test('automations and strike registries persist until explicit deletion', () => {
+  const rulesStoreSource = readFileSync(
+    'src/server/core/firewatch-rules/store.ts',
+    'utf8'
+  );
+  const strikesSource = readFileSync(
+    'src/server/core/firewatch-rules/strikes.ts',
+    'utf8'
+  );
+  const utilsSource = readFileSync(
+    'src/server/core/firewatch-utils.ts',
+    'utf8'
+  );
+  const saveAutomationsStart = rulesStoreSource.indexOf(
+    'const saveAutomations'
+  );
+  const saveAutomationsEnd = rulesStoreSource.indexOf(
+    'const normalizeRuleScope',
+    saveAutomationsStart
+  );
+  const saveAutomationsSource = rulesStoreSource.slice(
+    saveAutomationsStart,
+    saveAutomationsEnd
+  );
+  const addStrikeStart = strikesSource.indexOf('export const addUserStrike');
+  const addStrikeEnd = strikesSource.indexOf(
+    'export const getUserStrikes',
+    addStrikeStart
+  );
+  const addStrikeSource = strikesSource.slice(addStrikeStart, addStrikeEnd);
+  const clearPostStart = strikesSource.indexOf(
+    'export const clearUserStrikesForPost'
+  );
+  const clearPostEnd = strikesSource.indexOf(
+    'export const getUserStrikeSummaries',
+    clearPostStart
+  );
+  const clearPostSource = strikesSource.slice(clearPostStart, clearPostEnd);
+
+  assert.match(utilsSource, /userStrikeKeyRegistryKey/);
+  assert.doesNotMatch(saveAutomationsSource, /expiration/);
+  assert.match(strikesSource, /export const getTrackedUserStrikeKeys/);
+  assert.match(strikesSource, /trackUserStrikeKey/);
+  assert.match(strikesSource, /untrackUserStrikeKey/);
+  assert.doesNotMatch(addStrikeSource, /expiration/);
+  assert.doesNotMatch(clearPostSource, /expiration/);
+});
+
+test('storage keeps queue index subreddit scoped and claim state synchronized', () => {
+  const storeSource = readFileSync('src/server/core/firewatch/store.ts', 'utf8');
+  const signalsSource = readFileSync(
+    'src/server/core/firewatch/signals.ts',
+    'utf8'
+  );
+
+  assert.match(storeSource, /redis\.get\(indexKey\(subredditName\)\)/);
+  assert.match(storeSource, /redis\.get\(INDEX_KEY\)/);
+  assert.match(storeSource, /await saveIndex\(migratedPostIds, subredditName\)/);
+  assert.match(storeSource, /saveStoredClaim\(incident\)/);
+  assert.match(storeSource, /hydrateStoredClaim\(parsed\)/);
+  assert.match(storeSource, /await redis\.del\(claimKey\(incident\.postId\)\)/);
+  assert.match(signalsSource, /const candidatePostIds = Array\.from\(new Set\(\[\.\.\.index, \.\.\.registry\]\)\)/);
+});
+
+test('dashboard queue list reads stored incidents without refreshing every post', () => {
+  const signalsSource = readFileSync(
+    'src/server/core/firewatch/signals.ts',
+    'utf8'
+  );
+  const apiSource = readFileSync('src/server/routes/api.ts', 'utf8');
+  const getIncidentsStart = signalsSource.indexOf('export const getIncidents');
+  const getIncidentsEnd = signalsSource.indexOf(
+    'export const getIncidentById',
+    getIncidentsStart
+  );
+  const getIncidentsSource = signalsSource.slice(
+    getIncidentsStart,
+    getIncidentsEnd
+  );
+  const getIncidentByIdSource = signalsSource.slice(getIncidentsEnd);
+
+  assert.doesNotMatch(getIncidentsSource, /refreshIncidentForRead/);
+  assert.match(getIncidentByIdSource, /return refreshIncidentForRead\(incident\)/);
+  assert.match(apiSource, /getIncidents\(\)/);
+  assert.match(apiSource, /getIncidentById\(requestedSelectedPostId\)/);
+});
+
+test('trigger routes sanitize timestamps and share one error wrapper', () => {
+  const triggerSource = readFileSync('src/server/routes/triggers.ts', 'utf8');
+  const responseSource = readFileSync('src/server/routes/responses.ts', 'utf8');
+  const apiSource = readFileSync('src/shared/api.ts', 'utf8');
+  const clientApiSource = readFileSync(
+    'src/client/firewatch/api-client.ts',
+    'utf8'
+  );
+  const signalSource = readFileSync(
+    'src/server/core/firewatch/signals.ts',
+    'utf8'
+  );
+  const incidentSource = readFileSync(
+    'src/server/core/firewatch/incidents.ts',
+    'utf8'
+  );
+
+  assert.match(triggerSource, /const runTrigger = async/);
+  assert.match(triggerSource, /logFirewatchError\('trigger\.failed'/);
+  assert.match(triggerSource, /status: 'ok',\n\s+message: `\$\{label\} failed:/);
+  assert.doesNotMatch(triggerSource, /status: 'error',\n\s+message: `\$\{label\} failed:/);
+  assert.match(triggerSource, /Date\.parse\(value\)/);
+  assert.match(triggerSource, /parsed > currentTime \+ fiveMinutes/);
+  assert.match(triggerSource, /redditCreatedAt\(comment\?\.createdAt\)/);
+  assert.match(signalSource, /DASHBOARD_READ_REFRESH_INTERVAL_MS/);
+  assert.match(signalSource, /refreshIncidentForRead/);
+  assert.match(incidentSource, /incident\.comment_state_fallback/);
+  assert.match(apiSource, /code:\n\s+\| 'action_failed'/);
+  assert.match(apiSource, /\| 'reddit_unavailable'/);
+  assert.match(apiSource, /retryable\?: boolean/);
+  assert.match(responseSource, /responseCodeFor/);
+  assert.match(responseSource, /isTransientRedditRuntimeError/);
+  assert.match(responseSource, /return 'reddit_unavailable'/);
+  assert.match(responseSource, /return 503/);
+  assert.match(responseSource, /retryable: code === 'reddit_unavailable'/);
+  assert.match(responseSource, /statusForCode/);
+  assert.match(clientApiSource, /class FirewatchApiError extends Error/);
+  assert.match(clientApiSource, /readonly code\?: ErrorResponse\['code'\]/);
+  assert.match(clientApiSource, /readonly retryable\?: boolean/);
 });
 
 test('automation matching filters by trigger and source scope', () => {
@@ -1063,7 +1393,8 @@ test('automation runner can execute the selected matched target', () => {
 test('client refreshes dashboard state after settings, automations, and actions', () => {
   const source = readFileSync('src/client/firewatch/use-dashboard.ts', 'utf8');
 
-  assert.match(source, /await refresh\(\);/);
+  assert.match(source, /preserveOnError\?: boolean/);
+  assert.match(source, /await refresh\(\{ preserveOnError: true \}\);/);
   assert.match(source, /const payload = await requestJson<ConfigResponse>/);
   assert.match(source, /const payload = await requestJson<RulesResponse>/);
 });
@@ -1203,6 +1534,10 @@ test('moderator permissions guard mod-only data and actions', () => {
   assert.match(authSource, /export class ModeratorPermissionError/);
   assert.match(authSource, /formatModeratorPermissionList/);
   assert.match(apiSource, /accessDeniedPayload\(access, 'view moderation review data'\)/);
+  assert.match(apiSource, /type ModeratorAccess = Awaited<ReturnType<typeof getModeratorAccess>>/);
+  assert.match(apiSource, /loadDashboardData\(access\)/);
+  assert.match(apiSource, /initialAccess \?\? getModeratorAccess\(DASHBOARD_PERMISSIONS\)/);
+  assert.match(apiSource, /const selectedPostId = selectedIncident\?\.postId/);
   assert.match(apiSource, /reviewVisibleConfig\(config, canConfigure\)/);
   assert.match(apiSource, /canUseFlair \? getPostFlairOptions/);
   assert.match(apiSource, /canConfigure \? getAutomations/);
@@ -1222,6 +1557,45 @@ test('moderator permissions guard mod-only data and actions', () => {
   assert.match(boardSource, /private moderation data|Check again/);
   assert.match(sharedApiSource, /export type AccessDeniedResponse/);
   assert.match(sharedApiSource, /moderatorPermissions: FirewatchModeratorPermission\[\]/);
+});
+
+test('runtime docs and logs describe reliability-sensitive behavior honestly', () => {
+  const readmeSource = readFileSync('README.md', 'utf8');
+  const checklistSource = readFileSync('docs/release-checklist.md', 'utf8');
+  const hackathonSource = readFileSync('docs/hackathon-submission.md', 'utf8');
+  const loggingSource = readFileSync(
+    'src/server/core/firewatch/logging.ts',
+    'utf8'
+  );
+  const triggerSource = readFileSync('src/server/routes/triggers.ts', 'utf8');
+  const signalsSource = readFileSync(
+    'src/server/core/firewatch/signals.ts',
+    'utf8'
+  );
+  const demoSource = readFileSync(
+    'src/server/core/firewatch/demo.ts',
+    'utf8'
+  );
+
+  assert.match(readmeSource, /sample reports\s+and comments into Firewatch's review pipeline/);
+  assert.match(readmeSource, /deterministic signal queue, not a complete abuse detector/);
+  assert.match(readmeSource, /automations, user strike\s+summaries/);
+  assert.doesNotMatch(readmeSource, /automation, and user strike records expire after 30 days/);
+  assert.match(checklistSource, /multiple demo drills can be created/);
+  assert.match(checklistSource, /Demo comments are described as sample review signals/);
+  assert.match(hackathonSource, /without posting harmful comments on Reddit/);
+  assert.match(loggingSource, /logFirewatchError/);
+  assert.match(loggingSource, /safeErrorMessage/);
+  assert.match(triggerSource, /logFirewatchError\('trigger\.failed'/);
+  assert.match(signalsSource, /incident\.refresh_for_read_failed/);
+  assert.match(demoSource, /demo\.create_failed/);
+});
+
+test('vite config does not hide client bundle size warnings', () => {
+  const viteSource = readFileSync('vite.config.ts', 'utf8');
+
+  assert.doesNotMatch(viteSource, /chunkSizeWarningLimit/);
+  assert.match(viteSource, /devvit\(\)/);
 });
 
 test('sidebar queue filters keep resolved posts out of active queues', () => {

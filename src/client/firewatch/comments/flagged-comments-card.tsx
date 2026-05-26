@@ -67,6 +67,7 @@ export const FlaggedCommentsCard = ({
   const { actionSnapshotById, alreadyActioned, commentStateById, needsReview } =
     useMemo(() => buildCommentReviewState(incident), [incident]);
   const controls = config.actionControls;
+  const omittedReviewComments = incident.stats.flaggedCommentsOmitted ?? 0;
   const selectedCommentIds = useMemo(
     () =>
       bulkReviewState.postId === incident.postId
@@ -197,6 +198,13 @@ export const FlaggedCommentsCard = ({
           <h3 className="text-sm font-semibold leading-5">
             Comments to review
           </h3>
+          {omittedReviewComments > 0 ? (
+            <p className="text-xs leading-5 text-muted-foreground">
+              Showing the top {needsReview.length} open comments.{' '}
+              {omittedReviewComments} older review match
+              {omittedReviewComments === 1 ? '' : 'es'} are hidden.
+            </p>
+          ) : null}
         </div>
         <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-bold text-secondary-foreground">
           {needsReview.length} open

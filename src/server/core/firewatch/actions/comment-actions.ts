@@ -1,4 +1,3 @@
-import { reddit } from '@devvit/web/server';
 import type {
   BulkCommentReviewInput,
   Incident,
@@ -11,11 +10,21 @@ import {
 } from '../../../../shared/reddit-actions';
 import { recordRuleMatches } from '../../firewatch-rules/matching';
 import { normalizeCommentId, normalizePostId } from '../../firewatch-utils';
+import {
+  failedTargetSummary,
+  readRedditComment,
+  runTargetedRedditActions,
+  successfulTargetIds,
+  throwIfNoTargetSucceeded,
+} from '../reddit-runtime';
 import { runRuleAutomationActions } from '../automation';
 import {
-  appendAction,
+  completeIncidentAction,
+  failIncidentAction,
   getIncidentOrThrow,
   refreshIncident,
+  saveAndRefreshIncident,
+  startIncidentAction,
 } from '../incidents';
 import { actorName, getConfig, getIncident, saveIncident } from '../store';
 import {
@@ -41,18 +50,40 @@ export const approveFlaggedComment = async (
   }
 
   const actor = await actorName();
-  const approvedOnReddit = await approveCommentIfReal(
-    sourceIncident,
-    normalizedCommentId
-  );
-  const incident = await appendAction(normalizedPostId, {
+  const detail = `Approved comment ${normalizedCommentId}`;
+  const { actionId } = await startIncidentAction(normalizedPostId, {
     type: 'comment_approved',
     actor,
-    detail: approvedOnReddit
-      ? `Approved comment ${normalizedCommentId}`
-      : `Marked comment ${normalizedCommentId} approved`,
+    detail,
     targetIds: [normalizedCommentId],
   });
+  let approvedOnReddit: boolean;
+  try {
+    approvedOnReddit = await approveCommentIfReal(
+      sourceIncident,
+      normalizedCommentId
+    );
+  } catch (error) {
+    await failIncidentAction(
+      normalizedPostId,
+      actionId,
+      error,
+      `Approved comment ${normalizedCommentId} failed to record failure state`,
+      { detail, targetIds: [normalizedCommentId] }
+    );
+    throw error;
+  }
+  const incident = await completeIncidentAction(
+    normalizedPostId,
+    actionId,
+    {
+      detail: approvedOnReddit
+        ? detail
+        : `Marked comment ${normalizedCommentId} approved`,
+      status: 'succeeded',
+    },
+    `Approved comment ${normalizedCommentId} but failed to refresh incident ${normalizedPostId}`
+  );
   const nextIncident: Incident = {
     ...incident,
     flaggedComments: incident.flaggedComments.map((flaggedComment) =>
@@ -61,9 +92,10 @@ export const approveFlaggedComment = async (
         : flaggedComment
     ),
   };
-  const refreshedIncident = await refreshIncident(nextIncident);
-
-  await saveIncident(refreshedIncident);
+  const refreshedIncident = await saveAndRefreshIncident(
+    nextIncident,
+    `Approved comment ${normalizedCommentId} but failed to refresh incident ${normalizedPostId}`
+  );
   return refreshedIncident;
 };
 
@@ -82,19 +114,41 @@ export const removeFlaggedComment = async (
   }
 
   const actor = await actorName();
-  const removedOnReddit = await removeCommentIfReal(
-    sourceIncident,
-    normalizedCommentId,
-    reason
-  );
-  const incident = await appendAction(normalizedPostId, {
+  const detail = `Removed comment ${normalizedCommentId}${reason ? `: ${reason}` : ''}`;
+  const { actionId } = await startIncidentAction(normalizedPostId, {
     type: 'comment_removed',
     actor,
-    detail: removedOnReddit
-      ? `Removed comment ${normalizedCommentId}${reason ? `: ${reason}` : ''}`
-      : `Marked comment ${normalizedCommentId} removed`,
+    detail,
     targetIds: [normalizedCommentId],
   });
+  let removedOnReddit: boolean;
+  try {
+    removedOnReddit = await removeCommentIfReal(
+      sourceIncident,
+      normalizedCommentId,
+      reason
+    );
+  } catch (error) {
+    await failIncidentAction(
+      normalizedPostId,
+      actionId,
+      error,
+      `Removed comment ${normalizedCommentId} failed to record failure state`,
+      { detail, targetIds: [normalizedCommentId] }
+    );
+    throw error;
+  }
+  const incident = await completeIncidentAction(
+    normalizedPostId,
+    actionId,
+    {
+      detail: removedOnReddit
+        ? detail
+        : `Marked comment ${normalizedCommentId} removed`,
+      status: 'succeeded',
+    },
+    `Removed comment ${normalizedCommentId} but failed to refresh incident ${normalizedPostId}`
+  );
   const nextIncident: Incident = {
     ...incident,
     flaggedComments: incident.flaggedComments.map((flaggedComment) =>
@@ -103,9 +157,10 @@ export const removeFlaggedComment = async (
         : flaggedComment
     ),
   };
-  const refreshedIncident = await refreshIncident(nextIncident);
-
-  await saveIncident(refreshedIncident);
+  const refreshedIncident = await saveAndRefreshIncident(
+    nextIncident,
+    `Removed comment ${normalizedCommentId} but failed to refresh incident ${normalizedPostId}`
+  );
   const ruleLogs = await recordRuleMatches({
     config,
     incident: refreshedIncident,
@@ -202,38 +257,64 @@ export const bulkReviewComments = async (
 
   const actor = await actorName();
   const reason = input.reason?.trim();
-  if (input.action === 'approve') {
-    await Promise.all(
-      targetIds.map((targetId) =>
-        approveCommentIfReal(sourceIncident, targetId)
-      )
-    );
-  } else {
-    await Promise.all(
-      targetIds.map((targetId) =>
-        removeCommentIfReal(sourceIncident, targetId, reason)
-      )
-    );
-  }
-
-  const demoOnly = targetIds.every((targetId) =>
-    isDemoComment(sourceIncident, targetId)
-  );
-  const incident = await appendAction(normalizedPostId, {
+  const { actionId } = await startIncidentAction(normalizedPostId, {
     type: input.action === 'approve' ? 'comment_approved' : 'comment_removed',
     actor,
-    detail: bulkCommentDetail({
-      action: input.action,
-      count: targetIds.length,
-      demoOnly,
-      reason,
-    }),
+    detail: `${
+      input.action === 'approve' ? 'Review approve' : 'Review remove'
+    } ${commentCountLabel(targetIds.length)}`,
     targetIds,
   });
+  const actionResults =
+    input.action === 'approve'
+      ? await runTargetedRedditActions(targetIds, (targetId) =>
+          approveCommentIfReal(sourceIncident, targetId)
+        )
+      : await runTargetedRedditActions(targetIds, (targetId) =>
+          removeCommentIfReal(sourceIncident, targetId, reason)
+        );
+  try {
+    throwIfNoTargetSucceeded(actionResults, 'No selected comments were updated');
+  } catch (error) {
+    await failIncidentAction(
+      normalizedPostId,
+      actionId,
+      error,
+      `Bulk comment review failed to record failure state for ${normalizedPostId}`,
+      { targetIds }
+    );
+    throw error;
+  }
+  const actedTargetIds = successfulTargetIds(actionResults);
+  const failureSummary = failedTargetSummary(actionResults);
+
+  const demoOnly = actedTargetIds.every((targetId) =>
+    isDemoComment(sourceIncident, targetId)
+  );
+  const incident = await completeIncidentAction(
+    normalizedPostId,
+    actionId,
+    {
+      detail: [
+        bulkCommentDetail({
+          action: input.action,
+          count: actedTargetIds.length,
+          demoOnly,
+          reason,
+        }),
+        failureSummary,
+      ]
+        .filter((part): part is string => Boolean(part))
+        .join('; '),
+      status: 'succeeded',
+      targetIds: actedTargetIds,
+    },
+    `Bulk comment review completed but failed to refresh incident ${normalizedPostId}`
+  );
   const nextIncident: Incident = {
     ...incident,
     flaggedComments: incident.flaggedComments.map((flaggedComment) =>
-      targetIds.includes(normalizeCommentId(flaggedComment.id))
+      actedTargetIds.includes(normalizeCommentId(flaggedComment.id))
         ? {
             ...flaggedComment,
             removed: input.action === 'remove',
@@ -242,9 +323,10 @@ export const bulkReviewComments = async (
         : flaggedComment
     ),
   };
-  const refreshedIncident = await refreshIncident(nextIncident);
-
-  await saveIncident(refreshedIncident);
+  const refreshedIncident = await saveAndRefreshIncident(
+    nextIncident,
+    `Bulk comment review completed but failed to refresh incident ${normalizedPostId}`
+  );
 
   if (input.action === 'approve') return refreshedIncident;
 
@@ -282,35 +364,64 @@ export const applyNativeCommentAction = async (
   const actor = await actorName();
   const reason = values.reason?.trim();
   let targetIds: string[] = [normalizedCommentId];
-
   if (values.action === 'remove-thread') {
     targetIds = await collectThreadCommentIds(incident, normalizedCommentId);
-    await Promise.all(
-      targetIds.map((targetId) =>
-        removeCommentIfReal(incident, targetId, reason)
-      )
-    );
-  } else if (values.action === 'spam') {
-    await removeCommentIfReal(incident, normalizedCommentId, reason, true);
-  } else if (!isDemoComment(incident, normalizedCommentId)) {
-    const comment = await reddit.getCommentById(normalizedCommentId);
-    if (values.action === 'lock') await comment.lock();
-    if (values.action === 'unlock') await comment.unlock();
-    if (values.action === 'ignore-reports') await comment.ignoreReports();
-    if (values.action === 'unignore-reports') await comment.unignoreReports();
-    if (values.action === 'show-comment') await comment.showComment();
   }
-
-  const withAction = await appendAction(normalizedPostId, {
+  const detail = commentActionDetail({
+    action: values.action,
+    count: targetIds.length,
+    reason,
+  });
+  const { actionId } = await startIncidentAction(normalizedPostId, {
     type: nativeCommentActionType(values.action),
     actor,
-    detail: commentActionDetail({
-      action: values.action,
-      count: targetIds.length,
-      reason,
-    }),
+    detail,
     targetIds,
   });
+
+  try {
+    if (values.action === 'remove-thread') {
+      const actionResults = await runTargetedRedditActions(
+        targetIds,
+        (targetId) => removeCommentIfReal(incident, targetId, reason)
+      );
+      throwIfNoTargetSucceeded(actionResults, 'No thread comments were removed');
+      targetIds = successfulTargetIds(actionResults);
+    } else if (values.action === 'spam') {
+      await removeCommentIfReal(incident, normalizedCommentId, reason, true);
+    } else if (!isDemoComment(incident, normalizedCommentId)) {
+      const comment = await readRedditComment(normalizedCommentId);
+      if (values.action === 'lock') await comment.lock();
+      if (values.action === 'unlock') await comment.unlock();
+      if (values.action === 'ignore-reports') await comment.ignoreReports();
+      if (values.action === 'unignore-reports') await comment.unignoreReports();
+      if (values.action === 'show-comment') await comment.showComment();
+    }
+  } catch (error) {
+    await failIncidentAction(
+      normalizedPostId,
+      actionId,
+      error,
+      `Comment action ${values.action} failed to record failure state for ${normalizedPostId}`,
+      { detail, targetIds }
+    );
+    throw error;
+  }
+
+  const withAction = await completeIncidentAction(
+    normalizedPostId,
+    actionId,
+    {
+      detail: commentActionDetail({
+        action: values.action,
+        count: targetIds.length,
+        reason,
+      }),
+      status: 'succeeded',
+      targetIds,
+    },
+    `Comment action ${values.action} completed but failed to refresh incident ${normalizedPostId}`
+  );
 
   if (values.action !== 'remove-thread' && values.action !== 'spam') {
     return withAction;
@@ -324,8 +435,8 @@ export const applyNativeCommentAction = async (
         : flaggedComment
     ),
   };
-  const refreshedIncident = await refreshIncident(nextIncident);
-
-  await saveIncident(refreshedIncident);
-  return refreshedIncident;
+  return saveAndRefreshIncident(
+    nextIncident,
+    `Comment action ${values.action} completed but failed to refresh incident ${normalizedPostId}`
+  );
 };

@@ -5,12 +5,23 @@ import type {
   IncidentActionType,
   PostFlairState,
 } from '../../../../shared/api';
-import { undoActionLabel } from '../../../../shared/reddit-actions';
+import { actionCompleted, undoActionLabel } from '../../../../shared/reddit-actions';
 import { normalizeCommentId, normalizePostId } from '../../firewatch-utils';
 import {
-  appendAction,
+  failedTargetSummary,
+  readRedditComment,
+  readRedditPost,
+  runTargetedRedditActions,
+  successfulTargetIds,
+  throwIfNoTargetSucceeded,
+} from '../reddit-runtime';
+import {
+  completeIncidentAction,
+  failIncidentAction,
   getIncidentOrThrow,
   refreshIncident,
+  saveAndRefreshIncident,
+  startIncidentAction,
 } from '../incidents';
 import { actorName, getConfig, saveIncident } from '../store';
 import { approveCommentIfReal, isDemoComment } from './comment-helpers';
@@ -45,31 +56,77 @@ const markComments = (
   };
 };
 
-const saveCommentUndo = async ({
-  detail,
+const completeCommentUndo = async ({
+  actionId,
   incident,
   patch,
+  successDetail,
+  targetIds,
+}: {
+  actionId: string;
+  incident: Incident;
+  patch: Partial<Incident['flaggedComments'][number]>;
+  successDetail: string;
+  targetIds: string[];
+}) => {
+  const withAction = await completeIncidentAction(incident.postId, actionId, {
+    detail: successDetail,
+    status: 'succeeded',
+    targetIds,
+  }, `Undo action recorded but failed to refresh incident ${incident.postId}`);
+  return saveAndRefreshIncident(
+    markComments(withAction, targetIds, patch),
+    `Undo action recorded but failed to refresh incident ${incident.postId}`
+  );
+};
+
+const runCommentUndo = async ({
+  incident,
+  patch,
+  pendingDetail,
+  run,
+  successDetail,
   targetIds,
   type,
 }: {
-  detail: string;
   incident: Incident;
   patch: Partial<Incident['flaggedComments'][number]>;
+  pendingDetail: string;
+  run: () => ReturnType<typeof runTargetedRedditActions>;
+  successDetail: (count: number, failureSummary?: string | undefined) => string;
   targetIds: string[];
   type: IncidentActionType;
 }) => {
-  const withAction = await appendAction(incident.postId, {
+  const { actionId } = await startIncidentAction(incident.postId, {
     type,
     actor: await actorName(),
-    detail,
+    detail: pendingDetail,
     targetIds,
   });
-  const refreshedIncident = await refreshIncident(
-    markComments(withAction, targetIds, patch)
-  );
-
-  await saveIncident(refreshedIncident);
-  return refreshedIncident;
+  const actionResults = await run();
+  try {
+    throwIfNoTargetSucceeded(actionResults, 'No comment undo target was updated');
+  } catch (error) {
+    await failIncidentAction(
+      incident.postId,
+      actionId,
+      error,
+      `Undo action failed to record failure state for ${incident.postId}`,
+      { detail: pendingDetail, targetIds }
+    );
+    throw error;
+  }
+  const actedTargetIds = successfulTargetIds(actionResults);
+  return completeCommentUndo({
+    actionId,
+    incident,
+    patch,
+    successDetail: successDetail(
+      actedTargetIds.length,
+      failedTargetSummary(actionResults)
+    ),
+    targetIds: actedTargetIds,
+  });
 };
 
 const applyCommentToggle = async ({
@@ -89,13 +146,21 @@ const applyCommentToggle = async ({
       action.type === 'comment_thread_removed') &&
     config.actionControls.approveComments
   ) {
-    await Promise.all(
-      targetIds.map((targetId) => approveCommentIfReal(incident, targetId))
-    );
-    return saveCommentUndo({
-      detail: `Undid removal: approved ${countLabel(targetIds.length, 'comment')}`,
+    return runCommentUndo({
       incident,
+      pendingDetail: `Undo removal: approve ${countLabel(targetIds.length, 'comment')}`,
       patch: { removed: false, reviewed: true, spam: false },
+      run: () =>
+        runTargetedRedditActions(targetIds, (targetId) =>
+          approveCommentIfReal(incident, targetId)
+        ),
+      successDetail: (count, failureSummary) =>
+        [
+          `Undid removal: approved ${countLabel(count, 'comment')}`,
+          failureSummary,
+        ]
+          .filter((part): part is string => Boolean(part))
+          .join(' · '),
       targetIds,
       type: 'comment_approved',
     });
@@ -124,11 +189,11 @@ const applyCommentToggle = async ({
     throw new Error('Comment report controls are disabled in Settings');
   }
 
-  await Promise.all(
-    targetIds.map(async (targetId) => {
+  const run = () =>
+    runTargetedRedditActions(targetIds, async (targetId) => {
       if (isDemoComment(incident, targetId)) return;
 
-      const comment = await reddit.getCommentById(normalizeCommentId(targetId));
+      const comment = await readRedditComment(targetId);
       if (action.type === 'comment_locked') await comment.unlock();
       if (action.type === 'comment_unlocked') await comment.lock();
       if (action.type === 'comment_reports_ignored') {
@@ -137,67 +202,127 @@ const applyCommentToggle = async ({
       if (action.type === 'comment_reports_unignored') {
         await comment.ignoreReports();
       }
-    })
-  );
+    });
 
   if (action.type === 'comment_locked') {
-    return saveCommentUndo({
-      detail: `Undid lock: unlocked ${countLabel(targetIds.length, 'comment')}`,
+    return runCommentUndo({
       incident,
       patch: { locked: false },
+      pendingDetail: `Undo lock: unlock ${countLabel(targetIds.length, 'comment')}`,
+      run,
+      successDetail: (count, failureSummary) =>
+        [
+          `Undid lock: unlocked ${countLabel(count, 'comment')}`,
+          failureSummary,
+        ]
+          .filter((part): part is string => Boolean(part))
+          .join(' · '),
       targetIds,
       type: 'comment_unlocked',
     });
   }
   if (action.type === 'comment_unlocked') {
-    return saveCommentUndo({
-      detail: `Undid unlock: locked ${countLabel(targetIds.length, 'comment')}`,
+    return runCommentUndo({
       incident,
       patch: { locked: true },
+      pendingDetail: `Undo unlock: lock ${countLabel(targetIds.length, 'comment')}`,
+      run,
+      successDetail: (count, failureSummary) =>
+        [
+          `Undid unlock: locked ${countLabel(count, 'comment')}`,
+          failureSummary,
+        ]
+          .filter((part): part is string => Boolean(part))
+          .join(' · '),
       targetIds,
       type: 'comment_locked',
     });
   }
   if (action.type === 'comment_reports_ignored') {
-    return saveCommentUndo({
-      detail: `Undid ignore reports on ${countLabel(targetIds.length, 'comment')}`,
+    return runCommentUndo({
       incident,
       patch: { ignoringReports: false },
+      pendingDetail: `Undo ignore reports on ${countLabel(targetIds.length, 'comment')}`,
+      run,
+      successDetail: (count, failureSummary) =>
+        [
+          `Undid ignore reports on ${countLabel(count, 'comment')}`,
+          failureSummary,
+        ]
+          .filter((part): part is string => Boolean(part))
+          .join(' · '),
       targetIds,
       type: 'comment_reports_unignored',
     });
   }
 
-  return saveCommentUndo({
-    detail: `Undid unignore reports on ${countLabel(targetIds.length, 'comment')}`,
+  return runCommentUndo({
     incident,
     patch: { ignoringReports: true },
+    pendingDetail: `Undo unignore reports on ${countLabel(targetIds.length, 'comment')}`,
+    run,
+    successDetail: (count, failureSummary) =>
+      [
+        `Undid unignore reports on ${countLabel(count, 'comment')}`,
+        failureSummary,
+      ]
+        .filter((part): part is string => Boolean(part))
+        .join(' · '),
     targetIds,
     type: 'comment_reports_ignored',
   });
 };
 
-const appendPostUndo = async ({
-  detail,
+const runPostUndo = async ({
+  action,
   incident,
+  pendingDetail,
   postFlairAfter,
   postFlairBefore,
+  successDetail,
   type,
 }: {
-  detail: string;
+  action: () => Promise<void>;
   incident: Incident;
+  pendingDetail: string;
   postFlairAfter?: PostFlairState | undefined;
   postFlairBefore?: PostFlairState | undefined;
+  successDetail: string;
   type: IncidentActionType;
-}) =>
-  appendAction(incident.postId, {
+}) => {
+  const { actionId } = await startIncidentAction(incident.postId, {
     type,
     actor: await actorName(),
-    detail,
+    detail: pendingDetail,
     postFlairAfter,
     postFlairBefore,
     targetIds: [incident.postId],
   });
+  try {
+    await action();
+  } catch (error) {
+    await failIncidentAction(
+      incident.postId,
+      actionId,
+      error,
+      `Post undo failed to record failure state for ${incident.postId}`,
+      { detail: pendingDetail, postFlairBefore, targetIds: [incident.postId] }
+    );
+    throw error;
+  }
+  return completeIncidentAction(
+    incident.postId,
+    actionId,
+    {
+      detail: successDetail,
+      postFlairAfter,
+      postFlairBefore,
+      status: 'succeeded',
+      targetIds: [incident.postId],
+    },
+    `Post undo action recorded but failed to refresh incident ${incident.postId}`
+  );
+};
 
 const restorePostFlair = async (
   incident: Incident,
@@ -225,7 +350,6 @@ const applyPostToggle = async ({
   incident: Incident;
 }) => {
   const config = await getConfig(incident.subredditName);
-  const post = await reddit.getPostById(normalizePostId(incident.postId));
 
   if (
     (action.type === 'post_removed' || action.type === 'post_spammed') &&
@@ -271,86 +395,124 @@ const applyPostToggle = async ({
   }
 
   if (action.type === 'post_removed' || action.type === 'post_spammed') {
-    await post.approve();
-    return appendPostUndo({
-      detail: 'Undid removal: approved post',
+    return runPostUndo({
+      action: async () => {
+        const post = await readRedditPost(incident.postId);
+        await post.approve();
+      },
       incident,
+      pendingDetail: 'Undo removal: approve post',
+      successDetail: 'Undid removal: approved post',
       type: 'post_approved',
     });
   }
   if (action.type === 'locked') {
-    await post.unlock();
-    return appendPostUndo({
-      detail: 'Undid lock: unlocked post',
+    return runPostUndo({
+      action: async () => {
+        const post = await readRedditPost(incident.postId);
+        await post.unlock();
+      },
       incident,
+      pendingDetail: 'Undo lock: unlock post',
+      successDetail: 'Undid lock: unlocked post',
       type: 'post_unlocked',
     });
   }
   if (action.type === 'post_unlocked') {
-    await post.lock();
-    return appendPostUndo({
-      detail: 'Undid unlock: locked post',
+    return runPostUndo({
+      action: async () => {
+        const post = await readRedditPost(incident.postId);
+        await post.lock();
+      },
       incident,
+      pendingDetail: 'Undo unlock: lock post',
+      successDetail: 'Undid unlock: locked post',
       type: 'locked',
     });
   }
   if (action.type === 'post_marked_nsfw' || action.type === 'post_nsfw') {
-    await post.unmarkAsNsfw();
-    return appendPostUndo({
-      detail: 'Undid NSFW tag',
+    return runPostUndo({
+      action: async () => {
+        const post = await readRedditPost(incident.postId);
+        await post.unmarkAsNsfw();
+      },
       incident,
+      pendingDetail: 'Undo NSFW tag',
+      successDetail: 'Undid NSFW tag',
       type: 'post_unmarked_nsfw',
     });
   }
   if (action.type === 'post_unmarked_nsfw') {
-    await post.markAsNsfw();
-    return appendPostUndo({
-      detail: 'Undid NSFW removal',
+    return runPostUndo({
+      action: async () => {
+        const post = await readRedditPost(incident.postId);
+        await post.markAsNsfw();
+      },
       incident,
+      pendingDetail: 'Undo NSFW removal',
+      successDetail: 'Undid NSFW removal',
       type: 'post_marked_nsfw',
     });
   }
   if (action.type === 'post_marked_spoiler' || action.type === 'post_spoiler') {
-    await post.unmarkAsSpoiler();
-    return appendPostUndo({
-      detail: 'Undid spoiler tag',
+    return runPostUndo({
+      action: async () => {
+        const post = await readRedditPost(incident.postId);
+        await post.unmarkAsSpoiler();
+      },
       incident,
+      pendingDetail: 'Undo spoiler tag',
+      successDetail: 'Undid spoiler tag',
       type: 'post_unmarked_spoiler',
     });
   }
   if (action.type === 'post_unmarked_spoiler') {
-    await post.markAsSpoiler();
-    return appendPostUndo({
-      detail: 'Undid spoiler removal',
+    return runPostUndo({
+      action: async () => {
+        const post = await readRedditPost(incident.postId);
+        await post.markAsSpoiler();
+      },
       incident,
+      pendingDetail: 'Undo spoiler removal',
+      successDetail: 'Undid spoiler removal',
       type: 'post_marked_spoiler',
     });
   }
   if (action.type === 'post_reports_ignored') {
-    await post.unignoreReports();
-    return appendPostUndo({
-      detail: 'Undid ignore reports on post',
+    return runPostUndo({
+      action: async () => {
+        const post = await readRedditPost(incident.postId);
+        await post.unignoreReports();
+      },
       incident,
+      pendingDetail: 'Undo ignore reports on post',
+      successDetail: 'Undid ignore reports on post',
       type: 'post_reports_unignored',
     });
   }
   if (action.type === 'post_reports_unignored') {
-    await post.ignoreReports();
-    return appendPostUndo({
-      detail: 'Undid unignore reports on post',
+    return runPostUndo({
+      action: async () => {
+        const post = await readRedditPost(incident.postId);
+        await post.ignoreReports();
+      },
       incident,
+      pendingDetail: 'Undo unignore reports on post',
+      successDetail: 'Undid unignore reports on post',
       type: 'post_reports_ignored',
     });
   }
   if (action.type === 'post_flaired') {
-    await restorePostFlair(incident, action.postFlairBefore);
-    return appendPostUndo({
-      detail: action.postFlairBefore
-        ? `Restored previous flair "${action.postFlairBefore.text}"`
-        : 'Removed post flair',
+    const detail = action.postFlairBefore
+      ? `Restored previous flair "${action.postFlairBefore.text}"`
+      : 'Removed post flair';
+    return runPostUndo({
+      action: () => restorePostFlair(incident, action.postFlairBefore),
       incident,
       postFlairAfter: action.postFlairBefore,
       postFlairBefore: incident.postState?.flair,
+      pendingDetail: 'Undo post flair change',
+      successDetail: detail,
       type: action.postFlairBefore ? 'post_flaired' : 'post_flair_removed',
     });
   }
@@ -359,12 +521,13 @@ const applyPostToggle = async ({
       throw new Error('This flair removal has no previous flair to restore');
     }
 
-    await restorePostFlair(incident, action.postFlairBefore);
-    return appendPostUndo({
-      detail: `Restored flair "${action.postFlairBefore.text}"`,
+    return runPostUndo({
+      action: () => restorePostFlair(incident, action.postFlairBefore),
       incident,
       postFlairAfter: action.postFlairBefore,
       postFlairBefore: incident.postState?.flair,
+      pendingDetail: 'Undo post flair removal',
+      successDetail: `Restored flair "${action.postFlairBefore.text}"`,
       type: 'post_flaired',
     });
   }
@@ -381,6 +544,9 @@ export const undoIncidentAction = async (postId: string, actionId: string) => {
 
   const action = sourceIncident.actions.find((item) => item.id === actionId);
   if (!action) throw new Error('Action was not found');
+  if (!actionCompleted(action)) {
+    throw new Error('Only completed actions can be undone from Firewatch');
+  }
   if (!undoActionLabel(action.type)) {
     throw new Error('This action cannot be undone from Firewatch');
   }

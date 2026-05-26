@@ -1,6 +1,7 @@
 import type {
   CrowdControlLevel,
   FirewatchConfig,
+  IncidentAction,
   IncidentActionType,
   NativeCommentAction,
   NativePostAction,
@@ -57,6 +58,9 @@ const undoActionLabels: Partial<Record<IncidentActionType, string>> = {
 
 export const undoActionLabel = (type: IncidentActionType) =>
   undoActionLabels[type];
+
+export const actionCompleted = (action: Pick<IncidentAction, 'status'>) =>
+  action.status === undefined || action.status === 'succeeded';
 
 export const postActionControl = (
   action: NativePostAction

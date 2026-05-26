@@ -11,16 +11,19 @@ import {
   normalizeUsername,
 } from '../../firewatch-utils';
 import {
-  appendAction,
-  getIncidentOrThrow,
-  refreshIncident,
-} from '../incidents';
-import { actorName, getConfig, getIncident, saveIncident } from '../store';
+  runTargetedRedditActions,
+  successfulTargetIds,
+  throwIfNoTargetSucceeded,
+} from '../reddit-runtime';
 import {
-  isDemoComment,
-  removeCommentIfReal,
-  trimRemovalNote,
-} from './comment-helpers';
+  completeIncidentAction,
+  failIncidentAction,
+  getIncidentOrThrow,
+  saveAndRefreshIncident,
+  startIncidentAction,
+} from '../incidents';
+import { actorName, getConfig, getIncident } from '../store';
+import { isDemoComment, removeCommentIfReal } from './comment-helpers';
 
 export const banUserAndRemoveComments = async (
   postId: string,
@@ -61,54 +64,109 @@ export const banUserAndRemoveComments = async (
   const actionReason =
     reason?.trim() ||
     `Banned u/${normalizedUsername} from r/${sourceIncident.subredditName}`;
-  const removedContentIds = await removeRecentUserContent(
-    sourceIncident,
-    normalizedUsername,
-    actionReason
-  );
   const demoOnly = targetComments.every((comment) =>
     isDemoComment(sourceIncident, comment.id)
   );
 
-  if (!demoOnly) {
-    await reddit.banUser({
-      context: contextCommentId,
-      duration: durationDays ?? 0,
-      note: actionReason,
-      reason: 'Firewatch moderation',
-      subredditName: sourceIncident.subredditName,
-      username: normalizedUsername,
-    });
-  }
-
   const actor = await actorName();
+  const removalPendingDetail = `Remove ${targetIds.length} open comment${
+    targetIds.length === 1 ? '' : 's'
+  } from u/${normalizedUsername} before ban`;
+  const { actionId: removalActionId } = await startIncidentAction(normalizedPostId, {
+    type: 'user_content_removed',
+    actor,
+    detail: removalPendingDetail,
+    targetIds,
+  });
+  let removedContentIds: string[] = [];
+  try {
+    removedContentIds = await removeRecentUserContent(
+      sourceIncident,
+      normalizedUsername,
+      actionReason
+    );
+  } catch (error) {
+    await failIncidentAction(
+      normalizedPostId,
+      removalActionId,
+      error,
+      `User content removal failed to record failure state for ${normalizedPostId}`,
+      {
+        detail: removalPendingDetail,
+        targetIds,
+      }
+    );
+    throw error;
+  }
   const removalDetail = demoOnly
     ? `Marked ${removedContentIds.length} comment${
         removedContentIds.length === 1 ? '' : 's'
       } removed`
-    : `Removed ${removedContentIds.length} recent subreddit item${
+    : `Removed ${removedContentIds.length} open comment${
         removedContentIds.length === 1 ? '' : 's'
       }`;
-  const incident = await appendAction(normalizedPostId, {
-    type: 'user_banned',
-    actor,
-    detail: demoOnly
-      ? `${removalDetail}; recorded ban for u/${normalizedUsername}`
-      : `${removalDetail}; banned u/${normalizedUsername}`,
-    targetIds: removedContentIds,
-  });
-  const nextIncident: Incident = {
-    ...incident,
-    flaggedComments: incident.flaggedComments.map((flaggedComment) =>
+  const incidentWithRemovalAction = await completeIncidentAction(
+    normalizedPostId,
+    removalActionId,
+    {
+      detail: `${removalDetail} before ban review`,
+      status: 'succeeded',
+      targetIds: removedContentIds,
+    },
+    `Removed comments for u/${normalizedUsername} but failed to refresh incident ${normalizedPostId}`
+  );
+  const incidentWithRemovedComments: Incident = {
+    ...incidentWithRemovalAction,
+    flaggedComments: incidentWithRemovalAction.flaggedComments.map((flaggedComment) =>
       removedContentIds.includes(flaggedComment.id)
         ? { ...flaggedComment, removed: true, reviewed: false }
         : flaggedComment
     ),
   };
-  const refreshedIncident = await refreshIncident(nextIncident);
+  const refreshedRemovalIncident = await saveAndRefreshIncident(
+    incidentWithRemovedComments,
+    `Removed comments for u/${normalizedUsername} but failed to refresh incident ${normalizedPostId}`
+  );
 
-  await saveIncident(refreshedIncident);
-  return refreshedIncident;
+  const durationLabel =
+    durationDays && durationDays > 0 ? `${durationDays}-day` : 'permanent';
+  const banDetail = demoOnly
+    ? `Recorded ${durationLabel} ban for u/${normalizedUsername}: ${actionReason}`
+    : `Banned u/${normalizedUsername} (${durationLabel}): ${actionReason}`;
+  const { actionId: banActionId } = await startIncidentAction(normalizedPostId, {
+    type: 'user_banned',
+    actor,
+    detail: banDetail,
+    targetIds: [normalizedUsername],
+  });
+  try {
+    if (!demoOnly) {
+      await reddit.banUser({
+        context: contextCommentId,
+        duration: durationDays ?? 0,
+        note: actionReason,
+        reason: 'Firewatch moderation',
+        subredditName: sourceIncident.subredditName,
+        username: normalizedUsername,
+      });
+    }
+  } catch (error) {
+    await failIncidentAction(
+      normalizedPostId,
+      banActionId,
+      error,
+      `User ban failed to record failure state for ${normalizedPostId}`,
+      { detail: banDetail, targetIds: [normalizedUsername] }
+    );
+    throw error;
+  }
+
+  return completeIncidentAction(
+    refreshedRemovalIncident.postId,
+    banActionId,
+    { status: 'succeeded' },
+    `Banned u/${normalizedUsername} but failed to refresh incident ${normalizedPostId}`
+  );
 };
 
 export const banPreparedRuleUser = async ({
@@ -142,27 +200,46 @@ export const banPreparedRuleUser = async ({
     durationDays && durationDays > 0 ? `${durationDays}-day` : 'permanent';
   const demoUser = isDemoUser(incident, normalizedUsername);
 
-  if (!demoUser) {
-    await reddit.banUser({
-      context: contextId ?? normalizedPostId,
-      duration: durationDays ?? 0,
-      note: actionReason,
-      reason: 'Firewatch automation',
-      subredditName: incident.subredditName,
-      username: normalizedUsername,
-    });
-  }
-
-  return appendAction(normalizedPostId, {
+  const detail = demoUser
+    ? `Recorded ${durationLabel} ban for u/${normalizedUsername}: ${actionReason}`
+    : `Banned u/${normalizedUsername} (${durationLabel}): ${actionReason}`;
+  const targetIds = contextId?.startsWith('t1_')
+    ? [normalizeCommentId(contextId)]
+    : undefined;
+  const { actionId } = await startIncidentAction(normalizedPostId, {
     type: 'user_banned',
     actor,
-    detail: demoUser
-      ? `Recorded ${durationLabel} ban for u/${normalizedUsername}: ${actionReason}`
-      : `Banned u/${normalizedUsername} (${durationLabel}): ${actionReason}`,
-    targetIds: contextId?.startsWith('t1_')
-      ? [normalizeCommentId(contextId)]
-      : undefined,
+    detail,
+    targetIds,
   });
+  try {
+    if (!demoUser) {
+      await reddit.banUser({
+        context: contextId ?? normalizedPostId,
+        duration: durationDays ?? 0,
+        note: actionReason,
+        reason: 'Firewatch automation',
+        subredditName: incident.subredditName,
+        username: normalizedUsername,
+      });
+    }
+  } catch (error) {
+    await failIncidentAction(
+      normalizedPostId,
+      actionId,
+      error,
+      `Prepared user ban failed to record failure state for ${normalizedPostId}`,
+      { detail, targetIds }
+    );
+    throw error;
+  }
+
+  return completeIncidentAction(
+    normalizedPostId,
+    actionId,
+    { status: 'succeeded' },
+    `Prepared user ban succeeded but failed to refresh incident ${normalizedPostId}`
+  );
 };
 
 const trackedCommentIdsByUser = (incident: Incident, username: string) =>
@@ -190,54 +267,18 @@ const removeRecentUserContent = async (
   reason?: string
 ) => {
   const trackedIds = trackedCommentIdsByUser(incident, username);
-  const removedIds = new Set<string>();
+  if (trackedIds.length === 0) return [];
 
-  await Promise.all(
-    trackedIds.map(async (commentId) => {
-      await removeCommentIfReal(incident, commentId, reason);
-      removedIds.add(commentId);
-    })
+  const actionResults = await runTargetedRedditActions(trackedIds, (commentId) =>
+    removeCommentIfReal(incident, commentId, reason)
   );
-
-  const demoOnly =
-    Boolean(incident.demo) &&
-    trackedIds.length > 0 &&
-    trackedIds.every((commentId) => isDemoComment(incident, commentId));
-
-  if (demoOnly) return Array.from(removedIds);
-
-  const recentItems = await reddit
-    .getCommentsAndPostsByUser({
-      username,
-      sort: 'new',
-      timeframe: 'all',
-      limit: 1000,
-      pageSize: 100,
-    })
-    .all();
-  const subredditItems = recentItems.filter(
-    (item) => item.subredditName === incident.subredditName
+  throwIfNoTargetSucceeded(
+    actionResults,
+    `No open comments from u/${username} could be removed`
   );
+  const removedIds = successfulTargetIds(actionResults);
 
-  for (const item of subredditItems) {
-    if (removedIds.has(item.id)) continue;
-    if (item.isApproved()) continue;
-    if (item.isRemoved()) {
-      removedIds.add(item.id);
-      continue;
-    }
-    await item.remove(false);
-    const modNote = trimRemovalNote(reason);
-    if (modNote) {
-      await item.addRemovalNote({
-        reasonId: '',
-        modNote,
-      });
-    }
-    removedIds.add(item.id);
-  }
-
-  return Array.from(removedIds);
+  return removedIds;
 };
 
 export const applyNativeUserAction = async (
@@ -267,45 +308,77 @@ export const applyNativeUserAction = async (
     'Firewatch moderator action';
   let targetIds = [normalizedUsername];
   const demoUser = isDemoUser(incident, normalizedUsername);
-
-  if (values.action === 'approve' && !demoUser) {
-    await reddit.approveUser(normalizedUsername, incident.subredditName);
-  }
-  if (values.action === 'mute' && !demoUser) {
-    await reddit.muteUser({
-      note,
-      subredditName: incident.subredditName,
-      username: normalizedUsername,
-    });
-  }
-  if (values.action === 'add-mod-note' && !demoUser) {
-    await reddit.addModNote({
-      label: 'SPAM_WATCH',
-      note: note.slice(0, 250),
-      redditId: normalizedPostId,
-      subreddit: incident.subredditName,
-      user: normalizedUsername,
-    });
-  }
   if (values.action === 'remove-recent-content') {
-    targetIds = await removeRecentUserContent(
-      incident,
-      normalizedUsername,
-      values.reason
-    );
+    targetIds = trackedCommentIdsByUser(incident, normalizedUsername);
+    if (targetIds.length === 0) {
+      throw new Error(`No open comments from u/${normalizedUsername}`);
+    }
   }
 
-  const withAction = await appendAction(normalizedPostId, {
+  const detail = userActionDetail({
+    action: values.action,
+    count: targetIds.length,
+    note,
+    username: normalizedUsername,
+  });
+  const { actionId } = await startIncidentAction(normalizedPostId, {
     type: nativeUserActionType(values.action),
     actor,
-    detail: userActionDetail({
-      action: values.action,
-      count: targetIds.length,
-      note,
-      username: normalizedUsername,
-    }),
+    detail,
     targetIds,
   });
+  try {
+    if (values.action === 'approve' && !demoUser) {
+      await reddit.approveUser(normalizedUsername, incident.subredditName);
+    }
+    if (values.action === 'mute' && !demoUser) {
+      await reddit.muteUser({
+        note,
+        subredditName: incident.subredditName,
+        username: normalizedUsername,
+      });
+    }
+    if (values.action === 'add-mod-note' && !demoUser) {
+      await reddit.addModNote({
+        label: 'SPAM_WATCH',
+        note: note.slice(0, 250),
+        redditId: normalizedPostId,
+        subreddit: incident.subredditName,
+        user: normalizedUsername,
+      });
+    }
+    if (values.action === 'remove-recent-content') {
+      targetIds = await removeRecentUserContent(
+        incident,
+        normalizedUsername,
+        values.reason
+      );
+    }
+  } catch (error) {
+    await failIncidentAction(
+      normalizedPostId,
+      actionId,
+      error,
+      `User action ${values.action} failed to record failure state for ${normalizedPostId}`,
+      { detail, targetIds }
+    );
+    throw error;
+  }
+  const withAction = await completeIncidentAction(
+    normalizedPostId,
+    actionId,
+    {
+      detail: userActionDetail({
+        action: values.action,
+        count: targetIds.length,
+        note,
+        username: normalizedUsername,
+      }),
+      status: 'succeeded',
+      targetIds,
+    },
+    `User action ${values.action} succeeded but failed to refresh incident ${normalizedPostId}`
+  );
 
   if (values.action !== 'remove-recent-content') return withAction;
 
@@ -317,8 +390,8 @@ export const applyNativeUserAction = async (
         : flaggedComment
     ),
   };
-  const refreshedIncident = await refreshIncident(nextIncident);
-
-  await saveIncident(refreshedIncident);
-  return refreshedIncident;
+  return saveAndRefreshIncident(
+    nextIncident,
+    `Removed open comments for u/${normalizedUsername} but failed to refresh incident ${normalizedPostId}`
+  );
 };

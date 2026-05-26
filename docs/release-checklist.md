@@ -8,9 +8,10 @@
 - `npm run dev:edge`
 - Open the playtest URL and verify:
   - queue loads
-  - each demo drill can be created as a clean single-demo queue item
-  - demo incidents can be reset from the dashboard
-  - creating a new demo clears old demo queue state and demo strikes
+  - each demo drill can be created
+  - multiple demo drills can be created and pile up in the queue
+  - demo reset deletes Firewatch demo queue items, demo strikes, and Reddit demo posts
+  - app reset deletes stored Firewatch data, demo posts, and the Firewatch queue post
   - combined filter settings save and update
   - review progress numbers update after actions
   - comment approve works
@@ -55,5 +56,6 @@
 - No claim that Firewatch uses AI or automatic enforcement.
 - No claim that communities have adopted it unless they actually have.
 - No hidden demo-only behavior in the core workflow.
+- Demo comments are described as sample review signals, not real Reddit comments.
 - No app-generated comments included in user repeated wording.
 - No `Resolved` status while comments still need review.

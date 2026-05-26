@@ -18,6 +18,8 @@ export type T1 = `t1_${string}`;
 export type T3 = `t3_${string}`;
 
 export const incidentKey = (postId: string) => `fw:incident:${postId}`;
+export const indexKey = (subredditName: string) =>
+  `fw:subreddit:${subredditName}:index`;
 export const configKey = (subredditName: string) =>
   `fw:config:${subredditName}`;
 export const boardPostKey = (subredditName: string) =>
@@ -29,6 +31,8 @@ export const selectionKey = (subredditName: string, username: string) =>
   `fw:selected:${subredditName}:${username}`;
 export const userRegistryKey = (subredditName: string) =>
   `fw:subreddit:${subredditName}:users`;
+export const userStrikeKeyRegistryKey = (subredditName: string) =>
+  `fw:subreddit:${subredditName}:user_strike_keys`;
 
 export const now = () => Date.now();
 export const retentionExpiration = () =>

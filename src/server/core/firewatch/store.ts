@@ -10,12 +10,16 @@ import type {
 } from '../../../shared/firewatch-config';
 import { DEFAULT_CONFIG, INDEX_KEY } from '../firewatch-constants';
 import { responseRulesKey, ruleLogsKey } from '../firewatch-rules/store';
-import { userStrikesKey } from '../firewatch-rules/strikes';
+import {
+  getTrackedUserStrikeKeys,
+  userStrikesKey,
+} from '../firewatch-rules/strikes';
 import {
   boardPostKey,
   claimKey,
   configKey,
   deriveIncidentStatus,
+  indexKey,
   incidentKey,
   incidentRegistryKey,
   normalizeConfig,
@@ -27,9 +31,13 @@ import {
   selectionExpiration,
   selectionKey,
   userRegistryKey,
+  userStrikeKeyRegistryKey,
 } from '../firewatch-utils';
+import { deleteRedditPostIfExists } from './reddit-runtime';
+import { logFirewatchError } from './logging';
 
 const legacyUsersResolvedImpactKey = ['users', 'Han', 'dled'].join('');
+type IncidentClaim = NonNullable<Incident['claim']>;
 
 const finiteNumberOrZero = (value: number | undefined) =>
   typeof value === 'number' && Number.isFinite(value) ? value : 0;
@@ -65,6 +73,61 @@ const normalizeIncidentImpact = (
   peakAttention: finiteNumberOrZero(impact?.peakAttention),
 });
 
+const parseStoredClaim = (
+  stored: string | undefined,
+  postId: string,
+  fallback?: IncidentClaim | undefined
+) => {
+  if (!stored) return fallback;
+
+  try {
+    const parsed: Partial<IncidentClaim> = JSON.parse(stored);
+    if (
+      typeof parsed.username === 'string' &&
+      typeof parsed.claimedAt === 'number'
+    ) {
+      return {
+        username: parsed.username,
+        claimedAt: parsed.claimedAt,
+      };
+    }
+  } catch (error) {
+    logFirewatchError('store.parse_claim_failed', {
+      postId,
+      error,
+    });
+  }
+
+  return fallback;
+};
+
+const hydrateStoredClaim = async (incident: Incident) => {
+  const key = claimKey(incident.postId);
+  const storedClaim = parseStoredClaim(
+    await redis.get(key),
+    incident.postId,
+    incident.claim
+  );
+  if (storedClaim && !incident.claim) {
+    await redis.set(key, JSON.stringify(storedClaim), {
+      expiration: retentionExpiration(),
+    });
+  }
+
+  return storedClaim;
+};
+
+const saveStoredClaim = async (incident: Incident) => {
+  if (!incident.claim) {
+    await redis.del(claimKey(incident.postId));
+    return;
+  }
+
+  await redis.set(claimKey(incident.postId), JSON.stringify(incident.claim), {
+    expiration: retentionExpiration(),
+  });
+};
+
 // Config and incident persistence
 export const getConfig = async (
   subredditName = context.subredditName
@@ -85,7 +148,10 @@ export const getConfig = async (
       signalWeights: parsed.signalWeights,
     });
   } catch (error) {
-    console.error('Failed to parse Firewatch config', error);
+    logFirewatchError('store.parse_config_failed', {
+      subredditName,
+      error,
+    });
     return DEFAULT_CONFIG;
   }
 };
@@ -132,21 +198,45 @@ export const getConfigFormDefaults =
     };
   };
 
-export const getIndex = async () => {
-  const stored = await redis.get(INDEX_KEY);
+const parseIndex = (stored: string | undefined) => {
   if (!stored) return [];
 
   try {
     const parsed: string[] = JSON.parse(stored);
-    return parsed.filter(Boolean);
+    return parsed.filter(Boolean).map(normalizePostId);
   } catch {
     return [];
   }
 };
 
-export const saveIndex = async (postIds: string[]) => {
+export const getIndex = async (subredditName = context.subredditName) => {
+  const scopedIndex = parseIndex(await redis.get(indexKey(subredditName)));
+  if (scopedIndex.length > 0) return scopedIndex;
+
+  const legacyIndex = parseIndex(await redis.get(INDEX_KEY));
+  if (legacyIndex.length === 0) return [];
+
+  const migratedPostIds: string[] = [];
+  for (const postId of legacyIndex) {
+    const incident = await getIncident(postId);
+    if (incident?.subredditName === subredditName) {
+      migratedPostIds.push(normalizePostId(postId));
+    }
+  }
+
+  if (migratedPostIds.length > 0) {
+    await saveIndex(migratedPostIds, subredditName);
+  }
+
+  return migratedPostIds;
+};
+
+export const saveIndex = async (
+  postIds: string[],
+  subredditName = context.subredditName
+) => {
   await redis.set(
-    INDEX_KEY,
+    indexKey(subredditName),
     JSON.stringify(Array.from(new Set(postIds.filter(Boolean))).slice(0, 100))
   );
 };
@@ -200,33 +290,49 @@ export const removeFromIncidentRegistry = async (
   );
 };
 
-export const addToIndex = async (postId: string) => {
-  const index = await getIndex();
+export const addToIndex = async (
+  postId: string,
+  subredditName = context.subredditName
+) => {
+  const index = await getIndex(subredditName);
   const nextIndex = [postId, ...index.filter((id) => id !== postId)].slice(
     0,
     100
   );
-  await saveIndex(nextIndex);
+  await saveIndex(nextIndex, subredditName);
 };
 
-export const removeFromIndex = async (postId: string) => {
-  const index = await getIndex();
-  await saveIndex(index.filter((id) => id !== postId));
+export const removeFromIndex = async (
+  postId: string,
+  subredditName = context.subredditName
+) => {
+  const index = await getIndex(subredditName);
+  await saveIndex(
+    index.filter((id) => id !== postId),
+    subredditName
+  );
 };
 
-export const getIncident = async (postId: string) => {
+export const getIncident = async (
+  postId: string
+): Promise<Incident | undefined> => {
   const stored = await redis.get(incidentKey(postId));
   if (!stored) return undefined;
 
   try {
     const parsed: Incident = JSON.parse(stored);
+    const claim = await hydrateStoredClaim(parsed);
     return {
       ...parsed,
+      claim,
       status: normalizeStatus(parsed.status),
       impact: normalizeIncidentImpact(parsed.impact),
     };
   } catch (error) {
-    console.error(`Failed to parse incident ${postId}`, error);
+    logFirewatchError('store.parse_incident_failed', {
+      postId,
+      error,
+    });
     return undefined;
   }
 };
@@ -245,14 +351,15 @@ export const shouldShowInQueue = (incident: Incident) => {
 };
 
 export const saveIncident = async (incident: Incident) => {
-  await addToIncidentRegistry(incident.subredditName, incident.postId);
   await redis.set(incidentKey(incident.postId), JSON.stringify(incident), {
     expiration: retentionExpiration(),
   });
+  await saveStoredClaim(incident);
+  await addToIncidentRegistry(incident.subredditName, incident.postId);
   if (shouldShowInQueue(incident)) {
-    await addToIndex(incident.postId);
+    await addToIndex(incident.postId, incident.subredditName);
   } else {
-    await removeFromIndex(incident.postId);
+    await removeFromIndex(incident.postId, incident.subredditName);
   }
 };
 
@@ -326,7 +433,10 @@ const getModeratorSelectionUsernames = async (subredditName: string) => {
       if (username) usernames.add(username);
     }
   } catch (error) {
-    console.error('Failed to load moderators while resetting Firewatch', error);
+    logFirewatchError('reset.load_moderators_failed', {
+      subredditName,
+      error,
+    });
   }
 
   return usernames;
@@ -334,6 +444,8 @@ const getModeratorSelectionUsernames = async (subredditName: string) => {
 
 const deleteRedisKeys = async (keys: string[]) => {
   const uniqueKeys = Array.from(new Set(keys.filter(Boolean)));
+  if (uniqueKeys.length === 0) return 0;
+
   for (let index = 0; index < uniqueKeys.length; index += 50) {
     await redis.del(...uniqueKeys.slice(index, index + 50));
   }
@@ -343,10 +455,17 @@ const deleteRedisKeys = async (keys: string[]) => {
 
 export const resetAppData = async () => {
   const subredditName = context.subredditName;
-  const [indexPostIds, registeredPostIds, trackedUsers] = await Promise.all([
-    getIndex(),
+  const boardPostId = await redis.get(boardPostKey(subredditName));
+  const [
+    indexPostIds,
+    registeredPostIds,
+    trackedUsers,
+    trackedUserStrikeKeys,
+  ] = await Promise.all([
+    getIndex(subredditName),
     getIncidentRegistry(subredditName),
     parseStringList(await redis.get(userRegistryKey(subredditName))),
+    getTrackedUserStrikeKeys(subredditName),
   ]);
   const postIds = Array.from(
     new Set([...indexPostIds, ...registeredPostIds].map(normalizePostId))
@@ -369,18 +488,44 @@ export const resetAppData = async () => {
   const selectionUsernames = await getModeratorSelectionUsernames(
     subredditName
   );
+  const redditPostIdsToDelete = Array.from(
+    new Set([
+      ...(boardPostId ? [boardPostId] : []),
+      ...incidents
+        .filter((incident) => Boolean(incident.demo))
+        .map((incident) => incident.postId),
+    ])
+  );
+  let redditPostDeleteFailures = 0;
+
+  for (const postId of redditPostIdsToDelete) {
+    try {
+      await deleteRedditPostIfExists(postId);
+    } catch (error) {
+      redditPostDeleteFailures += 1;
+      logFirewatchError('reset.reddit_post_delete_failed', {
+        postId,
+        subredditName,
+        error,
+      });
+    }
+  }
+
   const keysToDelete = [
     INDEX_KEY,
+    indexKey(subredditName),
     boardPostKey(subredditName),
     configKey(subredditName),
     incidentRegistryKey(subredditName),
     responseRulesKey(subredditName),
     ruleLogsKey(subredditName),
     userRegistryKey(subredditName),
+    userStrikeKeyRegistryKey(subredditName),
     ...postIds.flatMap((postId) => [incidentKey(postId), claimKey(postId)]),
     ...Array.from(selectionUsernames).map((username) =>
       selectionKey(subredditName, username)
     ),
+    ...trackedUserStrikeKeys,
     ...Array.from(usernames).map((username) =>
       userStrikesKey(subredditName, username)
     ),
@@ -389,6 +534,8 @@ export const resetAppData = async () => {
   return {
     deletedKeys: await deleteRedisKeys(keysToDelete),
     incidentCount: postIds.length,
+    redditPostDeleteFailures,
+    redditPostDeleteCount: redditPostIdsToDelete.length - redditPostDeleteFailures,
     userCount: usernames.size,
   };
 };

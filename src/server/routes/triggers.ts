@@ -32,6 +32,7 @@ import {
   POST_MOD_ACTIONS,
   modActionSignalReason,
 } from '../core/mod-actions';
+import { logFirewatchError } from '../core/firewatch/logging';
 
 export const triggers = new Hono();
 
@@ -53,10 +54,56 @@ const getFilterMatches = async (text: string) => {
   return { domains, keywords };
 };
 
-const eventTimestamp = (value?: string) =>
-  value ? new Date(value).getTime() : Date.now();
+const eventTimestamp = (value?: string) => {
+  if (!value) return Date.now();
+
+  const parsed = Date.parse(value);
+  const currentTime = Date.now();
+  const fiveMinutes = 5 * 60 * 1000;
+  if (
+    !Number.isFinite(parsed) ||
+    parsed < 0 ||
+    parsed > currentTime + fiveMinutes
+  ) {
+    return currentTime;
+  }
+
+  return parsed;
+};
+
+const redditCreatedAt = (value: number | undefined) =>
+  typeof value === 'number' && Number.isFinite(value) && value > 0
+    ? value * 1000
+    : undefined;
 
 const okTrigger = (c: HonoContext) => c.json<TriggerResponse>({ status: 'ok' });
+
+const triggerErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : 'Unknown trigger failure';
+
+const runTrigger = async (
+  c: HonoContext,
+  label: string,
+  handler: () => Promise<TriggerResponse | void>
+) => {
+  try {
+    const result = await handler();
+    return result ? c.json<TriggerResponse>(result, 200) : okTrigger(c);
+  } catch (error) {
+    logFirewatchError('trigger.failed', {
+      label,
+      subredditName: context.subredditName,
+      error,
+    });
+    return c.json<TriggerResponse>(
+      {
+        status: 'ok',
+        message: `${label} failed: ${triggerErrorMessage(error)}`,
+      },
+      200
+    );
+  }
+};
 
 const upsertPostContentSignal = async (
   type: 'post_create' | 'post_update',
@@ -86,7 +133,7 @@ const upsertPostContentSignal = async (
     ]
       .filter(Boolean)
       .join('; '),
-    createdAt: post.createdAt ? post.createdAt * 1000 : undefined,
+    createdAt: redditCreatedAt(post.createdAt),
     metadata: {
       matchedKeywords: matches.keywords.length,
       matchedDomains: matches.domains.length,
@@ -95,226 +142,214 @@ const upsertPostContentSignal = async (
 };
 
 triggers.post('/on-app-install', async (c) => {
-  try {
+  return runTrigger(c, 'app install', async () => {
     const input = await c.req.json<OnAppInstallRequest>();
     const post = await getOrCreateFirewatchBoardPost();
 
-    return c.json<TriggerResponse>(
-      {
-        status: 'success',
-        message: `Firewatch review post created with id ${post.id} (trigger: ${input.type})`,
-      },
-      200
-    );
-  } catch (error) {
-    console.error(`Error creating Firewatch review post: ${error}`);
-    return c.json<TriggerResponse>(
-      {
-        status: 'error',
-        message: 'Could not create Firewatch review post',
-      },
-      400
-    );
-  }
+    return {
+      status: 'success',
+      message: `Firewatch review post created with id ${post.id} (trigger: ${input.type})`,
+    };
+  });
 });
 
 triggers.post('/on-comment-create', async (c) => {
-  const input = await c.req.json<OnCommentCreateRequest>();
-  const comment = input.comment;
-  const post = input.post;
-  const postId = comment?.postId ?? post?.id;
+  return runTrigger(c, 'comment create', async () => {
+    const input = await c.req.json<OnCommentCreateRequest>();
+    const comment = input.comment;
+    const post = input.post;
+    const postId = comment?.postId ?? post?.id;
 
-  if (postId) {
-    await upsertIncidentSignal({
-      type: 'comment_create',
-      postId,
-      commentId: comment?.id,
-      author: input.author?.name ?? comment?.author,
-      body: comment?.body,
-      parentId: comment?.parentId,
-      permalink: comment?.permalink,
-      createdAt: comment?.createdAt ? comment.createdAt * 1000 : undefined,
-    });
-  }
-
-  return okTrigger(c);
+    if (postId) {
+      await upsertIncidentSignal({
+        type: 'comment_create',
+        postId,
+        commentId: comment?.id,
+        author: input.author?.name ?? comment?.author,
+        body: comment?.body,
+        parentId: comment?.parentId,
+        permalink: comment?.permalink,
+        createdAt: redditCreatedAt(comment?.createdAt),
+      });
+    }
+  });
 });
 
 triggers.post('/on-post-create', async (c) => {
-  const input = await c.req.json<OnPostCreateRequest>();
-  await upsertPostContentSignal('post_create', input.post, input.author?.name);
-
-  return okTrigger(c);
+  return runTrigger(c, 'post create', async () => {
+    const input = await c.req.json<OnPostCreateRequest>();
+    await upsertPostContentSignal('post_create', input.post, input.author?.name);
+  });
 });
 
 triggers.post('/on-post-update', async (c) => {
-  const input = await c.req.json<OnPostUpdateRequest>();
-  await upsertPostContentSignal('post_update', input.post, input.author?.name);
-
-  return okTrigger(c);
+  return runTrigger(c, 'post update', async () => {
+    const input = await c.req.json<OnPostUpdateRequest>();
+    await upsertPostContentSignal('post_update', input.post, input.author?.name);
+  });
 });
 
 triggers.post('/on-automod-filter-comment', async (c) => {
-  const input = await c.req.json<OnAutomoderatorFilterCommentRequest>();
-  const comment = input.comment;
+  return runTrigger(c, 'automod filter comment', async () => {
+    const input = await c.req.json<OnAutomoderatorFilterCommentRequest>();
+    const comment = input.comment;
 
-  if (comment?.postId) {
-    await upsertIncidentSignal({
-      type: 'automod_filter',
-      source: 'mod_action',
-      postId: comment.postId,
-      commentId: comment.id,
-      author: input.author || comment.author,
-      body: comment.body,
-      parentId: comment.parentId,
-      reason: input.reason,
-      permalink: comment.permalink,
-      createdAt: eventTimestamp(input.removedAt),
-      metadata: {
-        action: 'automod_filter_comment',
-      },
-    });
-  }
-
-  return okTrigger(c);
+    if (comment?.postId) {
+      await upsertIncidentSignal({
+        type: 'automod_filter',
+        source: 'mod_action',
+        postId: comment.postId,
+        commentId: comment.id,
+        author: input.author || comment.author,
+        body: comment.body,
+        parentId: comment.parentId,
+        reason: input.reason,
+        permalink: comment.permalink,
+        createdAt: eventTimestamp(input.removedAt),
+        metadata: {
+          action: 'automod_filter_comment',
+        },
+      });
+    }
+  });
 });
 
 triggers.post('/on-comment-report', async (c) => {
-  const input = await c.req.json<OnCommentReportRequest>();
-  const comment = input.comment;
+  return runTrigger(c, 'comment report', async () => {
+    const input = await c.req.json<OnCommentReportRequest>();
+    const comment = input.comment;
 
-  if (comment?.postId) {
-    await upsertIncidentSignal({
-      type: 'comment_report',
-      source: 'report',
-      postId: comment.postId,
-      commentId: comment.id,
-      author: comment.author,
-      body: comment.body,
-      parentId: comment.parentId,
-      reason: input.reason,
-      permalink: comment.permalink,
-      createdAt: eventTimestamp(),
-    });
-  }
-
-  return okTrigger(c);
+    if (comment?.postId) {
+      await upsertIncidentSignal({
+        type: 'comment_report',
+        source: 'report',
+        postId: comment.postId,
+        commentId: comment.id,
+        author: comment.author,
+        body: comment.body,
+        parentId: comment.parentId,
+        reason: input.reason,
+        permalink: comment.permalink,
+        createdAt: eventTimestamp(),
+      });
+    }
+  });
 });
 
 triggers.post('/on-comment-delete', async (c) => {
-  const input = await c.req.json<OnCommentDeleteRequest>();
+  return runTrigger(c, 'comment delete', async () => {
+    const input = await c.req.json<OnCommentDeleteRequest>();
 
-  if (input.postId && input.commentId) {
-    await deleteStoredCommentContent(input.postId, input.commentId);
-  }
-
-  return okTrigger(c);
+    if (input.postId && input.commentId) {
+      await deleteStoredCommentContent(input.postId, input.commentId);
+    }
+  });
 });
 
 triggers.post('/on-automod-filter-post', async (c) => {
-  const input = await c.req.json<OnAutomoderatorFilterPostRequest>();
-  const post = input.post;
+  return runTrigger(c, 'automod filter post', async () => {
+    const input = await c.req.json<OnAutomoderatorFilterPostRequest>();
+    const post = input.post;
 
-  if (post?.id) {
-    await upsertIncidentSignal({
-      type: 'automod_filter',
-      source: 'mod_action',
-      postId: post.id,
-      body: `${post.title}\n${post.selftext}`,
-      reason: input.reason,
-      permalink: post.permalink,
-      createdAt: eventTimestamp(input.removedAt),
-      metadata: {
-        action: 'automod_filter_post',
-      },
-    });
-  }
-
-  return okTrigger(c);
+    if (post?.id) {
+      await upsertIncidentSignal({
+        type: 'automod_filter',
+        source: 'mod_action',
+        postId: post.id,
+        body: `${post.title}\n${post.selftext}`,
+        reason: input.reason,
+        permalink: post.permalink,
+        createdAt: eventTimestamp(input.removedAt),
+        metadata: {
+          action: 'automod_filter_post',
+        },
+      });
+    }
+  });
 });
 
 triggers.post('/on-post-report', async (c) => {
-  const input = await c.req.json<OnPostReportRequest>();
-  const post = input.post;
+  return runTrigger(c, 'post report', async () => {
+    const input = await c.req.json<OnPostReportRequest>();
+    const post = input.post;
 
-  if (post?.id) {
-    await upsertIncidentSignal({
-      type: 'post_report',
-      source: 'report',
-      postId: post.id,
-      body: `${post.title}\n${post.selftext}`,
-      reason: input.reason,
-      createdAt: eventTimestamp(),
-    });
-  }
-
-  return okTrigger(c);
+    if (post?.id) {
+      await upsertIncidentSignal({
+        type: 'post_report',
+        source: 'report',
+        postId: post.id,
+        body: `${post.title}\n${post.selftext}`,
+        reason: input.reason,
+        createdAt: eventTimestamp(),
+      });
+    }
+  });
 });
 
 triggers.post('/on-post-delete', async (c) => {
-  const input = await c.req.json<OnPostDeleteRequest>();
+  return runTrigger(c, 'post delete', async () => {
+    const input = await c.req.json<OnPostDeleteRequest>();
 
-  if (input.postId) {
-    await deleteStoredPostContent(input.postId);
-  }
-
-  return okTrigger(c);
+    if (input.postId) {
+      await deleteStoredPostContent(input.postId);
+    }
+  });
 });
 
 triggers.post('/on-mod-action', async (c) => {
-  const input = await c.req.json<OnModActionRequest>();
-  const action = input.action?.toLowerCase();
-  const moderatorName = input.moderator?.name;
+  return runTrigger(c, 'mod action', async () => {
+    const input = await c.req.json<OnModActionRequest>();
+    const action = input.action?.toLowerCase();
+    const moderatorName = input.moderator?.name;
 
-  if (!action || moderatorName === context.appSlug) {
-    return okTrigger(c);
-  }
+    if (!action || moderatorName === context.appSlug) {
+      return;
+    }
 
-  if (COMMENT_MOD_ACTIONS.has(action) && input.targetComment?.postId) {
-    await upsertIncidentSignal({
-      type: 'mod_action',
-      source: 'mod_action',
-      postId: input.targetComment.postId,
-      commentId: input.targetComment.id,
-      parentId: input.targetComment.parentId,
-      reason: modActionSignalReason({
+    if (COMMENT_MOD_ACTIONS.has(action) && input.targetComment?.postId) {
+      await upsertIncidentSignal({
+        type: 'mod_action',
+        source: 'mod_action',
+        postId: input.targetComment.postId,
+        commentId: input.targetComment.id,
+        parentId: input.targetComment.parentId,
+        reason: modActionSignalReason({
+          action,
+          moderatorName,
+          targetKind: 'comment',
+        }),
+        createdAt: eventTimestamp(input.actionedAt),
+        metadata: {
+          action,
+        },
+      });
+      await recordExternalModAction({
         action,
         moderatorName,
-        targetKind: 'comment',
-      }),
-      createdAt: eventTimestamp(input.actionedAt),
-      metadata: {
-        action,
-      },
-    });
-    await recordExternalModAction({
-      action,
-      moderatorName,
-      postId: input.targetComment.postId,
-      targetCommentId: input.targetComment.id,
-    });
-  } else if (POST_MOD_ACTIONS.has(action) && input.targetPost?.id) {
-    await upsertIncidentSignal({
-      type: 'mod_action',
-      source: 'mod_action',
-      postId: input.targetPost.id,
-      reason: modActionSignalReason({
+        postId: input.targetComment.postId,
+        targetCommentId: input.targetComment.id,
+      });
+    } else if (POST_MOD_ACTIONS.has(action) && input.targetPost?.id) {
+      await upsertIncidentSignal({
+        type: 'mod_action',
+        source: 'mod_action',
+        postId: input.targetPost.id,
+        reason: modActionSignalReason({
+          action,
+          moderatorName,
+          targetKind: 'post',
+        }),
+        createdAt: eventTimestamp(input.actionedAt),
+        metadata: {
+          action,
+        },
+      });
+      await recordExternalModAction({
         action,
         moderatorName,
-        targetKind: 'post',
-      }),
-      createdAt: eventTimestamp(input.actionedAt),
-      metadata: {
-        action,
-      },
-    });
-    await recordExternalModAction({
-      action,
-      moderatorName,
-      postId: input.targetPost.id,
-      targetPostId: input.targetPost.id,
-    });
-  }
-
-  return okTrigger(c);
+        postId: input.targetPost.id,
+        targetPostId: input.targetPost.id,
+      });
+    }
+  });
 });

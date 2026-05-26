@@ -19,12 +19,16 @@ import {
 } from './actions/user-actions';
 import {
   appendAction,
+  completeIncidentAction,
   coolDownIncident,
+  failIncidentAction,
   getIncidentOrThrow,
   lockIncident,
   refreshIncident,
   resolveIncident,
   ruleDraftSummary,
+  saveAndRefreshIncident,
+  startIncidentAction,
 } from './incidents';
 import { actorName, getConfig, saveIncident } from './store';
 import {
@@ -47,10 +51,7 @@ const requireAutomationClaim = (incident: Incident, actor: string) => {
     throw new Error('Claim this post before running automation actions.');
   }
 
-  if (
-    actor !== 'firewatch' &&
-    automationActorKey(claimOwner) !== automationActorKey(actor)
-  ) {
+  if (automationActorKey(claimOwner) !== automationActorKey(actor)) {
     throw new Error(
       `Claimed by u/${claimOwner}. Only that mod can run automation actions.`
     );
@@ -136,9 +137,10 @@ const runAutoSafeRuleActions = async (
     }
   }
 
-  const refreshedIncident = await refreshIncident(currentIncident);
-  await saveIncident(refreshedIncident);
-  return refreshedIncident;
+  return saveAndRefreshIncident(
+    currentIncident,
+    `Auto-safe automation actions ran but incident ${currentIncident.postId} did not refresh`
+  );
 };
 
 export const runPreparedRuleActions = async (
@@ -182,16 +184,17 @@ export const runPreparedRuleActions = async (
   for (const prepared of match.preparedActions) {
     const action = prepared.action;
 
-    if (alreadyExecuted.has(prepared.label)) {
-      skippedActions.push(`${prepared.label}: already executed`);
-      continue;
-    }
+    try {
+      if (alreadyExecuted.has(prepared.label)) {
+        skippedActions.push(`${prepared.label}: already executed`);
+        continue;
+      }
 
-    if (action.type === 'sticky_reminder') {
-      currentIncident = await coolDownIncident(normalizedPostId, action.text);
-      executedActions.push(prepared.label);
-      continue;
-    }
+      if (action.type === 'sticky_reminder') {
+        currentIncident = await coolDownIncident(normalizedPostId, action.text);
+        executedActions.push(prepared.label);
+        continue;
+      }
 
     if (action.type === 'prepare_temp_ban') {
       if (!prepared.username) {
@@ -391,21 +394,39 @@ export const runPreparedRuleActions = async (
         skippedActions.push(`${prepared.label}: no user target`);
         continue;
       }
-      if (!isDemoUser(currentIncident, prepared.username)) {
-        await reddit.addModNote({
-          label: 'SPAM_WATCH',
-          note: action.note.slice(0, 250),
-          redditId: normalizedPostId,
-          subreddit: currentIncident.subredditName,
-          user: prepared.username,
-        });
-      }
-      currentIncident = await appendAction(normalizedPostId, {
+      const detail = `Added Reddit mod note for ${formatUserHandle(prepared.username)} from ${match.ruleName}`;
+      const { actionId } = await startIncidentAction(normalizedPostId, {
         type: 'mod_note_added',
         actor,
-        detail: `Added Reddit mod note for ${formatUserHandle(prepared.username)} from ${match.ruleName}`,
+        detail,
         targetIds: [prepared.username],
       });
+      try {
+        if (!isDemoUser(currentIncident, prepared.username)) {
+          await reddit.addModNote({
+            label: 'SPAM_WATCH',
+            note: action.note.slice(0, 250),
+            redditId: normalizedPostId,
+            subreddit: currentIncident.subredditName,
+            user: prepared.username,
+          });
+        }
+      } catch (error) {
+        await failIncidentAction(
+          normalizedPostId,
+          actionId,
+          error,
+          `Automation mod note failed to record failure state for ${normalizedPostId}`,
+          { detail, targetIds: [prepared.username] }
+        );
+        throw error;
+      }
+      currentIncident = await completeIncidentAction(
+        normalizedPostId,
+        actionId,
+        { status: 'succeeded' },
+        `Automation mod note succeeded but failed to refresh incident ${normalizedPostId}`
+      );
       executedActions.push(prepared.label);
       continue;
     }
@@ -445,7 +466,13 @@ export const runPreparedRuleActions = async (
       continue;
     }
 
-    skippedActions.push(`${prepared.label}: left for mod review`);
+      skippedActions.push(`${prepared.label}: left for mod review`);
+    } catch (error) {
+      skippedActions.push(
+        `${prepared.label}: ${ruleAutomationErrorMessage(error)}`
+      );
+      break;
+    }
   }
 
   await recordRuleExecutionLog({
@@ -462,13 +489,14 @@ export const runPreparedRuleActions = async (
     actor,
   });
   const config = await getConfig(currentIncident.subredditName);
-  const refreshedIncident = await attachRuleContext(
-    await refreshIncident(currentIncident),
-    config
+  const refreshedIncident = await saveAndRefreshIncident(
+    currentIncident,
+    `Prepared automation actions ran but incident ${normalizedPostId} did not refresh`
   );
-  await saveIncident(refreshedIncident);
+  const withRuleContext = await attachRuleContext(refreshedIncident, config);
+  await saveIncident(withRuleContext);
 
-  return refreshedIncident;
+  return withRuleContext;
 };
 
 const ruleAutomationErrorMessage = (error: unknown) =>
@@ -488,11 +516,15 @@ const runAutoAllRuleActions = async (
   let currentIncident = incident;
 
   for (const log of autoRunLogs) {
+    const actor = currentIncident.claim?.username;
     try {
+      if (!actor) {
+        throw new Error('Claim this post before auto-running automation actions.');
+      }
       currentIncident = await runPreparedRuleActions(
         currentIncident.postId,
         log.ruleId,
-        'firewatch',
+        actor,
         log.targetId
       );
     } catch (error) {
@@ -507,7 +539,7 @@ const runAutoAllRuleActions = async (
         executedActions: [],
         skippedActions: [ruleAutomationErrorMessage(error)],
         mode: log.mode,
-        actor: 'firewatch',
+        actor: actor ?? 'firewatch',
       });
     }
   }

@@ -18,7 +18,7 @@ import {
 } from '../reddit-icons';
 import type { ActionRunner } from '../types';
 import type { FirewatchConfig, Incident } from '../../../shared/api';
-import { undoActionLabel } from '../../../shared/reddit-actions';
+import { actionCompleted, undoActionLabel } from '../../../shared/reddit-actions';
 
 export const IncidentHero = ({
   actionLocked,
@@ -54,7 +54,9 @@ export const IncidentHero = ({
     (action) => action.type !== 'demo_seeded'
   );
   const undoLabel = latestAction
-    ? undoActionLabel(latestAction.type)
+    ? actionCompleted(latestAction)
+      ? undoActionLabel(latestAction.type)
+      : undefined
     : undefined;
   const [confirmUndoActionId, setConfirmUndoActionId] = useState<
     string | undefined
@@ -173,7 +175,14 @@ export const IncidentHero = ({
                 <p className="text-xs leading-5 text-muted-foreground">
                   {formatUsername(latestAction.actor)} ·{' '}
                   {formatTime(latestAction.createdAt)}
+                  {latestAction.status === 'pending' ? ' · pending' : ''}
+                  {latestAction.status === 'failed' ? ' · failed' : ''}
                 </p>
+                {latestAction.error ? (
+                  <p className="mt-1 text-xs leading-5 text-destructive">
+                    {latestAction.error}
+                  </p>
+                ) : null}
               </div>
               {undoLabel && undoActionId ? (
                 <Button

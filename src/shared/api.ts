@@ -505,8 +505,11 @@ export type IncidentAction = {
   actor: string;
   createdAt: number;
   detail: string;
+  completedAt?: number;
+  error?: string;
   postFlairAfter?: PostFlairState;
   postFlairBefore?: PostFlairState;
+  status?: 'pending' | 'succeeded' | 'failed';
   targetIds?: string[];
   summary?: string;
 };
@@ -554,6 +557,10 @@ export type IncidentStats = {
   flaggedCount: number;
   uniqueParticipants: number;
   commentsLastHour: number;
+  flaggedCommentsOmitted?: number;
+  flaggedCommentsStored?: number;
+  signalsOmitted?: number;
+  signalsStored?: number;
 };
 
 export type IncidentImpactSnapshot = {
@@ -607,6 +614,7 @@ export type Incident = {
   createdAt: number;
   openedAt?: number;
   updatedAt: number;
+  lastSignalAt?: number;
   resolvedAt?: number;
   claim?: {
     username: string;
@@ -663,6 +671,16 @@ export type ActionResponse = {
   incident: Incident;
 };
 
+export type DemoCreateResponse = {
+  type: 'demo-create';
+  createdIncidents: Incident[];
+  failures: {
+    message: string;
+    scenarioId: FirewatchDemoScenarioId;
+  }[];
+  incident?: Incident;
+};
+
 export type ConfigResponse = {
   type: 'config';
   config: FirewatchConfig;
@@ -675,6 +693,8 @@ export type DemoResetResponse = DashboardInitResponse & {
 export type AppResetResponse = DashboardInitResponse & {
   deletedKeys: number;
   incidentCount: number;
+  redditPostDeleteCount: number;
+  redditPostDeleteFailures: number;
   userCount: number;
 };
 
@@ -697,6 +717,14 @@ export type RuleTestResponse = {
 };
 
 export type ErrorResponse = {
+  code:
+    | 'action_failed'
+    | 'conflict'
+    | 'not_found'
+    | 'permission_denied'
+    | 'reddit_unavailable'
+    | 'validation_error';
   status: 'error';
   message: string;
+  retryable?: boolean;
 };

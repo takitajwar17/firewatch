@@ -5,8 +5,15 @@ import { attachRuleContext } from '../firewatch-rules/matching';
 import { clearUserStrikes } from '../firewatch-rules/strikes';
 import { calculateIncident } from '../firewatch-scoring';
 import type { PostSnapshot } from '../firewatch-scoring/helpers';
+import {
+  isTransientRedditRuntimeError,
+  readRedditComment,
+  readRedditPost,
+  redditRuntimeErrorMessage,
+} from './reddit-runtime';
 import { upsertIncidentSignal } from './signals';
 import { actorName, getConfig, getIncident, saveIncident } from './store';
+import { logFirewatchError, logFirewatchWarn } from './logging';
 import {
   claimKey,
   formatLevel,
@@ -22,46 +29,13 @@ import {
 
 
 // Native Reddit state hydration
-const redditReadErrorMessage = (error: unknown) => {
-  const parts: string[] = [];
-
-  if (error instanceof Error) {
-    parts.push(error.message);
-  } else if (typeof error === 'string') {
-    parts.push(error);
-  }
-
-  if (typeof error === 'object' && error !== null) {
-    if ('details' in error && typeof error.details === 'string') {
-      parts.push(error.details);
-    }
-    if (
-      'code' in error &&
-      (typeof error.code === 'number' || typeof error.code === 'string')
-    ) {
-      parts.push(String(error.code));
-    }
-  }
-
-  return parts.join(' ');
-};
-
-const isTransientRedditReadError = (error: unknown) =>
-  /cancelled|deadline|unavailable|timeout|timed out|econnreset/i.test(
-    redditReadErrorMessage(error)
-  );
-
 const warnedPostSnapshotFallbacks = new Set<string>();
-
-const waitForRedditReadRetry = (delayMs: number) =>
-  new Promise((resolve) => {
-    setTimeout(resolve, delayMs);
-  });
+const warnedCommentStateFallbacks = new Set<string>();
 
 const getPostSnapshotFromReddit = async (
   postId: string
 ): Promise<PostSnapshot> => {
-  const post = await reddit.getPostById(normalizePostId(postId));
+  const post = await readRedditPost(postId);
   const createdAt = post.createdAt.getTime();
   const flair = post.flair?.text?.trim()
     ? {
@@ -95,20 +69,6 @@ const getPostSnapshotFromReddit = async (
 };
 
 export const getPostSnapshot = async (postId: string) => {
-  const retryDelays = [120, 300];
-
-  for (let attempt = 0; attempt <= retryDelays.length; attempt += 1) {
-    try {
-      return await getPostSnapshotFromReddit(postId);
-    } catch (error) {
-      const delayMs = retryDelays[attempt];
-      if (!isTransientRedditReadError(error) || delayMs === undefined) {
-        throw error;
-      }
-      await waitForRedditReadRetry(delayMs);
-    }
-  }
-
   return getPostSnapshotFromReddit(postId);
 };
 
@@ -130,14 +90,14 @@ const getRefreshPostSnapshot = async (incident: Incident) => {
     return await getPostSnapshot(incident.postId);
   } catch (error) {
     if (
-      !isTransientRedditReadError(error) &&
+      !isTransientRedditRuntimeError(error) &&
       !warnedPostSnapshotFallbacks.has(incident.postId)
     ) {
       warnedPostSnapshotFallbacks.add(incident.postId);
-      console.warn(
-        `Using stored Firewatch post snapshot for ${incident.postId}`,
-        error
-      );
+      logFirewatchWarn('incident.post_snapshot_fallback', {
+        postId: incident.postId,
+        error,
+      });
     }
 
     return fallbackPostSnapshot(incident);
@@ -158,9 +118,7 @@ const applyNativeCommentState = async (
   if (isDemoCommentSnapshot(incident, comment.id)) return comment;
 
   try {
-    const redditComment = await reddit.getCommentById(
-      normalizeCommentId(comment.id)
-    );
+    const redditComment = await readRedditComment(comment.id);
     const removed =
       comment.removed || redditComment.removed || redditComment.spam;
     const reviewed = comment.reviewed || redditComment.approved;
@@ -175,7 +133,15 @@ const applyNativeCommentState = async (
       reviewed,
       spam: redditComment.spam,
     };
-  } catch {
+  } catch (error) {
+    if (!warnedCommentStateFallbacks.has(comment.id)) {
+      warnedCommentStateFallbacks.add(comment.id);
+      logFirewatchWarn('incident.comment_state_fallback', {
+        postId: incident.postId,
+        commentId: comment.id,
+        error,
+      });
+    }
     return comment;
   }
 };
@@ -360,6 +326,26 @@ export const refreshIncident = async (incident: Incident) => {
   return attachRuleContext(stableCalculated, config);
 };
 
+export const saveAndRefreshIncident = async (
+  incident: Incident,
+  logMessage: string
+) => {
+  await saveIncident(incident);
+
+  try {
+    const refreshedIncident = await refreshIncident(incident);
+    await saveIncident(refreshedIncident);
+    return refreshedIncident;
+  } catch (error) {
+    logFirewatchError('incident.refresh_after_save_failed', {
+      logMessage,
+      postId: incident.postId,
+      error,
+    });
+    return incident;
+  }
+};
+
 export const appendAction = async (
   postId: string,
   action: Omit<IncidentAction, 'id' | 'createdAt'>
@@ -380,10 +366,107 @@ export const appendAction = async (
       ...incident.actions,
     ].slice(0, MAX_ACTIONS),
   };
-  const refreshedIncident = await refreshIncident(nextIncident);
+  return saveAndRefreshIncident(
+    nextIncident,
+    `Recorded Firewatch action but failed to refresh incident ${normalizedPostId}`
+  );
+};
 
-  await saveIncident(refreshedIncident);
-  return refreshedIncident;
+export const startIncidentAction = async (
+  postId: string,
+  action: Omit<
+    IncidentAction,
+    'completedAt' | 'error' | 'id' | 'createdAt' | 'status'
+  >
+) => {
+  const normalizedPostId = normalizePostId(postId);
+  const incident = await getIncident(normalizedPostId);
+  if (!incident) throw new Error('Post is not in Firewatch yet');
+
+  const pendingAction: IncidentAction = {
+    ...action,
+    id: makeId('act'),
+    createdAt: now(),
+    status: 'pending',
+  };
+  const nextIncident: Incident = {
+    ...incident,
+    updatedAt: now(),
+    actions: [pendingAction, ...incident.actions].slice(0, MAX_ACTIONS),
+  };
+  await saveIncident(nextIncident);
+
+  return {
+    actionId: pendingAction.id,
+    incident: nextIncident,
+  };
+};
+
+export const completeIncidentAction = async (
+  postId: string,
+  actionId: string,
+  patch: Partial<
+    Pick<
+      IncidentAction,
+      | 'detail'
+      | 'error'
+      | 'postFlairAfter'
+      | 'postFlairBefore'
+      | 'status'
+      | 'summary'
+      | 'targetIds'
+    >
+  >,
+  logMessage: string
+) => {
+  const normalizedPostId = normalizePostId(postId);
+  const incident = await getIncident(normalizedPostId);
+  if (!incident) throw new Error('Post is not in Firewatch yet');
+  if (!incident.actions.some((action) => action.id === actionId)) {
+    throw new Error('Action was not found');
+  }
+
+  const completedAt = now();
+  const status = patch.status ?? 'succeeded';
+  const nextIncident: Incident = {
+    ...incident,
+    updatedAt: completedAt,
+    actions: incident.actions.map((action) =>
+      action.id === actionId
+        ? {
+            ...action,
+            ...patch,
+            completedAt,
+            status,
+          }
+        : action
+    ),
+  };
+
+  return saveAndRefreshIncident(nextIncident, logMessage);
+};
+
+export const failIncidentAction = async (
+  postId: string,
+  actionId: string,
+  error: unknown,
+  logMessage: string,
+  patch: Partial<
+    Pick<IncidentAction, 'detail' | 'postFlairBefore' | 'targetIds'>
+  > = {}
+) => {
+  const message = redditRuntimeErrorMessage(error) || 'Reddit action failed';
+  return completeIncidentAction(
+    postId,
+    actionId,
+    {
+      ...patch,
+      detail: patch.detail ? `${patch.detail} failed` : 'Reddit action failed',
+      error: message,
+      status: 'failed',
+    },
+    logMessage
+  );
 };
 
 export const getIncidentOrThrow = async (postId: string) => {
@@ -422,7 +505,10 @@ const parseStoredClaim = (
       };
     }
   } catch (error) {
-    console.error('Failed to parse Firewatch claim', error);
+    logFirewatchError('incident.parse_claim_failed', {
+      fallbackOwner: fallback.username,
+      error,
+    });
   }
 
   return fallback;
@@ -528,40 +614,73 @@ export const coolDownIncident = async (
   if (!config.actionControls.stickyReminder) {
     throw new Error('Sticky comments are disabled in Settings');
   }
-  const post = await reddit.getPostById(normalizedPostId);
   const actor = await actorName();
   const text = reminderText?.trim() || config.reminderText;
-  const comment = await post.addComment({
-    text,
-  });
-  await comment.distinguish(true);
-
-  await upsertIncidentSignal({
-    type: 'comment_create',
-    source: 'firewatch_notice',
-    postId: normalizedPostId,
-    commentId: comment.id,
-    author: context.appSlug,
-    body: text,
-    createdAt: now(),
-    metadata: {
-      firewatchNotice: true,
-    },
-  });
-
-  const withAction = await appendAction(normalizedPostId, {
+  const { actionId } = await startIncidentAction(normalizedPostId, {
     type: 'cool_down',
     actor,
-    detail: `Added sticky mod reminder ${comment.id}`,
+    detail: 'Add sticky mod reminder',
   });
-  const refreshedIncident = await refreshIncident({
+  let commentId: string | undefined;
+  try {
+    const post = await readRedditPost(normalizedPostId);
+    const comment = await post.addComment({
+      text,
+    });
+    commentId = comment.id;
+    await comment.distinguish(true);
+  } catch (error) {
+    await failIncidentAction(
+      normalizedPostId,
+      actionId,
+      error,
+      `Sticky mod reminder failed to record failure state for ${normalizedPostId}`,
+      { detail: 'Add sticky mod reminder' }
+    );
+    throw error;
+  }
+
+  try {
+    await upsertIncidentSignal({
+      type: 'comment_create',
+      source: 'firewatch_notice',
+      postId: normalizedPostId,
+      commentId,
+      author: context.appSlug,
+      body: text,
+      createdAt: now(),
+      metadata: {
+        firewatchNotice: true,
+      },
+    });
+  } catch (error) {
+    logFirewatchWarn('incident.cooldown_signal_failed', {
+      postId: normalizedPostId,
+      commentId,
+      error,
+    });
+  }
+
+  const withAction = await completeIncidentAction(
+    normalizedPostId,
+    actionId,
+    {
+      detail: `Added sticky mod reminder ${commentId}`,
+      status: 'succeeded',
+      targetIds: commentId ? [commentId] : undefined,
+    },
+    `Posted sticky reminder but failed to refresh incident ${normalizedPostId}`
+  );
+  const cooldownIncident: Incident = {
     ...withAction,
     status: 'cooldown',
     updatedAt: now(),
-  });
+  };
 
-  await saveIncident(refreshedIncident);
-  return refreshedIncident;
+  return saveAndRefreshIncident(
+    cooldownIncident,
+    `Posted sticky reminder but failed to refresh incident ${normalizedPostId}`
+  );
 };
 
 export const lockIncident = async (postId: string) => {
@@ -571,15 +690,32 @@ export const lockIncident = async (postId: string) => {
   if (!config.actionControls.lockPost) {
     throw new Error('Post locking is disabled in Settings');
   }
-  const post = await reddit.getPostById(normalizedPostId);
   const actor = await actorName();
-  await post.lock();
-
-  return appendAction(normalizedPostId, {
+  const { actionId } = await startIncidentAction(normalizedPostId, {
     type: 'locked',
     actor,
     detail: 'Locked post',
   });
+  try {
+    const post = await readRedditPost(normalizedPostId);
+    await post.lock();
+  } catch (error) {
+    await failIncidentAction(
+      normalizedPostId,
+      actionId,
+      error,
+      `Post lock failed to record failure state for ${normalizedPostId}`,
+      { detail: 'Locked post' }
+    );
+    throw error;
+  }
+
+  return completeIncidentAction(
+    normalizedPostId,
+    actionId,
+    { status: 'succeeded' },
+    `Locked post but failed to refresh incident ${normalizedPostId}`
+  );
 };
 
 
@@ -667,13 +803,17 @@ export const resolveIncident = async (postId: string) => {
     updatedAt: resolvedAt,
     actions: [resolvedAction, ...incident.actions].slice(0, MAX_ACTIONS),
   };
-  const refreshedResolved = await refreshIncident(resolved);
-  const summary = buildSummary(refreshedResolved);
-  const refreshedIncident = await refreshIncident({
+  const refreshedResolved = await saveAndRefreshIncident(
+    resolved,
+    `Marked incident ${normalizedPostId} resolved but failed to refresh`
+  );
+  const summarized: Incident = {
     ...refreshedResolved,
-    summary,
-  });
+    summary: buildSummary(refreshedResolved),
+  };
 
-  await saveIncident(refreshedIncident);
-  return refreshedIncident;
+  return saveAndRefreshIncident(
+    summarized,
+    `Saved resolved summary for ${normalizedPostId} but failed to refresh`
+  );
 };

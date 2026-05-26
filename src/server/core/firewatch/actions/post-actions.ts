@@ -7,7 +7,13 @@ import {
   postActionDetail,
 } from '../../../../shared/reddit-actions';
 import { normalizePostId } from '../../firewatch-utils';
-import { appendAction, getIncidentOrThrow } from '../incidents';
+import {
+  completeIncidentAction,
+  failIncidentAction,
+  getIncidentOrThrow,
+  startIncidentAction,
+} from '../incidents';
+import { readRedditPost } from '../reddit-runtime';
 import { actorName, getConfig } from '../store';
 import { trimRemovalNote } from './comment-helpers';
 
@@ -51,7 +57,7 @@ export const applyNativePostAction = async (
   }
 
   const actor = await actorName();
-  const post = await reddit.getPostById(normalizedPostId);
+  const post = await readRedditPost(normalizedPostId);
   const flairBefore = postFlairState(post.flair);
   const reason = values.reason?.trim();
   const removalNote = trimRemovalNote(reason);
@@ -59,65 +65,19 @@ export const applyNativePostAction = async (
   const flairText = values.flairText?.trim().slice(0, 64) || undefined;
   const crowdControlLevel = parseCrowdControlLevel(values.crowdControlLevel);
 
-  switch (values.action) {
-    case 'approve':
-      await post.approve();
-      break;
-    case 'remove':
-      await post.remove(false);
-      if (removalNote) {
-        await post.addRemovalNote({ reasonId: '', modNote: removalNote });
-      }
-      break;
-    case 'spam':
-      await post.remove(true);
-      if (removalNote) {
-        await post.addRemovalNote({ reasonId: '', modNote: removalNote });
-      }
-      break;
-    case 'unlock':
-      await post.unlock();
-      break;
-    case 'mark-nsfw':
-      await post.markAsNsfw();
-      break;
-    case 'unmark-nsfw':
-      await post.unmarkAsNsfw();
-      break;
-    case 'mark-spoiler':
-      await post.markAsSpoiler();
-      break;
-    case 'unmark-spoiler':
-      await post.unmarkAsSpoiler();
-      break;
-    case 'ignore-reports':
-      await post.ignoreReports();
-      break;
-    case 'unignore-reports':
-      await post.unignoreReports();
-      break;
-    case 'crowd-control':
-      await post.updateCrowdControlLevel(crowdControlLevel);
-      break;
-    case 'set-flair':
-      if (!flairTemplateId && !flairText) {
-        throw new Error('Select a post flair or enter flair text first');
-      }
-      await reddit.setPostFlair({
-        flairTemplateId,
-        postId: normalizedPostId,
-        subredditName: incident.subredditName,
-        text: flairText,
-      });
-      break;
-    case 'clear-flair':
-      if (!flairBefore) {
-        throw new Error('Post has no flair to remove');
-      }
-      await reddit.removePostFlair(incident.subredditName, normalizedPostId);
-      break;
+  if (values.action === 'set-flair' && !flairTemplateId && !flairText) {
+    throw new Error('Select a post flair or enter flair text first');
+  }
+  if (values.action === 'clear-flair' && !flairBefore) {
+    throw new Error('Post has no flair to remove');
   }
 
+  const detail = postActionDetail({
+    action: values.action,
+    crowdControlLevel,
+    flairText,
+    reason,
+  });
   const flairAfter =
     values.action === 'set-flair' && (flairText || flairTemplateId)
       ? {
@@ -126,15 +86,10 @@ export const applyNativePostAction = async (
         }
       : undefined;
 
-  return appendAction(normalizedPostId, {
+  const { actionId } = await startIncidentAction(normalizedPostId, {
     type: nativePostActionType(values.action),
     actor,
-    detail: postActionDetail({
-      action: values.action,
-      crowdControlLevel,
-      flairText,
-      reason,
-    }),
+    detail,
     postFlairAfter: flairAfter,
     postFlairBefore:
       values.action === 'set-flair' || values.action === 'clear-flair'
@@ -142,4 +97,84 @@ export const applyNativePostAction = async (
         : undefined,
     targetIds: [normalizedPostId],
   });
+
+  try {
+    switch (values.action) {
+      case 'approve':
+        await post.approve();
+        break;
+      case 'remove':
+        await post.remove(false);
+        if (removalNote) {
+          await post.addRemovalNote({ reasonId: '', modNote: removalNote });
+        }
+        break;
+      case 'spam':
+        await post.remove(true);
+        if (removalNote) {
+          await post.addRemovalNote({ reasonId: '', modNote: removalNote });
+        }
+        break;
+      case 'unlock':
+        await post.unlock();
+        break;
+      case 'mark-nsfw':
+        await post.markAsNsfw();
+        break;
+      case 'unmark-nsfw':
+        await post.unmarkAsNsfw();
+        break;
+      case 'mark-spoiler':
+        await post.markAsSpoiler();
+        break;
+      case 'unmark-spoiler':
+        await post.unmarkAsSpoiler();
+        break;
+      case 'ignore-reports':
+        await post.ignoreReports();
+        break;
+      case 'unignore-reports':
+        await post.unignoreReports();
+        break;
+      case 'crowd-control':
+        await post.updateCrowdControlLevel(crowdControlLevel);
+        break;
+      case 'set-flair':
+        await reddit.setPostFlair({
+          flairTemplateId,
+          postId: normalizedPostId,
+          subredditName: incident.subredditName,
+          text: flairText,
+        });
+        break;
+      case 'clear-flair':
+        await reddit.removePostFlair(incident.subredditName, normalizedPostId);
+        break;
+    }
+  } catch (error) {
+    await failIncidentAction(
+      normalizedPostId,
+      actionId,
+      error,
+      `Post action ${values.action} failed to record failure state for ${normalizedPostId}`,
+      {
+        detail,
+        postFlairBefore:
+          values.action === 'set-flair' || values.action === 'clear-flair'
+            ? flairBefore
+            : undefined,
+        targetIds: [normalizedPostId],
+      }
+    );
+    throw error;
+  }
+
+  return completeIncidentAction(
+    normalizedPostId,
+    actionId,
+    {
+      status: 'succeeded',
+    },
+    `Post action ${values.action} succeeded but failed to refresh incident ${normalizedPostId}`
+  );
 };

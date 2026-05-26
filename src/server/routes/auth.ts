@@ -5,6 +5,7 @@ import type {
 } from '../../shared/api';
 import { formatModeratorPermissionList } from '../../shared/api';
 import { normalizeUsername } from '../core/firewatch-utils';
+import { logFirewatchError } from '../core/firewatch/logging';
 
 export const DASHBOARD_PERMISSIONS: FirewatchModeratorPermission[] = ['posts'];
 export const CONFIG_PERMISSIONS: FirewatchModeratorPermission[] = ['config'];
@@ -76,7 +77,12 @@ export const getModeratorAccess = async (
       username,
     };
   } catch (error) {
-    console.error('Failed to read current moderator permissions', error);
+    logFirewatchError('auth.mod_permissions_failed', {
+      subredditName,
+      username,
+      requiredPermissions,
+      error,
+    });
 
     return {
       allowed: false,
