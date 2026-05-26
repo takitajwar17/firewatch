@@ -2,7 +2,11 @@ export {
   createFirewatchPost,
   getOrCreateFirewatchBoardPost,
 } from './firewatch/board';
-export { createDemoIncident, resetDemoIncidents } from './firewatch/demo';
+export {
+  createDemoIncident,
+  createDemoIncidents,
+  resetDemoIncidents,
+} from './firewatch/demo';
 export {
   deleteStoredCommentContent,
   deleteStoredPostContent,

@@ -89,6 +89,14 @@ const urlForMatch = (match: string) => {
   return `https://${normalized}`;
 };
 
+const normalizeObfuscatedDomains = (text: string) =>
+  text
+    .replace(/([a-z0-9])\s*(?:\(|\[)?dot(?:\)|\])?\s*([a-z0-9])/gi, '$1.$2')
+    .replace(
+      /([a-z0-9])\s*(?:\(|\[)?slash(?:\)|\])?\s*([a-z0-9])/gi,
+      '$1/$2'
+    );
+
 export const normalizeDomain = (domain: string) => {
   const trimmed = domain.trim().toLowerCase().replace(/[),.;!?\]]+$/g, '');
   if (!trimmed) return '';
@@ -102,7 +110,9 @@ export const normalizeDomain = (domain: string) => {
 };
 
 export const extractDomains = (text: string) => {
-  const domains = Array.from(text.matchAll(DOMAIN_PATTERN))
+  const domains = Array.from(
+    normalizeObfuscatedDomains(text).matchAll(DOMAIN_PATTERN)
+  )
     .map((match) => normalizeDomain(match[0]))
     .filter(Boolean);
 

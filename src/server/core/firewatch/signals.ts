@@ -18,6 +18,7 @@ import {
   makeEmptyImpact,
   makeEmptyStats,
 } from '../firewatch-scoring';
+import type { PostSnapshot } from '../firewatch-scoring/helpers';
 import { runRuleAutomationActions } from './automation';
 import { appendAction, getPostSnapshot, refreshIncident } from './incidents';
 import {
@@ -48,6 +49,7 @@ import { externalModActionDetail, externalModActionType } from '../mod-actions';
 // Signal input and recent-signal dedupe
 export type SignalInput = Omit<IncidentSignal, 'id' | 'createdAt' | 'source'> & {
   createdAt?: number;
+  postSnapshot?: PostSnapshot;
   source?: SignalSource;
 };
 
@@ -144,6 +146,7 @@ const signalRuleTrigger = (signal: IncidentSignal): RuleTrigger['type'] => {
 };
 
 export const recordIncidentSignal = async (input: SignalInput) => {
+  const { postSnapshot: providedPostSnapshot, ...signalInput } = input;
   const postId = normalizePostId(input.postId);
   const commentId = input.commentId
     ? normalizeCommentId(input.commentId)
@@ -154,10 +157,11 @@ export const recordIncidentSignal = async (input: SignalInput) => {
       : input.parentId
         ? normalizePostId(input.parentId)
         : undefined;
-  const postSnapshot = await getPostSnapshot(postId);
   const existing = await getIncident(postId);
+  const postSnapshot =
+    providedPostSnapshot ?? (await getPostSnapshot(postId));
   const signal: IncidentSignal = {
-    ...input,
+    ...signalInput,
     postId,
     commentId,
     parentId,

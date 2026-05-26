@@ -104,7 +104,7 @@ test('detection matches watched words without substring false positives', () => 
 
 test('detection parses domains and matches exact hosts or subdomains', () => {
   const text =
-    'Go to hxxps://sub.bit.ly/claim, not orbit.ly, bit.ly-example.com, or example.com.';
+    'Go to sub(dot)bit(dot)ly/claim, not orbit.ly, bit.ly-example.com, or example.com.';
 
   assert.deepEqual(extractDomains(text), [
     'sub.bit.ly',
@@ -122,6 +122,37 @@ test('detection parses domains and matches exact hosts or subdomains', () => {
     ]
   );
   assert.equal(linkCount(text), 4);
+});
+
+test('incident refresh falls back when Reddit native post reads are cancelled', () => {
+  const source = readFileSync('src/server/core/firewatch/incidents.ts', 'utf8');
+  const refreshStart = source.indexOf('export const refreshIncident');
+  const refreshEnd = source.indexOf('export const appendAction', refreshStart);
+  const refreshSource = source.slice(refreshStart, refreshEnd);
+
+  assert.match(source, /const isTransientRedditReadError/);
+  assert.match(source, /cancelled\|deadline\|unavailable\|timeout/);
+  assert.match(source, /const fallbackPostSnapshot = \(incident: Incident\)/);
+  assert.match(source, /return fallbackPostSnapshot\(incident\)/);
+  assert.match(
+    refreshSource,
+    /const postSnapshot = await getRefreshPostSnapshot\(incident\)/
+  );
+  assert.doesNotMatch(
+    refreshSource,
+    /await getPostSnapshot\(incident\.postId\)/
+  );
+});
+
+test('demo seeding reuses the submitted post snapshot instead of rereading Reddit for every signal', () => {
+  const source = readFileSync('src/server/core/firewatch/demo.ts', 'utf8');
+  const lifecycleStart = source.indexOf('// Demo incident lifecycle');
+  const lifecycleSource = source.slice(lifecycleStart);
+
+  assert.match(lifecycleSource, /const postSnapshot: PostSnapshot =/);
+  assert.match(lifecycleSource, /postId,\n\s+commentId,/);
+  assert.match(lifecycleSource, /postSnapshot,/);
+  assert.match(lifecycleSource, /Failed to create Firewatch demo/);
 });
 
 test('safety lane uses narrow high-risk patterns instead of broad sentiment claims', () => {
@@ -430,25 +461,25 @@ test('prepared automation actions classify safety and preserve targets', () => {
     id: 'prepared_safe',
     targetId: 't1_comment',
     targetType: 'comment',
-    username: 'demoSpammer',
+    username: 'RuleBreaker42',
   });
   const destructive = preparedRuleAction({
     action: { type: 'remove_comment', reason: 'Scam link' },
     id: 'prepared_destructive',
     targetId: 't1_comment',
     targetType: 'comment',
-    username: 'demoSpammer',
+    username: 'RuleBreaker42',
   });
   const restricted = preparedRuleAction({
     action: { type: 'prepare_temp_ban', durationDays: 1, reason: 'Repeat' },
     id: 'prepared_restricted',
-    targetId: 'demoSpammer',
+    targetId: 'RuleBreaker42',
     targetType: 'user',
-    username: 'demoSpammer',
+    username: 'RuleBreaker42',
   });
 
   assert.equal(safe.risk, 'safe');
-  assert.equal(safe.username, 'demoSpammer');
+  assert.equal(safe.username, 'RuleBreaker42');
   assert.equal(destructive.risk, 'destructive');
   assert.equal(restricted.risk, 'restricted');
 });
@@ -459,14 +490,14 @@ test('auto-run safe mode is limited to Firewatch-internal actions', () => {
     id: 'native_mod_note',
     targetId: 't1_comment',
     targetType: 'comment',
-    username: 'demoSpammer',
+    username: 'RuleBreaker42',
   });
   const nativeApproval = preparedRuleAction({
     action: { type: 'approve_comment' },
     id: 'native_approval',
     targetId: 't1_comment',
     targetType: 'comment',
-    username: 'demoSpammer',
+    username: 'RuleBreaker42',
   });
   const nativeFlair = preparedRuleAction({
     action: { type: 'set_post_flair', flairText: 'Needs review' },
@@ -872,23 +903,57 @@ test('incident ingest dedupes retried content events but keeps reports additive'
   assert.doesNotMatch(source, /'comment_report',\s*\n\s*'post_report'/);
 });
 
-test('demo creation keeps repeated judge walkthroughs clean', () => {
+test('demo creation is additive and reset deletes Reddit demo posts', () => {
   const source = readFileSync('src/server/core/firewatch/demo.ts', 'utf8');
   const createStart = source.indexOf('export const createDemoIncident');
   const createEnd = source.indexOf('export const resetDemoIncidents', createStart);
   const createSource = source.slice(createStart, createEnd);
   const resetStart = source.indexOf('export const resetDemoIncidents');
   const resetSource = source.slice(resetStart);
+  const apiSource = readFileSync('src/server/routes/api.ts', 'utf8');
+  const boardStateSource = readFileSync(
+    'src/client/firewatch/board-states.tsx',
+    'utf8'
+  );
+  const dashboardSource = readFileSync(
+    'src/client/firewatch/use-dashboard.ts',
+    'utf8'
+  );
+  const settingsSource = readFileSync(
+    'src/client/firewatch/settings/community-controls.tsx',
+    'utf8'
+  );
 
-  assert.match(createSource, /await resetDemoIncidents\(\)/);
+  assert.doesNotMatch(createSource, /await resetDemoIncidents\(\)/);
+  assert.match(createSource, /export const createDemoIncidents/);
+  assert.match(createSource, /scenarioIds\.length > 0/);
+  assert.match(createSource, /for \(const scenarioId of selectedScenarioIds\)/);
+  assert.match(createSource, /await post\.delete\(\)/);
+  assert.match(resetSource, /deleteDemoRedditPost\(postId\)/);
   assert.match(resetSource, /clearUserStrikesForPost\(context\.subredditName, username, cleanup\.postId\)/);
   assert.match(resetSource, /clearRememberedIncident\(\)/);
   assert.doesNotMatch(resetSource, /startsWith\('demo'\)/);
   assert.match(resetSource, /if \(normalized\) demoAuthors\.add\(normalized\)/);
+  assert.match(apiSource, /scenarioIds: FirewatchDemoScenarioId\[\]/);
+  assert.match(apiSource, /return createDemoIncidents\(scenarioIds\)/);
+  assert.match(boardStateSource, /selectedScenarioIds/);
+  assert.match(boardStateSource, /onCreateDemo\(selectedScenarioIds\)/);
+  assert.match(boardStateSource, /Choose demo scenarios/);
+  assert.doesNotMatch(boardStateSource, /Choose one demo scenario/);
+  assert.match(dashboardSource, /selectedScenarioIds\.reduce/);
+  assert.match(dashboardSource, /body: \{ scenarioId \}/);
+  assert.doesNotMatch(dashboardSource, /body: \{ scenarioIds \}/);
+  assert.doesNotMatch(settingsSource, /Replace demo thread|cleared first|one clean demo/);
 });
 
 test('demo review data reads like real incidents with honest counting', () => {
   const demoSource = readFileSync('src/server/core/firewatch/demo.ts', 'utf8');
+  const postSeedStart = demoSource.indexOf('const buildDemoPostSeed');
+  const postSeedEnd = demoSource.indexOf(
+    'export const buildDemoComments',
+    postSeedStart
+  );
+  const postSeedSource = demoSource.slice(postSeedStart, postSeedEnd);
   const scoringSource = readFileSync(
     'src/server/core/firewatch-scoring.ts',
     'utf8'
@@ -915,9 +980,21 @@ test('demo review data reads like real incidents with honest counting', () => {
   assert.match(demoSource, /\[Firewatch demo\] Locked account help thread/);
   assert.match(demoSource, /\[Firewatch demo\] Mods removed the warning/);
   assert.doesNotMatch(demoSource, /This is a Firewatch demo post/);
-  assert.doesNotMatch(demoSource, /Demo report|Demo post sent|demoSpammer|demoNewcomer/);
+  assert.doesNotMatch(
+    demoSource,
+    new RegExp(`Demo report|Demo post sent|${'demo'}Spammer|${'demo'}Newcomer`)
+  );
+  assert.match(postSeedSource, /I was told this community still has unused promotional payouts/);
+  assert.match(postSeedSource, /A warning thread disappeared this morning/);
+  assert.doesNotMatch(postSeedSource, /demoUrl|hxxps?:\/\/|\(dot\)/);
   assert.doesNotMatch(demoSource, /Created .* demo with/);
-  assert.match(demoSource, /hxxps:\/\//);
+  assert.match(demoSource, /\$\{comments\.length\} comments/);
+  assert.doesNotMatch(demoSource, /with [0-9]+ comments plus post and comment reports/);
+  assert.match(demoSource, /\(dot\)/);
+  assert.doesNotMatch(demoSource, /hxxps?:\/\//);
+  assert.match(demoSource, /try \{\s*const ruleLogs = await recordRuleMatches/);
+  assert.match(demoSource, /return await runRuleAutomationActions/);
+  assert.match(demoSource, /return enrichedDemoIncident/);
   assert.match(scoringSource, /const contentSignals = uniqueContentSignals\(scoreSignals\)/);
   assert.match(scoringSource, /const keywordHits = contentSignals\.reduce/);
   assert.match(scoringSource, /const suspiciousHits = contentSignals\.reduce/);

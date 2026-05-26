@@ -404,8 +404,8 @@ export const CommunityToolsCard = ({
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <p className="text-sm leading-5 text-muted-foreground">
-          Creates one clean demo thread at a time. Existing demo queue items are
-          cleared first; subreddit settings stay unchanged.
+          Adds a realistic demo thread to the queue. Existing demo threads stay
+          in place until you reset demos.
         </p>
         <FieldBlock htmlFor="fw-demo-scenario" label="Demo scenario">
           <div className="relative min-w-0">
@@ -434,11 +434,17 @@ export const CommunityToolsCard = ({
             {selectedScenario.description}
           </p>
         ) : null}
+        {hasDemoIncidents ? (
+          <p className="text-xs leading-5 text-muted-foreground">
+            Reset demos removes Firewatch demo queue items and deletes their
+            Reddit posts.
+          </p>
+        ) : null}
         <div className="grid min-w-0 gap-2 sm:grid-cols-2 xl:grid-cols-1">
           <PlaybookButton
             disabled={busyAction === 'demo'}
             icon={<RedditAddIcon data-icon="inline-start" />}
-            label={hasDemoIncidents ? 'Replace demo thread' : 'Create demo thread'}
+            label="Create demo thread"
             loading={busyAction === 'demo'}
             loadingLabel="Creating"
             variant="outline"

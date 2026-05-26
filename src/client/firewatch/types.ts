@@ -38,7 +38,9 @@ export type QueueFilter = 'all' | 'claimed' | 'resolved';
 
 export type QueueFilterCounts = Record<QueueFilter, number>;
 
-export type DemoCreateHandler = (scenarioId?: FirewatchDemoScenarioId) => void;
+export type DemoCreateHandler = (
+  scenarioIds?: FirewatchDemoScenarioId | FirewatchDemoScenarioId[]
+) => void;
 
 export type AppResetHandler = () => void;
 

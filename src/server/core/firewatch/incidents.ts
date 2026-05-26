@@ -4,6 +4,7 @@ import { MAX_ACTIONS } from '../firewatch-constants';
 import { attachRuleContext } from '../firewatch-rules/matching';
 import { clearUserStrikes } from '../firewatch-rules/strikes';
 import { calculateIncident } from '../firewatch-scoring';
+import type { PostSnapshot } from '../firewatch-scoring/helpers';
 import { upsertIncidentSignal } from './signals';
 import { actorName, getConfig, getIncident, saveIncident } from './store';
 import {
@@ -21,7 +22,45 @@ import {
 
 
 // Native Reddit state hydration
-export const getPostSnapshot = async (postId: string) => {
+const redditReadErrorMessage = (error: unknown) => {
+  const parts: string[] = [];
+
+  if (error instanceof Error) {
+    parts.push(error.message);
+  } else if (typeof error === 'string') {
+    parts.push(error);
+  }
+
+  if (typeof error === 'object' && error !== null) {
+    if ('details' in error && typeof error.details === 'string') {
+      parts.push(error.details);
+    }
+    if (
+      'code' in error &&
+      (typeof error.code === 'number' || typeof error.code === 'string')
+    ) {
+      parts.push(String(error.code));
+    }
+  }
+
+  return parts.join(' ');
+};
+
+const isTransientRedditReadError = (error: unknown) =>
+  /cancelled|deadline|unavailable|timeout|timed out|econnreset/i.test(
+    redditReadErrorMessage(error)
+  );
+
+const warnedPostSnapshotFallbacks = new Set<string>();
+
+const waitForRedditReadRetry = (delayMs: number) =>
+  new Promise((resolve) => {
+    setTimeout(resolve, delayMs);
+  });
+
+const getPostSnapshotFromReddit = async (
+  postId: string
+): Promise<PostSnapshot> => {
   const post = await reddit.getPostById(normalizePostId(postId));
   const createdAt = post.createdAt.getTime();
   const flair = post.flair?.text?.trim()
@@ -53,6 +92,56 @@ export const getPostSnapshot = async (postId: string) => {
       flair,
     },
   };
+};
+
+export const getPostSnapshot = async (postId: string) => {
+  const retryDelays = [120, 300];
+
+  for (let attempt = 0; attempt <= retryDelays.length; attempt += 1) {
+    try {
+      return await getPostSnapshotFromReddit(postId);
+    } catch (error) {
+      const delayMs = retryDelays[attempt];
+      if (!isTransientRedditReadError(error) || delayMs === undefined) {
+        throw error;
+      }
+      await waitForRedditReadRetry(delayMs);
+    }
+  }
+
+  return getPostSnapshotFromReddit(postId);
+};
+
+const fallbackPostSnapshot = (incident: Incident): PostSnapshot => ({
+  authorName: incident.postAuthor,
+  score: incident.postScore ?? 0,
+  numberOfComments:
+    incident.postCommentCount ?? incident.flaggedComments.length,
+  title: incident.title || 'Untitled post',
+  permalink: incident.permalink,
+  subredditName: incident.subredditName,
+  numberOfReports: 0,
+  createdAt: incident.createdAt,
+  postState: incident.postState,
+});
+
+const getRefreshPostSnapshot = async (incident: Incident) => {
+  try {
+    return await getPostSnapshot(incident.postId);
+  } catch (error) {
+    if (
+      !isTransientRedditReadError(error) &&
+      !warnedPostSnapshotFallbacks.has(incident.postId)
+    ) {
+      warnedPostSnapshotFallbacks.add(incident.postId);
+      console.warn(
+        `Using stored Firewatch post snapshot for ${incident.postId}`,
+        error
+      );
+    }
+
+    return fallbackPostSnapshot(incident);
+  }
 };
 
 export const isDemoCommentSnapshot = (incident: Incident, commentId: string) =>
@@ -256,7 +345,7 @@ export const buildEscalationSummary = (incident: Incident) => {
 
 // Incident refresh and action log core
 export const refreshIncident = async (incident: Incident) => {
-  const postSnapshot = await getPostSnapshot(incident.postId);
+  const postSnapshot = await getRefreshPostSnapshot(incident);
   const config = await getConfig(postSnapshot.subredditName);
   const hydratedIncident = await hydrateFlaggedCommentStates(incident);
   const calculated = calculateIncident(hydratedIncident, config, postSnapshot);

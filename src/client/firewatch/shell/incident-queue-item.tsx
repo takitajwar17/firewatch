@@ -260,7 +260,7 @@ export const IncidentQueueItem = ({
           : 'w-[min(18.5rem,calc(100vw-1rem))] snap-start rounded-md border-border bg-card p-3 hover:bg-accent',
         selected &&
           (surface === 'dark'
-            ? 'bg-sidebar-accent before:absolute before:inset-y-2 before:left-0 before:w-0.5 before:rounded-full before:bg-primary'
+            ? 'bg-sidebar-accent'
             : 'border-border bg-accent')
       )}
       onClick={onSelect}

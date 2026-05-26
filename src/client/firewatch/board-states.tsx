@@ -9,6 +9,7 @@ import {
 import {
   formatModeratorPermissionList,
   type AccessDeniedResponse,
+  type FirewatchDemoScenarioId,
 } from '../../shared/api';
 import { Skeleton } from './common';
 import type { DemoCreateHandler, QueueFilter } from './types';
@@ -206,12 +207,17 @@ export const EmptyBoard = ({
     FIREWATCH_DEMO_SCENARIOS.find(
       (scenario) => scenario.id === DEFAULT_DEMO_SCENARIO_ID
     ) ?? FIREWATCH_DEMO_SCENARIOS[0];
-  const [selectedScenarioId, setSelectedScenarioId] = useState(
-    () => defaultScenario?.id
+  const [selectedScenarioIds, setSelectedScenarioIds] = useState(() =>
+    defaultScenario ? [defaultScenario.id] : []
   );
-  const selectedScenario = FIREWATCH_DEMO_SCENARIOS.find(
-    (scenario) => scenario.id === selectedScenarioId
-  );
+  const selectedCount = selectedScenarioIds.length;
+  const toggleScenario = (scenarioId: FirewatchDemoScenarioId) => {
+    setSelectedScenarioIds((current) =>
+      current.includes(scenarioId)
+        ? current.filter((id) => id !== scenarioId)
+        : [...current, scenarioId]
+    );
+  };
 
   return (
     <div className="flex min-h-[60vh] items-center justify-center py-6 sm:py-8">
@@ -226,11 +232,11 @@ export const EmptyBoard = ({
 
         <div className="mt-1 flex flex-col gap-2">
           <p className="text-xs font-semibold uppercase leading-4 tracking-[0.08em] text-muted-foreground">
-            Choose one demo scenario
+            Choose demo scenarios
           </p>
           <div className="grid min-w-0 gap-2">
             {FIREWATCH_DEMO_SCENARIOS.map((scenario) => {
-              const selected = scenario.id === selectedScenario?.id;
+              const selected = selectedScenarioIds.includes(scenario.id);
 
               return (
                 <button
@@ -244,18 +250,18 @@ export const EmptyBoard = ({
                   )}
                   disabled={busy}
                   type="button"
-                  onClick={() => setSelectedScenarioId(scenario.id)}
+                  onClick={() => toggleScenario(scenario.id)}
                 >
                   <span
                     className={cn(
-                      'flex size-4 shrink-0 items-center justify-center rounded-full border transition-colors',
+                      'flex size-4 shrink-0 items-center justify-center rounded-sm border transition-colors',
                       selected
                         ? 'border-primary bg-primary'
                         : 'border-muted-foreground/70'
                     )}
                   >
                     {selected ? (
-                      <span className="size-1.5 rounded-full bg-primary-foreground" />
+                      <span className="h-2 w-1.5 rotate-45 border-r-2 border-b-2 border-primary-foreground" />
                     ) : null}
                   </span>
                   <span className="flex min-w-0 flex-col gap-0.5">
@@ -274,15 +280,14 @@ export const EmptyBoard = ({
 
         <div className="flex flex-col gap-2 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs leading-5 text-muted-foreground">
-            Firewatch will create one demo thread and open it in the review
-            queue.
+            Firewatch will add the selected demo threads to the review queue.
           </p>
           <Button
             className="w-full sm:w-fit"
-            disabled={busy || !selectedScenario}
+            disabled={busy || selectedCount === 0}
             variant="default"
             onClick={() => {
-              if (selectedScenario) onCreateDemo(selectedScenario.id);
+              if (selectedCount > 0) onCreateDemo(selectedScenarioIds);
             }}
           >
             {busy ? (
@@ -291,7 +296,11 @@ export const EmptyBoard = ({
                 data-icon="inline-start"
               />
             ) : null}
-            {busy ? 'Creating demo thread' : 'Create demo thread'}
+            {busy
+              ? 'Creating demo threads'
+              : selectedCount === 1
+                ? 'Create 1 demo thread'
+                : `Create ${selectedCount} demo threads`}
           </Button>
         </div>
       </div>

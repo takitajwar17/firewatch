@@ -39,7 +39,7 @@ import {
   claimIncident,
   clearIncidentUserStrikes,
   coolDownIncident,
-  createDemoIncident,
+  createDemoIncidents,
   escalateIncident,
   getConfig,
   getIncidentById,
@@ -331,8 +331,15 @@ api.post('/demo/incident', async (c) => {
     async () => {
       const body = await readOptionalJson<{
         scenarioId: FirewatchDemoScenarioId;
+        scenarioIds: FirewatchDemoScenarioId[];
       }>(c);
-      return createDemoIncident(body.scenarioId);
+      const scenarioIds =
+        body.scenarioIds && body.scenarioIds.length > 0
+          ? body.scenarioIds
+          : body.scenarioId
+            ? [body.scenarioId]
+            : undefined;
+      return createDemoIncidents(scenarioIds);
     },
     POST_MODERATION_PERMISSIONS,
     'create demo review posts'

@@ -180,13 +180,76 @@ export const useDashboard = () => {
   }, [refresh, updateIncident]);
 
   const createDemoIncident = useCallback(
-    (scenarioId?: FirewatchDemoScenarioId) =>
-      runAction(
-        'demo',
-        '/api/demo/incident',
-        scenarioId ? { scenarioId } : undefined
-      ),
-    [runAction]
+    async (scenarioIds?: FirewatchDemoScenarioId | FirewatchDemoScenarioId[]) => {
+      const selectedScenarioIds = Array.isArray(scenarioIds)
+        ? scenarioIds
+        : scenarioIds
+          ? [scenarioIds]
+          : [];
+
+      if (selectedScenarioIds.length <= 1) {
+        const body = selectedScenarioIds[0]
+          ? { scenarioId: selectedScenarioIds[0] }
+          : undefined;
+
+        return runAction('demo', '/api/demo/incident', body);
+      }
+
+      setBusyAction('demo');
+      setNotice(undefined);
+
+      const createdIncidents: Incident[] = [];
+      const failedCount = await selectedScenarioIds.reduce(
+        async (failedCountPromise, scenarioId) => {
+          const failedCount = await failedCountPromise;
+
+          try {
+            const payload = await requestJson<{ incident: Incident }>(
+              '/api/demo/incident',
+              {
+                body: { scenarioId },
+                method: 'POST',
+              }
+            );
+            updateIncident(payload.incident);
+            createdIncidents.push(payload.incident);
+            return failedCount;
+          } catch (error) {
+            console.error(`Firewatch demo failed: ${scenarioId}`, error);
+            return failedCount + 1;
+          }
+        },
+        Promise.resolve(0)
+      );
+
+      try {
+        await refresh();
+      } finally {
+        setBusyAction(undefined);
+      }
+
+      const createdCount = createdIncidents.length;
+      if (createdCount > 0) {
+        setNotice({
+          type: failedCount > 0 ? 'error' : 'success',
+          message:
+            failedCount > 0
+              ? `${createdCount} demo threads created. ${failedCount} failed.`
+              : `${createdCount} demo threads created.`,
+        });
+        return createdIncidents.at(-1);
+      }
+
+      setNotice({
+        type: 'error',
+        message:
+          failedCount === 1
+            ? 'Create demo thread failed.'
+            : 'Create demo threads failed.',
+      });
+      return undefined;
+    },
+    [refresh, runAction, updateIncident]
   );
 
   const resetDemoIncidents = useCallback(async () => {
@@ -201,8 +264,8 @@ export const useDashboard = () => {
         type: 'success',
         message:
           payload.resetCount === 1
-            ? 'Demo post cleared.'
-            : `${payload.resetCount} demo posts cleared.`,
+            ? 'Demo post deleted.'
+            : `${payload.resetCount} demo posts deleted.`,
       });
     } catch (error) {
       setNotice({
