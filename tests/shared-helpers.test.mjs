@@ -881,9 +881,51 @@ test('demo creation keeps repeated judge walkthroughs clean', () => {
   const resetSource = source.slice(resetStart);
 
   assert.match(createSource, /await resetDemoIncidents\(\)/);
-  assert.match(resetSource, /clearUserStrikes\(context\.subredditName, username\)/);
+  assert.match(resetSource, /clearUserStrikesForPost\(context\.subredditName, username, cleanup\.postId\)/);
   assert.match(resetSource, /clearRememberedIncident\(\)/);
-  assert.match(resetSource, /startsWith\('demo'\)/);
+  assert.doesNotMatch(resetSource, /startsWith\('demo'\)/);
+  assert.match(resetSource, /if \(normalized\) demoAuthors\.add\(normalized\)/);
+});
+
+test('demo review data reads like real incidents with honest counting', () => {
+  const demoSource = readFileSync('src/server/core/firewatch/demo.ts', 'utf8');
+  const scoringSource = readFileSync(
+    'src/server/core/firewatch-scoring.ts',
+    'utf8'
+  );
+  const strikesSource = readFileSync(
+    'src/server/core/firewatch-rules/strikes.ts',
+    'utf8'
+  );
+  const postHeaderSource = readFileSync(
+    'src/client/firewatch/overview/post-header.tsx',
+    'utf8'
+  );
+  const commentActionsSource = readFileSync(
+    'src/server/core/firewatch/actions/comment-actions.ts',
+    'utf8'
+  );
+  const userActionsSource = readFileSync(
+    'src/server/core/firewatch/actions/user-actions.ts',
+    'utf8'
+  );
+
+  assert.match(demoSource, /\[Firewatch demo\] Official giveaway claim/);
+  assert.match(demoSource, /\[Firewatch demo\] Account recovery agent/);
+  assert.match(demoSource, /\[Firewatch demo\] Locked account help thread/);
+  assert.match(demoSource, /\[Firewatch demo\] Mods removed the warning/);
+  assert.doesNotMatch(demoSource, /This is a Firewatch demo post/);
+  assert.doesNotMatch(demoSource, /Demo report|Demo post sent|demoSpammer|demoNewcomer/);
+  assert.doesNotMatch(demoSource, /Created .* demo with/);
+  assert.match(demoSource, /hxxps:\/\//);
+  assert.match(scoringSource, /const contentSignals = uniqueContentSignals\(scoreSignals\)/);
+  assert.match(scoringSource, /const keywordHits = contentSignals\.reduce/);
+  assert.match(scoringSource, /const suspiciousHits = contentSignals\.reduce/);
+  assert.match(strikesSource, /export const clearUserStrikesForPost/);
+  assert.match(strikesSource, /strike\.relatedPostId !== normalizedPostId/);
+  assert.doesNotMatch(postHeaderSource, /<InlineState>Demo<\/InlineState>/);
+  assert.doesNotMatch(commentActionsSource, /Marked demo comment/);
+  assert.doesNotMatch(userActionsSource, /recorded demo|Recorded demo/);
 });
 
 test('app reset deletes Firewatch-owned storage', () => {

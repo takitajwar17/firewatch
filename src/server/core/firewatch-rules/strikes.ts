@@ -124,6 +124,31 @@ export const clearUserStrikes = async (
   await redis.del(userStrikesKey(subredditName, normalizedUsername));
 };
 
+export const clearUserStrikesForPost = async (
+  subredditName: string,
+  username: string,
+  postId: string
+) => {
+  const normalizedUsername = normalizeUsername(username);
+  if (!normalizedUsername) throw new Error('Cannot clear unknown user');
+
+  const normalizedPostId = normalizePostId(postId);
+  const strikes = await getUserStrikes(subredditName, normalizedUsername);
+  const remainingStrikes = strikes.filter(
+    (strike) => strike.relatedPostId !== normalizedPostId
+  );
+  const key = userStrikesKey(subredditName, normalizedUsername);
+
+  if (remainingStrikes.length === 0) {
+    await redis.del(key);
+    return;
+  }
+
+  await redis.set(key, JSON.stringify(remainingStrikes), {
+    expiration: retentionExpiration(),
+  });
+};
+
 export const getUserStrikeSummaries = async (
   incident: Incident
 ): Promise<UserStrikeSummary[]> => {

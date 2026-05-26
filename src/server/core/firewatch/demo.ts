@@ -10,7 +10,7 @@ import {
 } from '../../../shared/firewatch-presets';
 import {
   addUserStrike,
-  clearUserStrikes,
+  clearUserStrikesForPost,
 } from '../firewatch-rules/strikes';
 import {
   attachRuleContext,
@@ -35,7 +35,7 @@ import { claimKey, incidentKey, normalizeUsername, now } from '../firewatch-util
 
 // Demo comment seed builder
 const pick = <T>(items: T[], index: number, fallback: T) =>
-  items.length > 0 ? items[index % items.length] : fallback;
+  items.length > 0 ? (items[index % items.length] ?? fallback) : fallback;
 
 const demoKeyword = (config: FirewatchConfig) =>
   config.keywords.find(
@@ -47,6 +47,104 @@ export type DemoCommentSeed = {
   body: string;
   reportReason?: string;
   branch?: 'cluster' | 'post';
+};
+
+type DemoPostSeed = {
+  actionDetail: string;
+  body: string;
+  manualReason: string;
+  postReportReason: string;
+  strikeReasons?: {
+    reason: string;
+    source: 'watched_domain' | 'watched_word';
+    username: string;
+  }[];
+  title: string;
+};
+
+const demoUrl = (domain: string, path: string) =>
+  `hxxps://${domain}/${path.replace(/^\/+/, '')}`;
+
+const buildDemoPostSeed = ({
+  scenarioId,
+  suspiciousDomain,
+}: {
+  scenarioId: FirewatchDemoScenarioId;
+  suspiciousDomain: string;
+}): DemoPostSeed => {
+  const claimUrl = demoUrl(suspiciousDomain, 'claim-prize');
+  const supportUrl = demoUrl(suspiciousDomain, 'support-check');
+  const verifyUrl = demoUrl(suspiciousDomain, 'verify-account');
+
+  if (scenarioId === 'suspicious_giveaway_escalating') {
+    return {
+      title: '[Firewatch demo] Official giveaway claim before midnight',
+      body: [
+        'I still have extra payouts from the promo list.',
+        `DM me before midnight for free money, then open ${claimUrl}.`,
+        'A small admin fee unlocks the claim.',
+      ].join('\n\n'),
+      postReportReason: 'Scam giveaway link',
+      manualReason: 'Sent from the post menu after the giveaway replies started spreading.',
+      actionDetail:
+        'Created suspicious giveaway review with 6 comments plus post and comment reports',
+      strikeReasons: [
+        {
+          reason: 'Earlier wallet claim linked a watched domain',
+          source: 'watched_domain',
+          username: 'PrizeWalletHelp',
+        },
+        {
+          reason: 'Earlier giveaway reply reused admin fee language',
+          source: 'watched_word',
+          username: 'PrizeWalletHelp',
+        },
+      ],
+    };
+  }
+
+  if (scenarioId === 'scam_link_cleanup') {
+    return {
+      title: '[Firewatch demo] Account recovery agent helped me unlock my wallet',
+      body: [
+        'If your account is locked, message me on telegram.',
+        `My recovery agent uses ${supportUrl} and can reset passwords after a small admin fee.`,
+        'Do not wait for official support if your wallet is already frozen.',
+      ].join('\n\n'),
+      postReportReason: 'Suspicious recovery service',
+      manualReason: 'Sent from the post menu after recovery-agent comments appeared.',
+      actionDetail:
+        'Created scam link cleanup review with 6 comments plus post and comment reports',
+    };
+  }
+
+  if (scenarioId === 'support_safety_cleanup') {
+    return {
+      title: '[Firewatch demo] Locked account help thread collecting recovery codes',
+      body: [
+        'I can help check locked accounts faster than official support.',
+        `Paste the recovery code, email address, and last four digits here, or use ${verifyUrl}.`,
+        'If you are embarrassed, DM me the same personal details instead.',
+      ].join('\n\n'),
+      postReportReason: 'Personal information risk',
+      manualReason: 'Sent from the post menu after users began sharing account details.',
+      actionDetail:
+        'Created support safety review with 6 comments plus post and comment reports',
+    };
+  }
+
+  return {
+    title: '[Firewatch demo] Mods removed the warning and people deserve answers',
+    body: [
+      'The mods keep hiding evidence and deleting replies.',
+      'Everyone should keep asking the same question until they explain it.',
+      `One user posted ${supportUrl} as proof, and now the thread is turning into personal attacks.`,
+    ].join('\n\n'),
+    postReportReason: 'Personal attacks',
+    manualReason: 'Sent from the post menu after the reply branch started piling on.',
+    actionDetail:
+      'Created crowded reply review with 8 comments plus post and comment reports',
+  };
 };
 
 export const buildDemoComments = ({
@@ -61,77 +159,79 @@ export const buildDemoComments = ({
   const suspiciousDomain = pick(config.suspiciousDomains, 0, 'bit.ly');
 
   if (scenarioId === 'suspicious_giveaway_escalating') {
+    const claimUrl = demoUrl(suspiciousDomain, 'claim-prize');
     return [
       {
-        author: 'demoSpammer',
-        body: `DM me for free money. The giveaway wallet is at ${suspiciousDomain}/claim and an admin fee gift card unlocks it.`,
+        author: 'PrizeWalletHelp',
+        body: `DM me for free money. The giveaway link is ${claimUrl}, and an admin fee unlocks it.`,
         reportReason: 'Scam giveaway link',
         branch: 'cluster',
       },
       {
-        author: 'demoNewcomer',
-        body: `That ${suspiciousDomain}/claim page asks for my wallet recovery code and says a recovery agent will help.`,
+        author: 'ThrowawayClaim82',
+        body: `That ${claimUrl} page asks for my recovery code and says a recovery agent will help.`,
         reportReason: 'Suspicious domain',
         branch: 'cluster',
       },
       {
-        author: 'demoSpammer',
+        author: 'PrizeWalletHelp',
         body: 'Message me on telegram for the recovery agent. I can fix accounts if you pay the admin fee.',
         reportReason: 'Scam offer',
         branch: 'cluster',
       },
       {
-        author: 'demoScout',
-        body: `This same giveaway phrase keeps repeating: pay the admin fee to unlock free money.`,
+        author: 'LinkWatcherLocal',
+        body: 'Same giveaway line again: pay the admin fee before midnight to unlock free money.',
         reportReason: 'Repeated scam phrase',
         branch: 'cluster',
       },
       {
-        author: 'demoHelper',
+        author: 'CarefulHelper',
         body: 'Do not share recovery codes or wallet details. Use only official support links.',
         branch: 'post',
       },
       {
-        author: 'demoConcerned',
-        body: `The suspicious giveaway is spreading fast and the same ${secondKeyword} warning keeps coming up.`,
+        author: 'ConcernedReader',
+        body: 'The suspicious giveaway is moving fast and people keep repeating the same warning.',
         branch: 'post',
       },
     ];
   }
 
   if (scenarioId === 'scam_link_cleanup') {
+    const supportUrl = demoUrl(suspiciousDomain, 'support-check');
     return [
       {
-        author: 'demoScout',
-        body: `This looks like a ${keyword} wave. The same account keeps dropping ${suspiciousDomain}/support in replies.`,
+        author: 'QueueWatcher',
+        body: `This looks like coordinated ${keyword} spam. The same account keeps dropping ${supportUrl} in replies.`,
         reportReason: 'Suspicious link',
         branch: 'cluster',
       },
       {
-        author: 'demoNewcomer',
-        body: `Do not click that ${suspiciousDomain}/support link. It asks for passwords and wallet details.`,
+        author: 'LockedOutToday',
+        body: `Do not click that ${supportUrl} link. It asks for passwords and wallet details.`,
         reportReason: 'Unsafe support link',
         branch: 'cluster',
       },
       {
-        author: 'demoSpammer',
-        body: `DM me for account recovery. Pay the admin fee with a gift card and I can fix it.`,
+        author: 'RecoverNowAgent',
+        body: 'DM me for account recovery. Pay the admin fee with a gift card and I can fix it.',
         reportReason: 'Scam offer',
         branch: 'cluster',
       },
       {
-        author: 'demoSpammer',
-        body: `Anyone who wants help should message me on telegram. I know a recovery agent.`,
+        author: 'RecoverNowAgent',
+        body: 'Anyone who wants help should message me on telegram. I know a recovery agent.',
         reportReason: 'Scam offer',
         branch: 'cluster',
       },
       {
-        author: 'demoHelper',
+        author: 'CarefulHelper',
         body: 'Use the official help center and never share passwords or recovery codes.',
         branch: 'post',
       },
       {
-        author: 'demoConcerned',
+        author: 'ConcernedReader',
         body: `The suspicious link is still spreading and people are repeating the same ${secondKeyword} warning.`,
         branch: 'post',
       },
@@ -139,37 +239,38 @@ export const buildDemoComments = ({
   }
 
   if (scenarioId === 'support_safety_cleanup') {
+    const verifyUrl = demoUrl(suspiciousDomain, 'verify-account');
     return [
       {
-        author: 'demoHelper',
+        author: 'CarefulHelper',
         body: 'This sounds risky. Please do not post account numbers or private contact details.',
         branch: 'cluster',
       },
       {
-        author: 'demoRegular',
-        body: `The advice above may be unsafe. A ${keyword} comment is asking users to share passwords.`,
+        author: 'RegularMember41',
+        body: `The advice above may be unsafe. One ${keyword} reply is asking users to share passwords.`,
         reportReason: 'Unsafe advice',
         branch: 'cluster',
       },
       {
-        author: 'demoNewcomer',
+        author: 'LockedOutToday',
         body: 'I can paste my recovery code here if that helps.',
         reportReason: 'Personal information risk',
         branch: 'cluster',
       },
       {
-        author: 'demoWatcher',
-        body: `Someone linked ${suspiciousDomain}/verify and asked for personal details.`,
+        author: 'QueueWatcher',
+        body: `Someone linked ${verifyUrl} and asked for personal details.`,
         reportReason: 'Suspicious link',
         branch: 'cluster',
       },
       {
-        author: 'demoScout',
+        author: 'SupportRegular',
         body: 'The safe answer is to contact official support and avoid sharing private info.',
         branch: 'post',
       },
       {
-        author: 'demoConcerned',
+        author: 'ConcernedReader',
         body: `This post needs mod review before the ${secondKeyword} replies get copied again.`,
         branch: 'post',
       },
@@ -177,47 +278,48 @@ export const buildDemoComments = ({
   }
 
   const repeatedPhrase = 'mods are hiding evidence';
+  const supportUrl = demoUrl(suspiciousDomain, 'support-check');
   return [
     {
-      author: 'demoScout',
-      body: `This suddenly looks like a ${keyword} from outside the community. ${repeatedPhrase}.`,
+      author: 'PolicyWatcher',
+      body: `This suddenly looks like outside ${keyword} traffic. ${repeatedPhrase}.`,
       branch: 'cluster',
     },
     {
-      author: 'demoRegular',
+      author: 'AngryRegular',
       body: `I keep seeing the same claim. ${repeatedPhrase} and nobody is answering.`,
       reportReason: 'Personal attacks',
       branch: 'cluster',
     },
     {
-      author: 'demoNewcomer',
-      body: `Please check this ${suspiciousDomain}/post before it spreads further.`,
+      author: 'LinkDropper91',
+      body: `Please check this ${supportUrl} before it spreads further.`,
       reportReason: 'Suspicious link',
       branch: 'cluster',
     },
     {
-      author: 'demoWatcher',
+      author: 'ThreadWatcher',
       body: `The argument is looping now. ${repeatedPhrase}.`,
       branch: 'cluster',
     },
     {
-      author: 'demoHelper',
+      author: 'CarefulHelper',
       body: `This feels like a ${secondKeyword} issue and the replies are getting personal.`,
       branch: 'cluster',
     },
     {
-      author: 'demoConcerned',
+      author: 'ConcernedReader',
       body: 'Several new accounts are repeating the same line in this branch.',
       branch: 'cluster',
     },
     {
-      author: 'demoScout',
-      body: `I reported the suspicious link and the ${keyword} comments.`,
+      author: 'PolicyWatcher',
+      body: `I flagged the suspicious link and the ${keyword} comments.`,
       reportReason: 'Personal attacks',
       branch: 'post',
     },
     {
-      author: 'demoRegular',
+      author: 'AngryRegular',
       body: 'Can a mod step in before everyone piles onto the same user?',
       branch: 'post',
     },
@@ -236,18 +338,15 @@ export const createDemoIncident = async (
   const seed = now();
   const scenario = getDemoScenario(scenarioId);
   const comments = buildDemoComments({ config, scenarioId: scenario.id });
-  const title =
-    scenario.id === 'suspicious_giveaway_escalating'
-      ? 'Suspicious giveaway thread escalating'
-      : `[Firewatch demo] ${scenario.label} ${new Date(seed).toLocaleTimeString()}`;
+  const suspiciousDomain = pick(config.suspiciousDomains, 0, 'bit.ly');
+  const postSeed = buildDemoPostSeed({
+    scenarioId: scenario.id,
+    suspiciousDomain,
+  });
   const post = await reddit.submitPost({
     subredditName: context.subredditName,
-    title,
-    text: [
-      `This is a Firewatch demo post for: ${scenario.label}.`,
-      'Posts show up in Firewatch through the same path used by comments, reports, and posts sent by mods.',
-      'Mods can test claiming the post, adding a sticky comment, removing comments, locking the post, saving a handoff note, and marking it resolved without waiting for real reports.',
-    ].join('\n\n'),
+    title: postSeed.title,
+    text: postSeed.body,
   });
   const branchParentId = `t1_fw_demo_branch_${seed.toString(36)}`;
   for (const [index, comment] of comments.entries()) {
@@ -291,33 +390,26 @@ export const createDemoIncident = async (
     }
   }
 
-  if (scenario.id === 'suspicious_giveaway_escalating') {
-    await addUserStrike({
-      createdBy: 'firewatch',
-      reason: 'Previous suspicious giveaway link matched a watched domain',
-      relatedPostId: post.id,
-      source: 'watched_domain',
-      subredditName: context.subredditName,
-      username: 'demoSpammer',
-      weight: 1,
-    });
-    await addUserStrike({
-      createdBy: 'firewatch',
-      reason: 'Previous scam phrase matched watched words',
-      relatedPostId: post.id,
-      source: 'watched_word',
-      subredditName: context.subredditName,
-      username: 'demoSpammer',
-      weight: 1,
-    });
+  if (postSeed.strikeReasons) {
+    for (const strike of postSeed.strikeReasons) {
+      await addUserStrike({
+        createdBy: 'firewatch',
+        reason: strike.reason,
+        relatedPostId: post.id,
+        source: strike.source,
+        subredditName: context.subredditName,
+        username: strike.username,
+        weight: 1,
+      });
+    }
   }
 
   await upsertIncidentSignal({
     type: 'post_report',
     source: 'report',
     postId: post.id,
-    body: `${post.title}\nDemo report: ${scenario.description}`,
-    reason: 'Post needs mod review',
+    body: `${post.title}\n${postSeed.body}`,
+    reason: postSeed.postReportReason,
     createdAt: seed - 2 * 60 * 1000,
     isDemo: true,
     metadata: {
@@ -329,7 +421,7 @@ export const createDemoIncident = async (
     type: 'manual_escalation',
     source: 'mod_action',
     postId: post.id,
-    reason: 'Demo post sent for moderator review',
+    reason: postSeed.manualReason,
     createdAt: seed,
     isDemo: true,
     metadata: {
@@ -342,7 +434,7 @@ export const createDemoIncident = async (
   const withAction = await appendAction(incident.postId, {
     type: 'demo_seeded',
     actor,
-    detail: `Created ${scenario.label.toLowerCase()} demo with ${comments.length} comment events and report/manual signals`,
+    detail: postSeed.actionDetail,
   });
   const demoIncident: Incident = {
     ...withAction,
@@ -370,21 +462,24 @@ export const resetDemoIncidents = async () => {
   const index = await getIndex();
   let resetCount = 0;
   const keptPostIds: string[] = [];
-  const demoAuthors = new Set<string>();
+  const demoStrikeCleanups: Array<{ postId: string; usernames: string[] }> = [];
 
   for (const postId of index) {
     const incident = await getIncident(postId);
     if (incident?.demo) {
       resetCount += 1;
+      const demoAuthors = new Set<string>();
       [
         ...incident.recentSignals.map((signal) => signal.author),
         ...incident.flaggedComments.map((comment) => comment.author),
         ...incident.involvedUsers.map((user) => user.username),
       ].forEach((username) => {
         const normalized = normalizeUsername(username);
-        if (normalized?.toLowerCase().startsWith('demo')) {
-          demoAuthors.add(normalized);
-        }
+        if (normalized) demoAuthors.add(normalized);
+      });
+      demoStrikeCleanups.push({
+        postId,
+        usernames: Array.from(demoAuthors),
       });
       await redis.del(incidentKey(postId), claimKey(postId));
       await removeFromIncidentRegistry(context.subredditName, postId);
@@ -394,8 +489,10 @@ export const resetDemoIncidents = async () => {
   }
 
   await Promise.all(
-    Array.from(demoAuthors).map((username) =>
-      clearUserStrikes(context.subredditName, username)
+    demoStrikeCleanups.flatMap((cleanup) =>
+      cleanup.usernames.map((username) =>
+        clearUserStrikesForPost(context.subredditName, username, cleanup.postId)
+      )
     )
   );
   const rememberedPostId = await getRememberedIncidentPostId();

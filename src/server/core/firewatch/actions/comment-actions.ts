@@ -50,7 +50,7 @@ export const approveFlaggedComment = async (
     actor,
     detail: approvedOnReddit
       ? `Approved comment ${normalizedCommentId}`
-      : `Marked demo comment ${normalizedCommentId} approved`,
+      : `Marked comment ${normalizedCommentId} approved`,
     targetIds: [normalizedCommentId],
   });
   const nextIncident: Incident = {
@@ -92,7 +92,7 @@ export const removeFlaggedComment = async (
     actor,
     detail: removedOnReddit
       ? `Removed comment ${normalizedCommentId}${reason ? `: ${reason}` : ''}`
-      : `Marked demo comment ${normalizedCommentId} removed`,
+      : `Marked comment ${normalizedCommentId} removed`,
     targetIds: [normalizedCommentId],
   });
   const nextIncident: Incident = {

@@ -83,7 +83,6 @@ export const IncidentIntro = ({ incident }: { incident: Incident }) => {
             {incident.safetyReview ? (
               <InlineState variant="workflow">Safety review</InlineState>
             ) : null}
-            {incident.demo ? <InlineState>Demo</InlineState> : null}
           </div>
         </article>
       </div>

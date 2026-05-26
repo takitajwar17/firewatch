@@ -248,7 +248,7 @@ export const actionSuccessMessage = (action: string) => {
     lock: 'Post locked.',
     escalate: 'Handoff saved.',
     resolve: 'Resolved.',
-    demo: 'Demo post created.',
+    demo: 'Review thread created.',
     config: 'Saved.',
   };
 

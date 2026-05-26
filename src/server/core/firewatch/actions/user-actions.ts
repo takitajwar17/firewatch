@@ -83,7 +83,7 @@ export const banUserAndRemoveComments = async (
 
   const actor = await actorName();
   const removalDetail = demoOnly
-    ? `Marked ${removedContentIds.length} demo comment${
+    ? `Marked ${removedContentIds.length} comment${
         removedContentIds.length === 1 ? '' : 's'
       } removed`
     : `Removed ${removedContentIds.length} recent subreddit item${
@@ -93,7 +93,7 @@ export const banUserAndRemoveComments = async (
     type: 'user_banned',
     actor,
     detail: demoOnly
-      ? `${removalDetail}; recorded demo ban for u/${normalizedUsername}`
+      ? `${removalDetail}; recorded ban for u/${normalizedUsername}`
       : `${removalDetail}; banned u/${normalizedUsername}`,
     targetIds: removedContentIds,
   });
@@ -157,7 +157,7 @@ export const banPreparedRuleUser = async ({
     type: 'user_banned',
     actor,
     detail: demoUser
-      ? `Recorded demo ${durationLabel} ban for u/${normalizedUsername}: ${actionReason}`
+      ? `Recorded ${durationLabel} ban for u/${normalizedUsername}: ${actionReason}`
       : `Banned u/${normalizedUsername} (${durationLabel}): ${actionReason}`,
     targetIds: contextId?.startsWith('t1_')
       ? [normalizeCommentId(contextId)]

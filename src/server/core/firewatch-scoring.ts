@@ -47,6 +47,51 @@ export {
   makeEmptyStats,
 } from './firewatch-scoring/helpers';
 
+type ScoredSignal = ReturnType<typeof normalizeSignal>;
+
+const contentKeyForSignal = (signal: ScoredSignal) => {
+  if (!signal.body) return undefined;
+  if (signal.commentId) return `comment:${normalizeCommentId(signal.commentId)}`;
+  if (
+    signal.type === 'post_create' ||
+    signal.type === 'post_update' ||
+    signal.type === 'post_report'
+  ) {
+    return `post:${signal.postId}`;
+  }
+
+  return signal.id;
+};
+
+const chooseContentSignal = (
+  current: ScoredSignal | undefined,
+  next: ScoredSignal
+) => {
+  if (!current) return next;
+  if (current.source === 'report' && next.source === 'user') return next;
+  if (
+    current.source === next.source &&
+    (next.body?.length ?? 0) > (current.body?.length ?? 0)
+  ) {
+    return next;
+  }
+
+  return current;
+};
+
+const uniqueContentSignals = (signals: ScoredSignal[]) => {
+  const byKey = new Map<string, ScoredSignal>();
+
+  for (const signal of signals) {
+    const key = contentKeyForSignal(signal);
+    if (!key) continue;
+
+    byKey.set(key, chooseContentSignal(byKey.get(key), signal));
+  }
+
+  return Array.from(byKey.values());
+};
+
 export const calculateIncident = (
   incident: Incident,
   config: FirewatchConfig,
@@ -109,6 +154,7 @@ export const calculateIncident = (
         (!removedCommentIds.has(signal.commentId) &&
           !reviewedCommentIds.has(signal.commentId)))
   );
+  const contentSignals = uniqueContentSignals(scoreSignals);
   const visibleSignals = recentSignals.filter(
     (signal) => signal.source !== 'firewatch_notice'
   );
@@ -168,12 +214,12 @@ export const calculateIncident = (
     (total, phrase) => total + phrase.count,
     0
   );
-  const keywordHits = scoreSignals.reduce(
+  const keywordHits = contentSignals.reduce(
     (total, signal) =>
       total + countKeywordHits(signal.body ?? '', config.keywords),
     0
   );
-  const suspiciousHits = scoreSignals.reduce(
+  const suspiciousHits = contentSignals.reduce(
     (total, signal) =>
       total +
       countSuspiciousDomainHits(signal.body ?? '', config.suspiciousDomains),
@@ -242,7 +288,7 @@ export const calculateIncident = (
   );
   const manualPoints =
     manualEscalations.length > 0 ? config.signalWeights.manualSend : 0;
-  const safetyReview = detectSafetyReview(scoreSignals);
+  const safetyReview = detectSafetyReview(contentSignals);
   const safetyPoints = safetyReview ? 35 : 0;
 
   if (velocityPoints > 0) {
@@ -270,7 +316,7 @@ export const calculateIncident = (
 
   if (keywordPoints > 0) {
     const matchedWords = new Set(
-      scoreSignals.flatMap((signal) =>
+      contentSignals.flatMap((signal) =>
         watchedWordMatches(signal.body ?? '', config.keywords).map(
           (match) => match.term
         )
@@ -287,7 +333,7 @@ export const calculateIncident = (
 
   if (suspiciousPoints > 0) {
     const matchedDomains = new Set(
-      scoreSignals.flatMap((signal) =>
+      contentSignals.flatMap((signal) =>
         watchedDomainMatches(
           signal.body ?? '',
           config.suspiciousDomains
