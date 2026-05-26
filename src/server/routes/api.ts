@@ -8,18 +8,26 @@ import type {
   ConfigResponse,
   CrowdControlLevel,
   DashboardInitResponse,
+  DashboardResponse,
   DemoResetResponse,
+  FirewatchConfig,
   FirewatchDemoScenarioId,
+  IncidentActionType,
+  FirewatchModeratorPermission,
   FirewatchRuleInput,
   Incident,
   NativeCommentAction,
   NativePostAction,
   NativeUserAction,
   PostFlairOption,
+  RuleAction,
   RulesResponse,
   RuleTestResponse,
 } from '../../shared/api';
-import type { FirewatchConfigUpdate } from '../../shared/firewatch-config';
+import {
+  EMPTY_CONFIG,
+  type FirewatchConfigUpdate,
+} from '../../shared/firewatch-config';
 import { errorResponse } from './responses';
 import {
   applyNativeCommentAction,
@@ -56,6 +64,17 @@ import {
 } from '../core/firewatch-rules/store';
 import { testAutomation } from '../core/firewatch-rules/matching';
 import { normalizeUsername } from '../core/firewatch-utils';
+import {
+  CONFIG_PERMISSIONS,
+  DASHBOARD_PERMISSIONS,
+  FLAIR_MODERATION_PERMISSIONS,
+  POST_MODERATION_PERMISSIONS,
+  USER_MODERATION_PERMISSIONS,
+  accessDeniedPayload,
+  getModeratorAccess,
+  hasModeratorPermissions,
+  requireModeratorPermissions,
+} from './auth';
 
 export const api = new Hono();
 
@@ -64,21 +83,43 @@ const currentModeratorName = async () =>
     context.username ?? (await reddit.getCurrentUsername()) ?? undefined
   );
 
+const reviewVisibleConfig = (
+  config: FirewatchConfig,
+  canConfigure: boolean
+): FirewatchConfig =>
+  canConfigure
+    ? config
+    : {
+        ...EMPTY_CONFIG,
+        actionControls: config.actionControls,
+        reminderText: config.reminderText,
+      };
+
 const loadDashboardData = async (): Promise<DashboardInitResponse> => {
   const contextSelectedPostId =
     typeof context.postData?.incidentPostId === 'string'
       ? context.postData.incidentPostId
       : undefined;
   const subredditName = context.subredditName;
-  const [incidents, config, username, postFlairOptions, rules, ruleLogs] =
-    await Promise.all([
-      getIncidents(),
-      getConfig(),
-      currentModeratorName(),
-      getPostFlairOptions(subredditName),
-      getAutomations(subredditName),
-      getRuleExecutionLogs(subredditName),
-    ]);
+  const [access, incidents, config, username] = await Promise.all([
+    getModeratorAccess(DASHBOARD_PERMISSIONS),
+    getIncidents(),
+    getConfig(),
+    currentModeratorName(),
+  ]);
+  const canConfigure = hasModeratorPermissions(
+    access.grantedPermissions,
+    CONFIG_PERMISSIONS
+  );
+  const canUseFlair = hasModeratorPermissions(
+    access.grantedPermissions,
+    FLAIR_MODERATION_PERMISSIONS
+  );
+  const [postFlairOptions, rules, ruleLogs] = await Promise.all([
+    canUseFlair ? getPostFlairOptions(subredditName) : Promise.resolve([]),
+    canConfigure ? getAutomations(subredditName) : Promise.resolve([]),
+    canConfigure ? getRuleExecutionLogs(subredditName) : Promise.resolve([]),
+  ]);
   const selectedPostId =
     contextSelectedPostId ??
     (await getRememberedIncidentPostId(username ?? undefined));
@@ -95,9 +136,10 @@ const loadDashboardData = async (): Promise<DashboardInitResponse> => {
     type: 'dashboard',
     username: username ?? 'anonymous',
     subredditName,
+    moderatorPermissions: access.grantedPermissions,
     selectedPostId,
     incidents: mergedIncidents,
-    config,
+    config: reviewVisibleConfig(config, canConfigure),
     postFlairOptions,
     rules,
     ruleLogs,
@@ -136,8 +178,75 @@ const readOptionalJson = async <Body extends object>(
   c: HonoContext
 ): Promise<Partial<Body>> => c.req.json<Partial<Body>>().catch(() => ({}));
 
+const addPermission = (
+  permissions: FirewatchModeratorPermission[],
+  permission: FirewatchModeratorPermission
+) => {
+  if (!permissions.includes(permission)) permissions.push(permission);
+};
+
+const mergePermissions = (
+  ...groups: FirewatchModeratorPermission[][]
+): FirewatchModeratorPermission[] => {
+  const permissions: FirewatchModeratorPermission[] = [];
+  for (const group of groups) {
+    for (const permission of group) {
+      addPermission(permissions, permission);
+    }
+  }
+  return permissions;
+};
+
+const postActionPermissions = (action: NativePostAction) =>
+  action === 'set-flair' || action === 'clear-flair'
+    ? mergePermissions(POST_MODERATION_PERMISSIONS, FLAIR_MODERATION_PERMISSIONS)
+    : POST_MODERATION_PERMISSIONS;
+
+const userActionPermissions = (action: NativeUserAction) =>
+  action === 'remove-recent-content'
+    ? mergePermissions(POST_MODERATION_PERMISSIONS, USER_MODERATION_PERMISSIONS)
+    : USER_MODERATION_PERMISSIONS;
+
+const ruleActionPermissions = (actions: RuleAction[]) => {
+  const permissions = [...POST_MODERATION_PERMISSIONS];
+
+  for (const action of actions) {
+    if (
+      action.type === 'prepare_temp_ban' ||
+      action.type === 'prepare_permanent_ban' ||
+      action.type === 'mute_user' ||
+      action.type === 'add_native_mod_note' ||
+      action.type === 'add_firewatch_strike'
+    ) {
+      for (const permission of USER_MODERATION_PERMISSIONS) {
+        addPermission(permissions, permission);
+      }
+    }
+
+    if (action.type === 'set_post_flair') {
+      for (const permission of FLAIR_MODERATION_PERMISSIONS) {
+        addPermission(permissions, permission);
+      }
+    }
+  }
+
+  return permissions;
+};
+
+const undoActionPermissions = (type: IncidentActionType) =>
+  type === 'post_flaired' || type === 'post_flair_removed'
+    ? mergePermissions(POST_MODERATION_PERMISSIONS, FLAIR_MODERATION_PERMISSIONS)
+    : POST_MODERATION_PERMISSIONS;
+
 api.get('/init', async (c) => {
   try {
+    const access = await getModeratorAccess(DASHBOARD_PERMISSIONS);
+    if (!access.allowed) {
+      return c.json<DashboardResponse>(
+        accessDeniedPayload(access, 'view moderation review data')
+      );
+    }
+
     return c.json<DashboardInitResponse>(await loadDashboardData());
   } catch (error) {
     return errorResponse(c, error, {
@@ -149,7 +258,12 @@ api.get('/init', async (c) => {
 });
 
 api.post('/incidents/:postId/claim', async (c) => {
-  return incidentAction(c, () => claimIncident(c.req.param('postId')));
+  return incidentAction(
+    c,
+    () => claimIncident(c.req.param('postId')),
+    POST_MODERATION_PERMISSIONS,
+    'claim a Firewatch post'
+  );
 });
 
 api.post('/incidents/:postId/unclaim', async (c) => {
@@ -176,6 +290,10 @@ api.post('/incidents/:postId/post-action', async (c) => {
       flairText?: string;
       reason?: string;
     } = await c.req.json();
+    await requireModeratorPermissions(
+      postActionPermissions(body.action),
+      'perform this post action'
+    );
     return applyNativePostAction(c.req.param('postId'), body);
   });
 });
@@ -193,22 +311,40 @@ api.post('/incidents/:postId/resolve', async (c) => {
 });
 
 api.post('/incidents/:postId/actions/:actionId/undo', async (c) => {
-  return claimedIncidentAction(c, () =>
-    undoIncidentAction(c.req.param('postId'), c.req.param('actionId'))
-  );
+  return claimedIncidentAction(c, async () => {
+    const incident = await getIncidentById(c.req.param('postId'));
+    const action = incident?.actions.find(
+      (item) => item.id === c.req.param('actionId')
+    );
+    if (!action) throw new Error('Action was not found');
+    await requireModeratorPermissions(
+      undoActionPermissions(action.type),
+      'undo this action'
+    );
+    return undoIncidentAction(c.req.param('postId'), c.req.param('actionId'));
+  });
 });
 
 api.post('/demo/incident', async (c) => {
-  return incidentAction(c, async () => {
-    const body = await readOptionalJson<{
-      scenarioId: FirewatchDemoScenarioId;
-    }>(c);
-    return createDemoIncident(body.scenarioId);
-  });
+  return incidentAction(
+    c,
+    async () => {
+      const body = await readOptionalJson<{
+        scenarioId: FirewatchDemoScenarioId;
+      }>(c);
+      return createDemoIncident(body.scenarioId);
+    },
+    POST_MODERATION_PERMISSIONS,
+    'create demo review posts'
+  );
 });
 
 api.post('/demo/reset', async (c) => {
   try {
+    await requireModeratorPermissions(
+      mergePermissions(CONFIG_PERMISSIONS, POST_MODERATION_PERMISSIONS),
+      'reset Firewatch demo data'
+    );
     const resetCount = await resetDemoIncidents();
     const dashboard = await loadDashboardData();
     return c.json<DemoResetResponse>({ ...dashboard, resetCount });
@@ -219,6 +355,10 @@ api.post('/demo/reset', async (c) => {
 
 api.post('/app/reset', async (c) => {
   try {
+    await requireModeratorPermissions(
+      mergePermissions(CONFIG_PERMISSIONS, POST_MODERATION_PERMISSIONS),
+      'reset all Firewatch data'
+    );
     const resetSummary = await resetAppData();
     const dashboard = await loadDashboardData();
     return c.json<AppResetResponse>({ ...dashboard, ...resetSummary });
@@ -229,6 +369,10 @@ api.post('/app/reset', async (c) => {
 
 api.post('/config', async (c) => {
   try {
+    await requireModeratorPermissions(
+      CONFIG_PERMISSIONS,
+      'change configuration'
+    );
     const values = await c.req.json<FirewatchConfigUpdate>();
     const config = await saveConfig(values);
     return c.json<ConfigResponse>({ type: 'config', config });
@@ -239,6 +383,10 @@ api.post('/config', async (c) => {
 
 api.post('/rules', async (c) => {
   try {
+    await requireModeratorPermissions(
+      CONFIG_PERMISSIONS,
+      'change Firewatch automations'
+    );
     const input = await c.req.json<FirewatchRuleInput>();
     const [rules, ruleLogs] = await Promise.all([
       saveAutomation({
@@ -256,6 +404,10 @@ api.post('/rules', async (c) => {
 
 api.post('/rules/import-templates', async (c) => {
   try {
+    await requireModeratorPermissions(
+      CONFIG_PERMISSIONS,
+      'import Firewatch automations'
+    );
     const [rules, ruleLogs] = await Promise.all([
       importAutomationTemplates(context.subredditName),
       getRuleExecutionLogs(context.subredditName),
@@ -268,6 +420,10 @@ api.post('/rules/import-templates', async (c) => {
 
 api.post('/rules/disable-all', async (c) => {
   try {
+    await requireModeratorPermissions(
+      CONFIG_PERMISSIONS,
+      'disable Firewatch automations'
+    );
     const [rules, ruleLogs] = await Promise.all([
       disableAllAutomations(context.subredditName),
       getRuleExecutionLogs(context.subredditName),
@@ -280,6 +436,10 @@ api.post('/rules/disable-all', async (c) => {
 
 api.post('/rules/:ruleId/test', async (c) => {
   try {
+    await requireModeratorPermissions(
+      mergePermissions(CONFIG_PERMISSIONS, POST_MODERATION_PERMISSIONS),
+      'test Firewatch automations'
+    );
     const [incidents, config] = await Promise.all([
       getIncidents(),
       getConfig(),
@@ -334,6 +494,10 @@ api.post('/incidents/:postId/comments/:commentId/native-action', async (c) => {
 
 api.post('/incidents/:postId/users/:username/ban', async (c) => {
   return claimedIncidentAction(c, async () => {
+    await requireModeratorPermissions(
+      USER_MODERATION_PERMISSIONS,
+      'ban users from this subreddit'
+    );
     const body = await readOptionalJson<{
       durationDays: number;
       reason: string;
@@ -351,6 +515,10 @@ api.post('/incidents/:postId/users/:username/native-action', async (c) => {
   return claimedIncidentAction(c, async () => {
     const body: { action: NativeUserAction; note?: string; reason?: string } =
       await c.req.json();
+    await requireModeratorPermissions(
+      userActionPermissions(body.action),
+      'perform this user action'
+    );
     return applyNativeUserAction(
       c.req.param('postId'),
       c.req.param('username'),
@@ -361,6 +529,14 @@ api.post('/incidents/:postId/users/:username/native-action', async (c) => {
 
 api.post('/incidents/:postId/rules/:ruleId/run', async (c) => {
   return claimedIncidentAction(c, async () => {
+    const rule = (await getAutomations(context.subredditName)).find(
+      (automation) => automation.id === c.req.param('ruleId')
+    );
+    if (!rule) throw new Error('Automation not found');
+    await requireModeratorPermissions(
+      ruleActionPermissions(rule.actions),
+      'run prepared automation actions'
+    );
     const body = await readOptionalJson<{ targetId: string }>(c);
     return runPreparedRuleActions(
       c.req.param('postId'),
@@ -372,9 +548,16 @@ api.post('/incidents/:postId/rules/:ruleId/run', async (c) => {
 });
 
 api.post('/incidents/:postId/users/:username/strikes/clear', async (c) => {
-  return claimedIncidentAction(c, () =>
-    clearIncidentUserStrikes(c.req.param('postId'), c.req.param('username'))
-  );
+  return claimedIncidentAction(c, async () => {
+    await requireModeratorPermissions(
+      USER_MODERATION_PERMISSIONS,
+      'clear user strike summaries'
+    );
+    return clearIncidentUserStrikes(
+      c.req.param('postId'),
+      c.req.param('username')
+    );
+  });
 });
 
 const claimKeyFor = (username: string | undefined) =>
@@ -407,6 +590,10 @@ const claimedIncidentAction = async (
     const postId = c.req.param('postId');
     if (!postId) throw new Error('Missing post id');
 
+    await requireModeratorPermissions(
+      POST_MODERATION_PERMISSIONS,
+      'use Firewatch incident actions'
+    );
     await requireIncidentClaim(postId);
     const incident = await run();
     return c.json<ActionResponse>({ type: 'action', incident });
@@ -415,8 +602,14 @@ const claimedIncidentAction = async (
   }
 };
 
-const incidentAction = async (c: HonoContext, run: () => Promise<Incident>) => {
+const incidentAction = async (
+  c: HonoContext,
+  run: () => Promise<Incident>,
+  requiredPermissions = POST_MODERATION_PERMISSIONS,
+  action = 'use Firewatch'
+) => {
   try {
+    await requireModeratorPermissions(requiredPermissions, action);
     const incident = await run();
     return c.json<ActionResponse>({ type: 'action', incident });
   } catch (error) {

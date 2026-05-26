@@ -8,12 +8,21 @@ import {
   rememberSelectedIncident,
   upsertIncidentSignal,
 } from '../core/firewatch';
+import {
+  CONFIG_PERMISSIONS,
+  POST_MODERATION_PERMISSIONS,
+  requireModeratorPermissions,
+} from './auth';
 import { uiErrorResponse } from './responses';
 
 export const menu = new Hono();
 
 menu.post('/open-board', async (c) => {
   try {
+    await requireModeratorPermissions(
+      POST_MODERATION_PERMISSIONS,
+      'open Firewatch review data'
+    );
     const post = await getOrCreateFirewatchBoardPost();
 
     return c.json<UiResponse>(
@@ -34,6 +43,10 @@ menu.post('/open-board', async (c) => {
 
 menu.post('/escalate-post', async (c) => {
   try {
+    await requireModeratorPermissions(
+      POST_MODERATION_PERMISSIONS,
+      'send posts to Firewatch'
+    );
     const input = await c.req.json<MenuItemRequest>();
     const incident = await upsertIncidentSignal({
       type: 'manual_escalation',
@@ -62,6 +75,10 @@ menu.post('/escalate-post', async (c) => {
 
 menu.post('/create-demo-incident', async (c) => {
   try {
+    await requireModeratorPermissions(
+      POST_MODERATION_PERMISSIONS,
+      'create demo review posts'
+    );
     const incident = await createDemoIncident();
     await rememberSelectedIncident(incident.postId);
     const post = await getOrCreateFirewatchBoardPost();
@@ -84,6 +101,10 @@ menu.post('/create-demo-incident', async (c) => {
 
 menu.post('/configure', async (c) => {
   try {
+    await requireModeratorPermissions(
+      CONFIG_PERMISSIONS,
+      'open configuration'
+    );
     const defaults = await getConfigFormDefaults();
 
     return c.json<UiResponse>({

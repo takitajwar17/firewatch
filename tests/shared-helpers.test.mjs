@@ -3,6 +3,9 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import {
+  formatModeratorPermissionList,
+} from '../dist/types/shared/api.js';
+import {
   DEFAULT_CONFIG,
   EMPTY_CONFIG,
   buildConfigFormFields,
@@ -979,7 +982,7 @@ test('incident mutations require the current moderator claim', () => {
 
   assert.match(
     apiSource,
-    /api\.post\('\/incidents\/:postId\/claim'[\s\S]*?return incidentAction\(c, \(\) => claimIncident/
+    /api\.post\('\/incidents\/:postId\/claim'[\s\S]*?claimIncident\(c\.req\.param\('postId'\)\)/
   );
   for (const route of protectedRoutes) {
     assert.match(
@@ -1035,6 +1038,71 @@ test('client action surfaces disable post actions without the current claim', ()
   assert.match(source, /Boolean\(busyAction\) \|\| actionLocked \|\| !canSaveHandoff/);
   assert.match(source, /description=\{actionLocked \? actionLockReason : undefined\}/);
   assert.match(source, /title=\{actionLocked \? actionLockReason : undefined\}/);
+});
+
+test('moderator access labels are plain language for mod teams', () => {
+  assert.equal(
+    formatModeratorPermissionList(['posts'], { includeAllFallback: true }),
+    'post and comment moderation, or full mod access'
+  );
+  assert.equal(
+    formatModeratorPermissionList(['config'], { includeAllFallback: true }),
+    'subreddit settings, or full mod access'
+  );
+  assert.equal(
+    formatModeratorPermissionList(['posts', 'flair'], {
+      includeAllFallback: true,
+    }),
+    'post and comment moderation and post flair, or full mod access'
+  );
+  assert.equal(formatModeratorPermissionList([]), 'moderator access');
+});
+
+test('moderator permissions guard mod-only data and actions', () => {
+  const apiSource = readFileSync('src/server/routes/api.ts', 'utf8');
+  const authSource = readFileSync('src/server/routes/auth.ts', 'utf8');
+  const menuSource = readFileSync('src/server/routes/menu.ts', 'utf8');
+  const formsSource = readFileSync('src/server/routes/forms.ts', 'utf8');
+  const appSource = readFileSync('src/client/firewatch/app.tsx', 'utf8');
+  const boardSource = readFileSync(
+    'src/client/firewatch/board-states.tsx',
+    'utf8'
+  );
+  const sharedApiSource = readFileSync('src/shared/api.ts', 'utf8');
+  const devvitConfig = readFileSync('devvit.json', 'utf8');
+  const parsedDevvitConfig = JSON.parse(devvitConfig);
+
+  assert.ok(Array.isArray(parsedDevvitConfig.menu?.items));
+  assert.equal(
+    parsedDevvitConfig.menu.items.every(
+      (item) => item.forUserType === 'moderator'
+    ),
+    true
+  );
+  assert.match(authSource, /getModPermissionsForSubreddit\(subredditName\)/);
+  assert.match(authSource, /export const hasModeratorPermissions/);
+  assert.match(authSource, /export class ModeratorPermissionError/);
+  assert.match(authSource, /formatModeratorPermissionList/);
+  assert.match(apiSource, /accessDeniedPayload\(access, 'view moderation review data'\)/);
+  assert.match(apiSource, /reviewVisibleConfig\(config, canConfigure\)/);
+  assert.match(apiSource, /canUseFlair \? getPostFlairOptions/);
+  assert.match(apiSource, /canConfigure \? getAutomations/);
+  assert.match(apiSource, /canConfigure \? getRuleExecutionLogs/);
+  assert.match(apiSource, /postActionPermissions\(body\.action\)/);
+  assert.match(apiSource, /userActionPermissions\(body\.action\)/);
+  assert.match(apiSource, /ruleActionPermissions\(rule\.actions\)/);
+  assert.match(apiSource, /action\.type === 'add_firewatch_strike'/);
+  assert.match(apiSource, /undoActionPermissions\(action\.type\)/);
+  assert.match(apiSource, /requireModeratorPermissions\(\s*CONFIG_PERMISSIONS/);
+  assert.match(menuSource, /requireModeratorPermissions/);
+  assert.match(formsSource, /requireModeratorPermissions/);
+  assert.match(appSource, /loadState\.status === 'access_denied'/);
+  assert.match(appSource, /change subreddit settings/);
+  assert.match(boardSource, /Private mod view/);
+  assert.match(boardSource, /formatModeratorPermissionList/);
+  assert.match(boardSource, /private moderation data|Check again/);
+  assert.match(sharedApiSource, /export type AccessDeniedResponse/);
+  assert.match(sharedApiSource, /moderatorPermissions: FirewatchModeratorPermission\[\]/);
 });
 
 test('sidebar queue filters keep resolved posts out of active queues', () => {

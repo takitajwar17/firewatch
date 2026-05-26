@@ -4,12 +4,17 @@ import {
   type FirewatchConfigFormValues,
 } from '../../shared/firewatch-config';
 import { saveConfig } from '../core/firewatch';
+import { CONFIG_PERMISSIONS, requireModeratorPermissions } from './auth';
 import { uiErrorResponse, uiSuccessToastResponse } from './responses';
 
 export const forms = new Hono();
 
 forms.post('/config-submit', async (c) => {
   try {
+    await requireModeratorPermissions(
+      CONFIG_PERMISSIONS,
+      'save configuration'
+    );
     const values = await c.req.json<FirewatchConfigFormValues>();
     await saveConfig(configUpdateFromFormValues(values));
 

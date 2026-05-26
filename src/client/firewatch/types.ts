@@ -1,4 +1,5 @@
 import type {
+  AccessDeniedResponse,
   DashboardInitResponse,
   FirewatchDemoScenarioId,
   FirewatchRuleInput,
@@ -9,6 +10,7 @@ import type {
 export type LoadState =
   | { status: 'loading' }
   | { status: 'ready'; data: DashboardInitResponse }
+  | { status: 'access_denied'; data: AccessDeniedResponse }
   | { status: 'error'; message: string };
 
 export type ActionRunner = (

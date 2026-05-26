@@ -6,6 +6,10 @@ import {
   DEFAULT_DEMO_SCENARIO_ID,
   FIREWATCH_DEMO_SCENARIOS,
 } from '../../shared/firewatch-presets';
+import {
+  formatModeratorPermissionList,
+  type AccessDeniedResponse,
+} from '../../shared/api';
 import { Skeleton } from './common';
 import type { DemoCreateHandler, QueueFilter } from './types';
 import { RedditRefreshIcon, RedditReportIcon } from './reddit-icons';
@@ -98,6 +102,68 @@ export const ErrorBoard = ({
         Retry
       </Button>
     </Alert>
+  </div>
+);
+
+export const AccessDeniedBoard = ({
+  access,
+  onRefresh,
+}: {
+  access: AccessDeniedResponse;
+  onRefresh: () => void;
+}) => (
+  <div className="flex min-h-[60vh] items-center justify-center px-2 py-6 sm:py-8">
+    <section className="mx-auto w-full max-w-xl rounded-md border border-border bg-background p-4 sm:p-5">
+      <div className="flex items-start gap-3">
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+          <RedditReportIcon className="size-5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-semibold uppercase leading-4 tracking-[0.08em] text-muted-foreground">
+            Private mod view
+          </p>
+          <h1 className="mt-1 text-xl font-semibold leading-tight">
+            {access.message}
+          </h1>
+          <p className="mt-2 text-sm leading-5 text-muted-foreground">
+            {access.detail}
+          </p>
+        </div>
+      </div>
+
+      <dl className="mt-4 grid gap-3 border-t border-border pt-4 text-sm sm:grid-cols-2">
+        <div>
+          <dt className="text-xs font-semibold uppercase leading-4 tracking-[0.08em] text-muted-foreground">
+            Firewatch needs
+          </dt>
+          <dd className="mt-1 leading-5 text-foreground">
+            {formatModeratorPermissionList(access.requiredPermissions, {
+              includeAllFallback: true,
+            })}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs font-semibold uppercase leading-4 tracking-[0.08em] text-muted-foreground">
+            Your account has
+          </dt>
+          <dd className="mt-1 leading-5 text-foreground">
+            {access.grantedPermissions.length > 0
+              ? formatModeratorPermissionList(access.grantedPermissions)
+              : 'no mod access here'}
+          </dd>
+        </div>
+      </dl>
+
+      <p className="mt-4 border-t border-border pt-4 text-xs leading-5 text-muted-foreground">
+        This screen contains private moderation data. Ask a subreddit owner to
+        give this Reddit account the access listed above, then check again.
+      </p>
+
+      <Button className="mt-4 w-fit" variant="outline" onClick={onRefresh}>
+        <RedditRefreshIcon data-icon="inline-start" />
+        Check again
+      </Button>
+    </section>
   </div>
 );
 

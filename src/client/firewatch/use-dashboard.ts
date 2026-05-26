@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type {
+  AccessDeniedResponse,
   AppResetResponse,
   ConfigResponse,
   DashboardInitResponse,
+  DashboardResponse,
   DemoResetResponse,
   FirewatchDemoScenarioId,
   FirewatchRuleInput,
@@ -24,6 +26,7 @@ const EMPTY_DASHBOARD: DashboardInitResponse = {
   type: 'dashboard',
   username: 'moderator',
   subredditName: '',
+  moderatorPermissions: [],
   incidents: [],
   config: emptyConfig,
   postFlairOptions: [],
@@ -31,8 +34,7 @@ const EMPTY_DASHBOARD: DashboardInitResponse = {
   ruleLogs: [],
 };
 
-const fetchDashboardInit = () =>
-  requestJson<DashboardInitResponse>('/api/init');
+const fetchDashboardInit = () => requestJson<DashboardResponse>('/api/init');
 
 export const useDashboard = () => {
   const [loadState, setLoadState] = useState<LoadState>({ status: 'loading' });
@@ -49,9 +51,26 @@ export const useDashboard = () => {
     );
   }, []);
 
+  const applyAccessDenied = useCallback((data: AccessDeniedResponse) => {
+    setLoadState({ status: 'access_denied', data });
+    setSelectedPostId(undefined);
+  }, []);
+
+  const applyDashboardResponse = useCallback(
+    (payload: DashboardResponse) => {
+      if (payload.type === 'access_denied') {
+        applyAccessDenied(payload);
+        return;
+      }
+
+      applyDashboard(payload);
+    },
+    [applyAccessDenied, applyDashboard]
+  );
+
   const refresh = useCallback(async () => {
     try {
-      applyDashboard(await fetchDashboardInit());
+      applyDashboardResponse(await fetchDashboardInit());
     } catch (error) {
       setLoadState({
         status: 'error',
@@ -59,7 +78,7 @@ export const useDashboard = () => {
           error instanceof Error ? error.message : 'Failed to load dashboard',
       });
     }
-  }, [applyDashboard]);
+  }, [applyDashboardResponse]);
 
   useEffect(() => {
     let cancelled = false;
@@ -67,7 +86,7 @@ export const useDashboard = () => {
     const load = async () => {
       try {
         const data = await fetchDashboardInit();
-        if (!cancelled) applyDashboard(data);
+        if (!cancelled) applyDashboardResponse(data);
       } catch (error) {
         if (!cancelled) {
           setLoadState({
@@ -85,7 +104,7 @@ export const useDashboard = () => {
     return () => {
       cancelled = true;
     };
-  }, [applyDashboard]);
+  }, [applyDashboardResponse]);
 
   useEffect(() => {
     if (!notice) return;

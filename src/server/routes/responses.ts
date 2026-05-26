@@ -1,6 +1,7 @@
 import type { Context as HonoContext } from 'hono';
 import type { UiResponse } from '@devvit/web/shared';
 import type { ErrorResponse } from '../../shared/api';
+import { isModeratorPermissionError } from './auth';
 
 type ErrorResponseOptions = {
   fallbackMessage: string;
@@ -13,7 +14,11 @@ export const errorResponse = (
   error: unknown,
   { fallbackMessage, logMessage, messagePrefix = '' }: ErrorResponseOptions
 ) => {
-  console.error(logMessage, error);
+  const permissionError = isModeratorPermissionError(error);
+  if (!permissionError) {
+    console.error(logMessage, error);
+  }
+  const status = permissionError ? 403 : 400;
 
   return c.json<ErrorResponse>(
     {
@@ -23,7 +28,7 @@ export const errorResponse = (
           ? `${messagePrefix}${error.message}`
           : fallbackMessage,
     },
-    400
+    status
   );
 };
 
@@ -33,13 +38,16 @@ export const uiErrorResponse = (
   logMessage: string,
   showToast: string
 ) => {
-  console.error(`${logMessage}:`, error);
+  const permissionError = isModeratorPermissionError(error);
+  if (!permissionError) {
+    console.error(`${logMessage}:`, error);
+  }
 
   return c.json<UiResponse>(
     {
-      showToast,
+      showToast: permissionError ? error.message : showToast,
     },
-    400
+    permissionError ? 403 : 400
   );
 };
 

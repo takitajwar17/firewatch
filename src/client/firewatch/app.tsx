@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { AutomationsPage } from './automations';
 import {
+  AccessDeniedBoard,
   EmptyBoard,
   ErrorBoard,
   FilteredQueueEmptyBoard,
@@ -15,6 +16,13 @@ import { CommunitySettingsPage } from './settings/community-settings-page';
 import { FirewatchShell } from './shell/firewatch-shell';
 import type { FirewatchView, QueueFilter } from './types';
 import { useDashboard } from './use-dashboard';
+import type {
+  AccessDeniedResponse,
+  FirewatchModeratorPermission,
+} from '../../shared/api';
+
+const canConfigureFirewatch = (permissions: FirewatchModeratorPermission[]) =>
+  permissions.includes('all') || permissions.includes('config');
 
 export const App = () => {
   const [activeView, setActiveView] = useState<FirewatchView>('queue');
@@ -93,6 +101,20 @@ export const App = () => {
       ) ?? filteredIncidents[0],
     [filteredIncidents, selectedPostId]
   );
+  const configAccessDenied: AccessDeniedResponse | undefined =
+    loadState.status === 'ready' &&
+    !canConfigureFirewatch(data.moderatorPermissions)
+      ? {
+          type: 'access_denied',
+          username: data.username,
+          subredditName: data.subredditName,
+          requiredPermissions: ['config'],
+          grantedPermissions: data.moderatorPermissions,
+          message: 'More mod access needed',
+          detail:
+            'Only mods who can change subreddit settings can open Firewatch settings and automations.',
+        }
+      : undefined;
   const selectIncident = useCallback((postId: string) => {
     setActiveView('queue');
     setSelectedPostId(postId);
@@ -119,6 +141,27 @@ export const App = () => {
     );
   }
 
+  if (loadState.status === 'access_denied') {
+    return (
+      <FirewatchShell
+        activeView="queue"
+        incidents={[]}
+        notice={undefined}
+        queueFilter={queueFilter}
+        queueFilterCounts={{ all: 0, claimed: 0, resolved: 0 }}
+        selectedPostId={undefined}
+        subredditName={loadState.data.subredditName}
+        username={loadState.data.username ?? 'anonymous'}
+        onQueueFilterChange={setQueueFilter}
+        onRefresh={refresh}
+        onSelectIncident={selectIncident}
+        onViewChange={setActiveView}
+      >
+        <AccessDeniedBoard access={loadState.data} onRefresh={refresh} />
+      </FirewatchShell>
+    );
+  }
+
   return (
     <FirewatchShell
       activeView={activeView}
@@ -137,6 +180,9 @@ export const App = () => {
     >
       {loadState.status === 'loading' ? (
         <LoadingBoard />
+      ) : configAccessDenied &&
+        (activeView === 'automations' || activeView === 'settings') ? (
+        <AccessDeniedBoard access={configAccessDenied} onRefresh={refresh} />
       ) : activeView === 'automations' ? (
         <AutomationsPage
           busyAction={busyAction}

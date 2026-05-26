@@ -33,6 +33,64 @@ export type SignalSource =
 
 export type CrowdControlLevel = 'OFF' | 'LENIENT' | 'MEDIUM' | 'STRICT';
 
+export type FirewatchModeratorPermission =
+  | 'all'
+  | 'wiki'
+  | 'posts'
+  | 'access'
+  | 'mail'
+  | 'config'
+  | 'flair'
+  | 'chat_operator'
+  | 'chat_config'
+  | 'channels'
+  | 'community_chat';
+
+export const MODERATOR_PERMISSION_LABELS: Record<
+  FirewatchModeratorPermission,
+  string
+> = {
+  all: 'full mod access',
+  access: 'user management',
+  channels: 'channel management',
+  chat_config: 'chat settings',
+  chat_operator: 'chat moderation',
+  community_chat: 'community chat',
+  config: 'subreddit settings',
+  flair: 'post flair',
+  mail: 'modmail',
+  posts: 'post and comment moderation',
+  wiki: 'wiki editing',
+};
+
+const readableList = (values: string[]) => {
+  if (values.length === 0) return 'moderator access';
+  if (values.length === 1) return values[0] ?? 'moderator access';
+  if (values.length === 2) return `${values[0]} and ${values[1]}`;
+
+  return `${values.slice(0, -1).join(', ')}, and ${values.at(-1)}`;
+};
+
+export const formatModeratorPermissionList = (
+  permissions: FirewatchModeratorPermission[],
+  { includeAllFallback = false }: { includeAllFallback?: boolean } = {}
+) => {
+  const labels = permissions.map(
+    (permission) => MODERATOR_PERMISSION_LABELS[permission]
+  );
+  const list = readableList(labels);
+
+  if (
+    includeAllFallback &&
+    permissions.length > 0 &&
+    !permissions.includes('all')
+  ) {
+    return `${list}, or ${MODERATOR_PERMISSION_LABELS.all}`;
+  }
+
+  return list;
+};
+
 export type NativePostAction =
   | 'approve'
   | 'remove'
@@ -579,6 +637,7 @@ export type DashboardInitResponse = {
   type: 'dashboard';
   username: string;
   subredditName: string;
+  moderatorPermissions: FirewatchModeratorPermission[];
   selectedPostId?: string;
   incidents: Incident[];
   config: FirewatchConfig;
@@ -586,6 +645,18 @@ export type DashboardInitResponse = {
   rules: FirewatchRule[];
   ruleLogs: RuleExecutionLog[];
 };
+
+export type AccessDeniedResponse = {
+  type: 'access_denied';
+  username?: string;
+  subredditName: string;
+  message: string;
+  detail: string;
+  requiredPermissions: FirewatchModeratorPermission[];
+  grantedPermissions: FirewatchModeratorPermission[];
+};
+
+export type DashboardResponse = DashboardInitResponse | AccessDeniedResponse;
 
 export type ActionResponse = {
   type: 'action';

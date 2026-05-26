@@ -102,6 +102,40 @@ of that community.
 Firewatch does not sell stored data. Firewatch does not share stored incident
 data with advertisers, analytics providers, or external services.
 
+## Access Controls
+
+Firewatch is designed as a moderator-only app. Its subreddit and post menu
+items are registered for moderators, and the server checks the current user's
+subreddit moderator permissions before returning mod-only data or accepting
+mod-only actions.
+
+- The review queue is shown only to mods who can manage posts and comments.
+  Reddit calls this `posts`, or `all` for full mod access.
+- Settings, automations, demo reset, and full app reset are available only to
+  mods who can change subreddit settings. Reddit calls this `config`, or `all`.
+- Post and comment actions are available only to mods who can manage posts and
+  comments.
+- User actions such as bans, mutes, approvals, mod notes, Firewatch strikes,
+  strike clearing, and user-content cleanup are available only to mods who can
+  manage users. Reddit calls this `access`, or `all`. User-content cleanup also
+  requires post and comment moderation access.
+- Post flair actions are available only to mods who can manage both posts and
+  post flair. Reddit calls these `posts` and `flair`, or `all`.
+- Mods who cannot change subreddit settings do not receive watched lists, score
+  thresholds, automation rules, or automation logs in the webview payload.
+- Mods who cannot manage post flair do not receive post flair templates or run
+  flair actions.
+
+If someone without enough mod access opens Firewatch, Firewatch returns an
+access screen instead of incident, configuration, automation, or action data.
+
+## Security Incidents
+
+If Firewatch discovers unauthorized access, a data breach, or another
+compromise affecting stored subreddit moderation data, the app maintainer will
+notify Reddit and affected communities with the information needed to assess the
+incident and respond.
+
 ## Retention
 
 Firewatch uses the following retention periods:

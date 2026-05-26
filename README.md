@@ -72,6 +72,34 @@ whether to approve, remove, lock, ban, mute, flair, ignore reports, or take any
 other action. Firewatch is designed to reduce queue work, not replace moderator
 judgment.
 
+## Moderator Permissions
+
+Firewatch is a moderator-only app. All menu items are registered with
+`forUserType: "moderator"`, and the server also checks the current moderator's
+subreddit permissions before returning mod data or accepting actions.
+
+- To open the review queue, a moderator must be allowed to manage posts and
+  comments. Reddit calls this `posts`, or `all` for full mod access.
+- To change Firewatch settings, automations, demo data, or reset app data, a
+  moderator must be allowed to change subreddit settings. Reddit calls this
+  `config`, or `all` for full mod access.
+- To ban, mute, approve users, add mod notes, clear Firewatch strikes, or clean
+  up a user's recent content, a moderator must be allowed to manage users.
+  Reddit calls this `access`, or `all` for full mod access. User-content cleanup
+  also needs post and comment moderation access.
+- To set or clear post flair, a moderator must be allowed to manage both posts
+  and post flair. Reddit calls these `posts` and `flair`, or `all` for full mod
+  access.
+- Moderators who cannot change subreddit settings do not receive watched lists,
+  score thresholds, automation rules, or automation logs in the webview payload.
+  They can still see the review data needed for post moderation.
+- Moderators who cannot manage post flair do not receive post flair templates or
+  run flair actions.
+
+If someone without enough mod access opens Firewatch, the app shows a plain
+access screen instead of loading private queue, settings, automation, or action
+data.
+
 ## Data And Privacy
 
 Firewatch stores only the data needed to run the moderation workflow for

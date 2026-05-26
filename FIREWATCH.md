@@ -69,6 +69,29 @@ Firewatch uses:
 - Devvit Reddit API methods for comments, locks, distinguishes, removals, and
   removal notes
 
+## Permission Model
+
+- All Firewatch menu items are registered with `forUserType: "moderator"`.
+- The review queue is shown only to mods who can manage posts and comments.
+  Reddit calls this `posts`, or `all` for full mod access.
+- Settings, automations, demo reset, and full app reset are available only to
+  mods who can change subreddit settings. Reddit calls this `config`, or `all`
+  for full mod access.
+- Post and comment actions are available only to mods who can manage posts and
+  comments.
+- User actions, including bans, mutes, mod notes, and Firewatch strikes, are
+  available only to mods who can manage users. Reddit calls this `access`, or
+  `all` for full mod access. User-content cleanup also requires post and
+  comment moderation access.
+- Flair actions are available only to mods who can manage both posts and post
+  flair. Reddit calls these `posts` and `flair`, or `all`.
+- Mods who cannot change subreddit settings do not receive watched lists, score
+  thresholds, automation rules, or automation logs in the webview payload.
+- Mods who cannot manage post flair do not receive post flair templates or run
+  flair actions.
+- Anyone without enough mod access sees an access screen rather than Firewatch
+  incident data.
+
 ## Limits
 
 Firewatch is not a machine-learning classifier and does not inspect private
