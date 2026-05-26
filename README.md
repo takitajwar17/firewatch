@@ -1,4 +1,4 @@
-# Firewatch: Hot Thread Queue
+# Firewatch: Thread Incident Room
 
 One Reddit post can turn into 420 comments, 69 reports, and three mods opening
 the same thread. Firewatch puts that post in one queue, shows why it needs
