@@ -1,22 +1,15 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { cn } from '@/lib/utils';
-import {
-  formatStatus,
-  formatTime,
-  formatUsername,
-  pluralize,
-} from '../format';
+import { formatStatus, formatTime, formatUsername, pluralize } from '../format';
 import {
   RedditCommentIcon,
   RedditDownvoteIcon,
   RedditUpvoteIcon,
 } from '../reddit-icons';
+import { UsernameHistoryTrigger } from '../username-history';
 import type { Incident } from '../../../shared/api';
 
 export const IncidentIntro = ({ incident }: { incident: Incident }) => {
-  const authorLabel = incident.postAuthor
-    ? formatUsername(incident.postAuthor)
-    : `r/${incident.subredditName}`;
   const postScore = incident.postScore ?? incident.score;
   const postCommentCount =
     incident.postCommentCount ?? incident.flaggedComments.length;
@@ -31,7 +24,17 @@ export const IncidentIntro = ({ incident }: { incident: Incident }) => {
               className="size-8 shrink-0 rounded-full"
               src="/avatar_default_2.png"
             />
-            <span className="font-semibold text-foreground">{authorLabel}</span>
+            {incident.postAuthor ? (
+              <UsernameHistoryTrigger
+                className="text-sm"
+                incident={incident}
+                username={incident.postAuthor}
+              />
+            ) : (
+              <span className="font-semibold text-foreground">
+                r/{incident.subredditName}
+              </span>
+            )}
             <span aria-hidden="true" className="text-muted-foreground/70">
               ·
             </span>

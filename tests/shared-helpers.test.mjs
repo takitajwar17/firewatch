@@ -1092,6 +1092,59 @@ test('review UI labels current signals and warns when context is capped', () => 
   assert.match(sidecardsSource, /older signal/);
 });
 
+test('username history opens a reusable factual Reddit-style card', () => {
+  const historySource = readFileSync(
+    'src/client/firewatch/username-history.tsx',
+    'utf8'
+  );
+  const commentsSource = readFileSync(
+    'src/client/firewatch/comments/flagged-comments-card.tsx',
+    'utf8'
+  );
+  const headerSource = readFileSync(
+    'src/client/firewatch/overview/post-header.tsx',
+    'utf8'
+  );
+  const activitySource = readFileSync(
+    'src/client/firewatch/incident-activity.tsx',
+    'utf8'
+  );
+  const rulesSource = readFileSync(
+    'src/client/firewatch/incident-rules.tsx',
+    'utf8'
+  );
+
+  assert.match(historySource, /export const UsernameHistoryTrigger/);
+  assert.match(historySource, /DropdownMenu\.Root/);
+  assert.match(historySource, /DropdownMenu\.Content/);
+  assert.match(
+    historySource,
+    /Firewatch facts for this thread and recent strikes/
+  );
+  assert.match(historySource, /Firewatch strike history/);
+  assert.match(historySource, /Prepared automations/);
+  assert.match(historySource, /Mod actions involving this user/);
+  assert.match(historySource, /Comments in this thread/);
+  assert.match(historySource, /No Firewatch history for this user yet/);
+  assert.doesNotMatch(historySource, /export const buildUserHistory/);
+  assert.match(commentsSource, /<UsernameHistoryTrigger/);
+  assert.match(headerSource, /<UsernameHistoryTrigger/);
+  assert.match(activitySource, /<UsernameHistoryTrigger/);
+  assert.match(rulesSource, /<UsernameHistoryTrigger/);
+});
+
+test('user history receives every stored strike while retaining recent strike counts', () => {
+  const strikesSource = readFileSync(
+    'src/server/core/firewatch-rules/strikes.ts',
+    'utf8'
+  );
+
+  assert.match(strikesSource, /const recentStrikes = strikes\.filter/);
+  assert.match(strikesSource, /strikeCount: recentStrikes\.length/);
+  assert.match(strikesSource, /strikes,/);
+  assert.doesNotMatch(strikesSource, /strikes: recentStrikes/);
+});
+
 test('demo creation is additive and reset deletes Reddit demo posts', () => {
   const source = readFileSync('src/server/core/firewatch/demo.ts', 'utf8');
   const createStart = source.indexOf('export const createDemoIncident');

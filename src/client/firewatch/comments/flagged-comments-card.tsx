@@ -26,6 +26,7 @@ import {
   RedditUsersIcon,
 } from '../reddit-icons';
 import type { ActionRunner } from '../types';
+import { UsernameHistoryTrigger } from '../username-history';
 import type { FirewatchConfig, Incident } from '../../../shared/api';
 import { CommentActionPrepPanel } from './comment-action-prep';
 import { CommentContextBlock } from './comment-context';
@@ -371,9 +372,10 @@ export const FlaggedCommentsCard = ({
                     />
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-                        <span className="font-semibold leading-5 text-foreground">
-                          {authorLabel}
-                        </span>
+                        <UsernameHistoryTrigger
+                          incident={incident}
+                          username={comment.author}
+                        />
                         <span
                           aria-hidden="true"
                           className="text-muted-foreground/70"
@@ -465,7 +467,9 @@ export const FlaggedCommentsCard = ({
                             action={approveAction}
                             busyAction={busyAction}
                             disabled={actionLocked || !commentOpen}
-                            icon={<RedditApproveIcon data-icon="inline-start" />}
+                            icon={
+                              <RedditApproveIcon data-icon="inline-start" />
+                            }
                             label={
                               commentState.reviewed ? 'Approved' : 'Approve'
                             }
@@ -519,7 +523,10 @@ export const FlaggedCommentsCard = ({
 
                       {hasAdvancedCommentActions || showUserTools ? (
                         <div className="mt-3">
-                          <RedditOverflowMenu align="start" label="More actions">
+                          <RedditOverflowMenu
+                            align="start"
+                            label="More actions"
+                          >
                             <>
                               {hasAdvancedCommentActions ? (
                                 <>
@@ -853,8 +860,18 @@ export const FlaggedCommentsCard = ({
                   >
                     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold leading-5">
-                          {formatUsername(comment.author)} · {actionLabel}
+                        <p className="flex flex-wrap items-center gap-x-2 text-sm font-semibold leading-5">
+                          <UsernameHistoryTrigger
+                            incident={incident}
+                            username={comment.author}
+                          />
+                          <span
+                            aria-hidden="true"
+                            className="text-muted-foreground/70"
+                          >
+                            ·
+                          </span>
+                          <span>{actionLabel}</span>
                         </p>
                         {actionSnapshot?.resolutionActor ? (
                           <p className="mt-1 text-xs leading-5 text-muted-foreground">
@@ -885,7 +902,9 @@ export const FlaggedCommentsCard = ({
                             action={approveAction}
                             busyAction={busyAction}
                             disabled={actionLocked}
-                            icon={<RedditApproveIcon data-icon="inline-start" />}
+                            icon={
+                              <RedditApproveIcon data-icon="inline-start" />
+                            }
                             label="Restore"
                             title={actionLocked ? actionLockReason : undefined}
                             variant="secondary"
@@ -932,9 +951,7 @@ export const FlaggedCommentsCard = ({
                                 <RedditMenuItem
                                   disabled={Boolean(busyAction) || actionLocked}
                                   description={
-                                    actionLocked
-                                      ? actionLockReason
-                                      : undefined
+                                    actionLocked ? actionLockReason : undefined
                                   }
                                   icon={<RedditLockIcon />}
                                   label={
@@ -957,9 +974,7 @@ export const FlaggedCommentsCard = ({
                                 <RedditMenuItem
                                   disabled={Boolean(busyAction) || actionLocked}
                                   description={
-                                    actionLocked
-                                      ? actionLockReason
-                                      : undefined
+                                    actionLocked ? actionLockReason : undefined
                                   }
                                   icon={<RedditReportIcon />}
                                   label={
@@ -986,9 +1001,7 @@ export const FlaggedCommentsCard = ({
                                     commentState.shown
                                   }
                                   description={
-                                    actionLocked
-                                      ? actionLockReason
-                                      : undefined
+                                    actionLocked ? actionLockReason : undefined
                                   }
                                   icon={<RedditHideIcon />}
                                   label={

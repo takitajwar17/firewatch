@@ -20,6 +20,7 @@ import {
   RedditRefreshIcon,
   RedditShieldIcon,
 } from './reddit-icons';
+import { UsernameHistoryTrigger } from './username-history';
 import { actionCompleted, undoActionLabel } from '../../shared/reddit-actions';
 
 export const LatestSignalsCard = ({ incident }: { incident: Incident }) => {
@@ -41,11 +42,23 @@ export const LatestSignalsCard = ({ incident }: { incident: Incident }) => {
                   {index > 0 ? <Separator /> : null}
                   <div className="flex flex-col gap-1 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
                     <div className="min-w-0">
-                      <p className="break-words text-sm font-semibold capitalize leading-5">
+                      <p className="flex flex-wrap items-center gap-x-1.5 break-words text-sm font-semibold leading-5">
                         {formatSignalType(signal)}
-                        {signal.author
-                          ? ` · ${formatUsername(signal.author)}`
-                          : ''}
+                        {signal.author ? (
+                          <>
+                            <span
+                              aria-hidden="true"
+                              className="text-muted-foreground/70"
+                            >
+                              ·
+                            </span>
+                            <UsernameHistoryTrigger
+                              className="text-sm"
+                              incident={incident}
+                              username={signal.author}
+                            />
+                          </>
+                        ) : null}
                       </p>
                       <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
                         {formatSignalDetail(signal)}
@@ -179,8 +192,8 @@ export const ActionLogCard = ({
   const [confirmUndoActionId, setConfirmUndoActionId] = useState<
     string | undefined
   >();
-  const latestUndoableAction = incident.actions.find((action) =>
-    actionCompleted(action) && undoActionLabel(action.type)
+  const latestUndoableAction = incident.actions.find(
+    (action) => actionCompleted(action) && undoActionLabel(action.type)
   );
 
   return (
@@ -236,9 +249,7 @@ export const ActionLogCard = ({
                           className="shrink-0"
                           disabled={Boolean(busyAction) || actionLocked}
                           size="sm"
-                          title={
-                            actionLocked ? actionLockReason : undoLabel
-                          }
+                          title={actionLocked ? actionLockReason : undoLabel}
                           variant={confirmUndo ? 'destructive' : 'ghost'}
                           onClick={() => {
                             if (!confirmUndo) {

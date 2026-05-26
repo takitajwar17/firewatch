@@ -226,7 +226,7 @@ export const getUserStrikeSummaries = async (
         recentWindowDays: DEFAULT_STRIKE_WINDOW_DAYS,
         removedComments,
         suspiciousDomainHits,
-        strikes: recentStrikes,
+        strikes,
         ...(totalWeight >= 2 ? { preparedAction: 'temp ban review' } : {}),
       };
     })

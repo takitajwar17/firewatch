@@ -5,6 +5,7 @@ import { Separator } from '@/components/ui/separator';
 import { EmptyText } from '../common';
 import { formatTime, formatUsername, pluralize } from '../format';
 import type { ActionRunner } from '../types';
+import { UsernameHistoryTrigger } from '../username-history';
 import type { FlaggedComment, Incident } from '../../../shared/api';
 
 type EvidenceRow = {
@@ -104,7 +105,8 @@ const evidenceRowsFrom = (incident: Incident) => {
   if (signals || topReason) {
     const reasonRow: EvidenceRow = {
       label: 'Why now',
-      value: signals || topReason?.detail || topReason?.label || 'Review signal',
+      value:
+        signals || topReason?.detail || topReason?.label || 'Review signal',
     };
 
     if (topReason) {
@@ -234,7 +236,16 @@ export const SafetyReviewCard = ({ incident }: { incident: Incident }) => {
                     {match.label}
                   </p>
                   <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                    {match.author ? `${formatUsername(match.author)} · ` : ''}
+                    {match.author ? (
+                      <>
+                        <UsernameHistoryTrigger
+                          className="text-xs text-muted-foreground"
+                          incident={incident}
+                          username={match.author}
+                        />{' '}
+                        ·{' '}
+                      </>
+                    ) : null}
                     {formatTime(match.createdAt)}
                   </p>
                 </div>
@@ -353,7 +364,10 @@ export const ParticipantsCard = ({
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold leading-5">
-                          {formatUsername(user.username)}
+                          <UsernameHistoryTrigger
+                            incident={incident}
+                            username={user.username}
+                          />
                         </p>
                         <p className="break-words text-xs leading-5 text-muted-foreground">
                           {pluralize(user.flagged, 'open comment')} ·{' '}
@@ -392,9 +406,7 @@ export const ParticipantsCard = ({
                               actionLocked ||
                               busyAction === `clear-strikes:${user.username}`
                             }
-                            title={
-                              actionLocked ? actionLockReason : undefined
-                            }
+                            title={actionLocked ? actionLockReason : undefined}
                             type="button"
                             onClick={() =>
                               onAction(

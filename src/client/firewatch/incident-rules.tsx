@@ -10,6 +10,7 @@ import {
   RedditReportIcon,
   RedditShieldIcon,
 } from './reddit-icons';
+import { UsernameHistoryTrigger } from './username-history';
 
 export const MatchedRulesCard = ({
   actionLocked,
@@ -112,9 +113,6 @@ const MatchedRuleItem = ({
   const actionId = `rule:${rule.ruleId}:${rule.targetId}`;
   const canRun = rule.mode !== 'suggest_only';
   const [confirmRun, setConfirmRun] = useState(false);
-  const title = rule.username
-    ? `${rule.ruleName} for u/${rule.username}`
-    : rule.ruleName;
   const runActions = () => {
     if (!confirmRun) {
       setConfirmRun(true);
@@ -128,7 +126,19 @@ const MatchedRuleItem = ({
     <article className="rounded-md border bg-background p-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm font-semibold leading-5">{title}</p>
+          <p className="flex flex-wrap items-center gap-x-1.5 text-sm font-semibold leading-5">
+            <span>{rule.ruleName}</span>
+            {rule.username ? (
+              <>
+                <span className="text-muted-foreground">for</span>
+                <UsernameHistoryTrigger
+                  className="text-sm"
+                  incident={incident}
+                  username={rule.username}
+                />
+              </>
+            ) : null}
+          </p>
           <div className="mt-1 flex flex-wrap gap-1.5">
             <Badge variant="secondary">{RULE_MODE_LABELS[rule.mode]}</Badge>
             <Badge variant="outline">{incident.score}/100</Badge>

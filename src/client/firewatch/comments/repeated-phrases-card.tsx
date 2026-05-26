@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyText } from '../common';
-import { formatUsername } from '../format';
+import { UsernameHistoryTrigger } from '../username-history';
 import type { Incident } from '../../../shared/api';
 
 export const RepeatedPhrasesCard = ({ incident }: { incident: Incident }) => (
@@ -21,11 +21,21 @@ export const RepeatedPhrasesCard = ({ incident }: { incident: Incident }) => (
               <p className="break-words text-sm font-semibold leading-5">
                 {phrase.phrase}
               </p>
-              <p className="mt-1 break-words text-xs leading-5 text-muted-foreground">
-                {phrase.count} matches
-                {phrase.authors.length
-                  ? ` - ${phrase.authors.map(formatUsername).join(', ')}`
-                  : ''}
+              <p className="mt-1 flex flex-wrap items-center gap-x-1.5 break-words text-xs leading-5 text-muted-foreground">
+                <span>{phrase.count} matches</span>
+                {phrase.authors.length ? (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    {phrase.authors.map((author) => (
+                      <UsernameHistoryTrigger
+                        key={author}
+                        className="text-xs text-muted-foreground"
+                        incident={incident}
+                        username={author}
+                      />
+                    ))}
+                  </>
+                ) : null}
               </p>
             </div>
           ))}
