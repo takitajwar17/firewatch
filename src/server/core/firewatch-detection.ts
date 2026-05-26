@@ -34,13 +34,17 @@ const tokenMatchesTerm = (token: string, term: string) => {
   return token.length <= term.length + 8;
 };
 
-const countTokenSequence = (tokens: string[], termTokens: string[]) => {
+const countMatchingTokenSequence = (
+  tokens: string[],
+  termTokens: string[],
+  matchesToken: (token: string, termToken: string) => boolean
+) => {
   if (termTokens.length === 0 || tokens.length < termTokens.length) return 0;
 
   let count = 0;
   for (let index = 0; index <= tokens.length - termTokens.length; index += 1) {
     const matched = termTokens.every((termToken, offset) =>
-      tokenMatchesTerm(tokens[index + offset] ?? '', termToken)
+      matchesToken(tokens[index + offset] ?? '', termToken)
     );
     if (matched) count += 1;
   }
@@ -48,19 +52,15 @@ const countTokenSequence = (tokens: string[], termTokens: string[]) => {
   return count;
 };
 
-const countExactTokenSequence = (tokens: string[], termTokens: string[]) => {
-  if (termTokens.length === 0 || tokens.length < termTokens.length) return 0;
+const countTokenSequence = (tokens: string[], termTokens: string[]) =>
+  countMatchingTokenSequence(tokens, termTokens, tokenMatchesTerm);
 
-  let count = 0;
-  for (let index = 0; index <= tokens.length - termTokens.length; index += 1) {
-    const matched = termTokens.every(
-      (termToken, offset) => tokens[index + offset] === termToken
-    );
-    if (matched) count += 1;
-  }
-
-  return count;
-};
+const countExactTokenSequence = (tokens: string[], termTokens: string[]) =>
+  countMatchingTokenSequence(
+    tokens,
+    termTokens,
+    (token, termToken) => token === termToken
+  );
 
 export const watchedWordMatches = (
   text: string,

@@ -5,10 +5,12 @@ import {
   userActionControl,
   userActionDetail,
 } from '../../../../shared/reddit-actions';
+import { isCommentOpenForReview } from '../../../../shared/incidents';
 import {
   normalizeCommentId,
   normalizePostId,
   normalizeUsername,
+  usernameKey,
 } from '../../firewatch-utils';
 import {
   runTargetedRedditActions,
@@ -23,7 +25,11 @@ import {
   startIncidentAction,
 } from '../incidents';
 import { actorName, getConfig, getIncident } from '../store';
-import { isDemoComment, removeCommentIfReal } from './comment-helpers';
+import {
+  isDemoComment,
+  markFlaggedCommentsRemoved,
+  removeCommentIfReal,
+} from './comment-helpers';
 
 export const banUserAndRemoveComments = async (
   postId: string,
@@ -47,10 +53,8 @@ export const banUserAndRemoveComments = async (
 
   const targetComments = sourceIncident.flaggedComments.filter(
     (comment) =>
-      !comment.removed &&
-      !comment.reviewed &&
-      normalizeUsername(comment.author)?.toLowerCase() ===
-        normalizedUsername.toLowerCase()
+      isCommentOpenForReview(comment) &&
+      usernameKey(comment.author) === usernameKey(normalizedUsername)
   );
   if (targetComments.length === 0) {
     throw new Error(`No unreviewed comments from u/${normalizedUsername}`);
@@ -246,10 +250,8 @@ const trackedCommentIdsByUser = (incident: Incident, username: string) =>
   incident.flaggedComments
     .filter(
       (comment) =>
-        !comment.removed &&
-        !comment.reviewed &&
-        normalizeUsername(comment.author)?.toLowerCase() ===
-          username.toLowerCase()
+        isCommentOpenForReview(comment) &&
+        usernameKey(comment.author) === usernameKey(username)
     )
     .map((comment) => comment.id);
 
@@ -258,7 +260,7 @@ export const isDemoUser = (incident: Incident, username: string) =>
   incident.recentSignals.some(
     (signal) =>
       signal.isDemo &&
-      normalizeUsername(signal.author)?.toLowerCase() === username.toLowerCase()
+      usernameKey(signal.author) === usernameKey(username)
   );
 
 const removeRecentUserContent = async (
@@ -382,16 +384,8 @@ export const applyNativeUserAction = async (
 
   if (values.action !== 'remove-recent-content') return withAction;
 
-  const nextIncident: Incident = {
-    ...withAction,
-    flaggedComments: withAction.flaggedComments.map((flaggedComment) =>
-      targetIds.includes(flaggedComment.id)
-        ? { ...flaggedComment, removed: true, reviewed: false }
-        : flaggedComment
-    ),
-  };
   return saveAndRefreshIncident(
-    nextIncident,
+    markFlaggedCommentsRemoved(withAction, targetIds),
     `Removed open comments for u/${normalizedUsername} but failed to refresh incident ${normalizedPostId}`
   );
 };

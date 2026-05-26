@@ -7,14 +7,6 @@ import {
   FIREWATCH_DEMO_SCENARIOS,
 } from '../../../shared/firewatch-presets';
 import {
-  FIREWATCH_THRESHOLD_RATINGS,
-  firewatchRatingFromScore,
-  firewatchRatingInfo,
-  firewatchRatingMinScore,
-  firewatchRatingStars,
-  type FirewatchRating,
-} from '../../../shared/firewatch-rating.js';
-import {
   CONFIG_ACTION_CONTROL_GROUPS,
   CONFIG_CORE_ACTION_FIELDS,
   CONFIG_SIGNAL_WEIGHT_FIELDS,
@@ -26,7 +18,13 @@ import type {
   ConfigSaveHandler,
   DemoCreateHandler,
 } from '../types';
-import { DisclosurePanel, FieldBlock, Input, PlaybookButton } from '../common';
+import {
+  DisclosurePanel,
+  FieldBlock,
+  FirewatchRatingSelect,
+  Input,
+  PlaybookButton,
+} from '../common';
 import { splitList } from '../format';
 import {
   RedditAddIcon,
@@ -389,23 +387,6 @@ const ThresholdInput = ({
   </FieldBlock>
 );
 
-const ratingFromSelectValue = (value: string): FirewatchRating | undefined => {
-  switch (value) {
-    case '1':
-      return 1;
-    case '2':
-      return 2;
-    case '3':
-      return 3;
-    case '4':
-      return 4;
-    case '5':
-      return 5;
-    default:
-      return undefined;
-  }
-};
-
 const RatingThresholdSelect = ({
   id,
   label,
@@ -416,43 +397,16 @@ const RatingThresholdSelect = ({
   label: string;
   onChangeScore: (score: number) => void;
   score: number;
-}) => {
-  const rating = firewatchRatingFromScore(score);
-
-  return (
-    <FieldBlock
-      description={`Current threshold uses signal score ${score}/100.`}
-      htmlFor={`fw-rating-threshold-${id}`}
-      label={label}
-    >
-      <div className="relative min-w-0">
-        <select
-          id={`fw-rating-threshold-${id}`}
-          className="h-9 w-full min-w-0 appearance-none rounded-full border border-transparent bg-secondary py-0 pr-11 pl-4 text-sm font-semibold outline-none hover:bg-accent focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/25"
-          value={String(rating)}
-          onChange={(event) => {
-            const nextRating = ratingFromSelectValue(event.target.value);
-            if (nextRating) onChangeScore(firewatchRatingMinScore(nextRating));
-          }}
-        >
-          {FIREWATCH_THRESHOLD_RATINGS.map((optionRating) => {
-            const info = firewatchRatingInfo(
-              firewatchRatingMinScore(optionRating)
-            );
-
-            return (
-              <option key={optionRating} value={optionRating}>
-                {firewatchRatingStars(optionRating)} {info.rating}/5{' '}
-                {info.label}
-              </option>
-            );
-          })}
-        </select>
-        <RedditChevronDownIcon className="pointer-events-none absolute top-1/2 right-4 size-4 -translate-y-1/2 text-muted-foreground" />
-      </div>
-    </FieldBlock>
-  );
-};
+}) => (
+  <FirewatchRatingSelect
+    className="font-semibold"
+    description={`Current threshold uses signal score ${score}/100.`}
+    id={`fw-rating-threshold-${id}`}
+    label={label}
+    score={score}
+    onChangeScore={onChangeScore}
+  />
+);
 
 export const CommunityToolsCard = ({
   busyAction,

@@ -12,9 +12,12 @@ import type {
   UserStrikeSummary,
 } from '../../../shared/api';
 import { firewatchRatingSummary } from '../../../shared/firewatch-rating.js';
-import { preparedRuleAction } from '../../../shared/automation-rules';
+import {
+  preparedRuleAction,
+  ruleTriggerTypeForSignal,
+} from '../../../shared/automation-rules';
 import { linkCount, textContainsTerm } from '../firewatch-detection';
-import { normalizeUsername } from '../firewatch-utils';
+import { usernameKey } from '../firewatch-utils';
 import { currentIso } from './common';
 import {
   compareConditionValue,
@@ -40,34 +43,9 @@ import {
 import { getUserStrikeSummaries } from './strikes';
 import { logFirewatchWarn } from '../firewatch/logging';
 
-const triggerTypeForSignal = (
-  signal: Incident['recentSignals'][number] | undefined
-): RuleTrigger['type'] => {
-  if (!signal) return 'incident_score_changed';
-  if (signal.type === 'comment_create') return 'new_comment';
-  if (signal.type === 'post_create') return 'new_post';
-  if (signal.type === 'comment_report') return 'comment_report';
-  if (signal.type === 'post_report') return 'post_report';
-  if (signal.type === 'mod_action') {
-    if (
-      signal.metadata?.action === 'removecomment' ||
-      signal.metadata?.action === 'spamcomment'
-    ) {
-      return 'comment_removed';
-    }
-    if (
-      signal.metadata?.action === 'removelink' ||
-      signal.metadata?.action === 'spamlink'
-    ) {
-      return 'post_removed';
-    }
-  }
-  return 'incident_score_changed';
-};
-
 const triggerTypesForIncident = (incident: Incident) => {
   const triggerTypes = new Set(
-    incident.recentSignals.map((signal) => triggerTypeForSignal(signal))
+    incident.recentSignals.map((signal) => ruleTriggerTypeForSignal(signal))
   );
   if (triggerTypes.size === 0) triggerTypes.add('incident_score_changed');
   return triggerTypes;
@@ -112,9 +90,7 @@ const candidateUsers = (
         incident,
         scope,
         moderatorUsers,
-        (signal) =>
-          normalizeUsername(signal.author)?.toLowerCase() ===
-          user.username.toLowerCase()
+        (signal) => usernameKey(signal.author) === usernameKey(user.username)
       ),
       username: user.username,
     });
@@ -138,8 +114,7 @@ const candidateUsers = (
         scope,
         moderatorUsers,
         (signal) =>
-          normalizeUsername(signal.author)?.toLowerCase() ===
-          summary.username.toLowerCase()
+          usernameKey(signal.author) === usernameKey(summary.username)
       ),
       username: summary.username,
     });
@@ -159,16 +134,15 @@ const candidatesForRule = (
     const approvedUsers = approvedUsernames(incident);
     return incident.flaggedComments
       .filter((comment) => {
+        const commentAuthorKey = usernameKey(comment.author);
         if (comment.removed || comment.reviewed) return false;
         if (isIgnoredAuthor(comment.author, rule.scope.ignoredAuthors)) {
           return false;
         }
         if (
           rule.scope.excludeModerators &&
-          normalizeUsername(comment.author) &&
-          moderatorUsers.has(
-            normalizeUsername(comment.author)?.toLowerCase() ?? ''
-          )
+          commentAuthorKey &&
+          moderatorUsers.has(commentAuthorKey)
         ) {
           return false;
         }
@@ -177,19 +151,15 @@ const candidatesForRule = (
         }
         if (
           rule.scope.excludeApprovedUsers &&
-          normalizeUsername(comment.author) &&
-          approvedUsers.has(
-            normalizeUsername(comment.author)?.toLowerCase() ?? ''
-          )
+          commentAuthorKey &&
+          approvedUsers.has(commentAuthorKey)
         ) {
           return false;
         }
         if (
           rule.scope.commentAuthors?.length &&
           !rule.scope.commentAuthors.some(
-            (author) =>
-              normalizeUsername(author)?.toLowerCase() ===
-              normalizeUsername(comment.author)?.toLowerCase()
+            (author) => usernameKey(author) === commentAuthorKey
           )
         ) {
           return false;

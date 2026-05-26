@@ -31,6 +31,7 @@ import {
   approveCommentIfReal,
   collectThreadCommentIds,
   isDemoComment,
+  markFlaggedCommentsRemoved,
   removeCommentIfReal,
 } from './comment-helpers';
 
@@ -427,16 +428,8 @@ export const applyNativeCommentAction = async (
     return withAction;
   }
 
-  const nextIncident: Incident = {
-    ...withAction,
-    flaggedComments: withAction.flaggedComments.map((flaggedComment) =>
-      targetIds.includes(flaggedComment.id)
-        ? { ...flaggedComment, removed: true, reviewed: false }
-        : flaggedComment
-    ),
-  };
   return saveAndRefreshIncident(
-    nextIncident,
+    markFlaggedCommentsRemoved(withAction, targetIds),
     `Comment action ${values.action} completed but failed to refresh incident ${normalizedPostId}`
   );
 };

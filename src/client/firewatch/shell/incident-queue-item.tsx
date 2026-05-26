@@ -17,6 +17,7 @@ import {
 import type { QueueFilter, QueueFilterCounts } from '../types';
 import type { Incident } from '../../../shared/api';
 import { firewatchRatingInfo } from '../../../shared/firewatch-rating.js';
+import { openCommentCount } from '../../../shared/incidents';
 
 const QUEUE_FILTER_OPTIONS: {
   label: string;
@@ -148,36 +149,61 @@ export const MobileIncidentStrip = ({
         value={queueFilter}
         onChange={onQueueFilterChange}
       />
-      {loading ? (
+      {loading || incidents.length ? (
         <div className="no-scrollbar -mx-2 overflow-x-auto overscroll-x-contain px-2 pb-2 sm:-mx-5 sm:px-5">
-          <div
-            aria-busy="true"
-            aria-label="Loading posts to review"
-            className="flex w-max max-w-none snap-x snap-mandatory gap-2"
-          >
-            {Array.from({ length: 3 }, (_, index) => (
-              <IncidentQueueItemSkeleton key={index} surface="light" />
-            ))}
-          </div>
-        </div>
-      ) : incidents.length ? (
-        <div className="no-scrollbar -mx-2 overflow-x-auto overscroll-x-contain px-2 pb-2 sm:-mx-5 sm:px-5">
-          <div className="flex w-max max-w-none snap-x snap-mandatory gap-2">
-            {incidents.map((incident) => (
-              <IncidentQueueItem
-                key={incident.postId}
-                incident={incident}
-                selected={selectedPostId === incident.postId}
-                surface="light"
-                onSelect={() => onSelectIncident(incident.postId)}
-              />
-            ))}
-          </div>
+          <IncidentQueueListContent
+            incidents={incidents}
+            loading={loading}
+            selectedPostId={selectedPostId}
+            skeletonCount={3}
+            surface="light"
+            onSelectIncident={onSelectIncident}
+          />
         </div>
       ) : null}
     </div>
   );
 };
+
+export const IncidentQueueListContent = ({
+  incidents,
+  loading,
+  selectedPostId,
+  skeletonCount,
+  surface,
+  onSelectIncident,
+}: {
+  incidents: Incident[];
+  loading: boolean;
+  selectedPostId: string | undefined;
+  skeletonCount: number;
+  surface: 'dark' | 'light';
+  onSelectIncident: (postId: string) => void;
+}) => (
+  <div
+    aria-busy={loading || undefined}
+    aria-label={loading ? 'Loading posts to review' : undefined}
+    className={cn(
+      surface === 'dark'
+        ? 'flex flex-col border-t border-sidebar-border'
+        : 'flex w-max max-w-none snap-x snap-mandatory gap-2'
+    )}
+  >
+    {loading
+      ? Array.from({ length: skeletonCount }, (_, index) => (
+          <IncidentQueueItemSkeleton key={index} surface={surface} />
+        ))
+      : incidents.map((incident) => (
+          <IncidentQueueItem
+            key={incident.postId}
+            incident={incident}
+            selected={selectedPostId === incident.postId}
+            surface={surface}
+            onSelect={() => onSelectIncident(incident.postId)}
+          />
+        ))}
+  </div>
+);
 
 export const IncidentQueueItemSkeleton = ({
   surface,
@@ -230,9 +256,7 @@ export const IncidentQueueItem = ({
   selected: boolean;
   surface: 'dark' | 'light';
 }) => {
-  const unresolvedComments = incident.flaggedComments.filter(
-    (comment) => !comment.removed && !comment.reviewed
-  ).length;
+  const unresolvedComments = openCommentCount(incident);
   const postState = incident.postState;
   const needsSafetyReview =
     Boolean(incident.safetyReview) &&
@@ -243,11 +267,11 @@ export const IncidentQueueItem = ({
       ? 'Removed'
       : postState?.approved
         ? 'Approved'
-          : postState?.locked
-            ? 'Locked'
-            : needsSafetyReview
-              ? 'Safety'
-              : formatSidebarStatus(incident.status);
+        : postState?.locked
+          ? 'Locked'
+          : needsSafetyReview
+            ? 'Safety'
+            : formatSidebarStatus(incident.status);
   const firstReason = incident.reasons[0]?.label;
   const secondReason = incident.reasons[1]?.label;
   const signalParts = [

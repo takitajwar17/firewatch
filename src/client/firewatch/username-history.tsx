@@ -6,6 +6,7 @@ import {
   formatSignalType,
   formatTime,
   formatUsername,
+  usernameKey,
 } from './format';
 import type {
   FlaggedComment,
@@ -38,22 +39,6 @@ type UserHistory = {
 };
 
 type HistorySummaryRow = [label: string, value: string];
-
-const normalizeUsername = (username: string | undefined) => {
-  const normalized = username?.trim().replace(/^u\//i, '');
-  if (
-    !normalized ||
-    normalized.startsWith('t2_') ||
-    normalized === 'unknown user'
-  ) {
-    return undefined;
-  }
-
-  return normalized;
-};
-
-const usernameKey = (username: string | undefined) =>
-  normalizeUsername(username)?.toLowerCase();
 
 const sameUser = (left: string | undefined, rightKey: string | undefined) =>
   usernameKey(left) === rightKey;
@@ -151,9 +136,8 @@ const buildUserHistory = ({
   incident: Incident;
   username: string | undefined;
 }): UserHistory => {
-  const normalized = normalizeUsername(username);
   const key = usernameKey(username);
-  const displayName = formatUsername(normalized);
+  const displayName = formatUsername(username);
   const comments = incident.flaggedComments
     .filter((comment) => commentBelongsToUser(comment, key))
     .sort(newestFirst);

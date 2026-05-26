@@ -1,5 +1,6 @@
 import type {
   FirewatchRule,
+  IncidentSignal,
   PreparedRuleAction,
   RuleAction,
   RuleCondition,
@@ -48,6 +49,31 @@ export const RULE_TARGET_LABELS: Record<RuleScope['target'], string> = {
 
 export const triggerLabel = (trigger: RuleTrigger) =>
   RULE_TRIGGER_LABELS[trigger.type];
+
+export const ruleTriggerTypeForSignal = (
+  signal: IncidentSignal | undefined
+): RuleTrigger['type'] => {
+  if (!signal) return 'incident_score_changed';
+  if (signal.type === 'comment_create') return 'new_comment';
+  if (signal.type === 'post_create') return 'new_post';
+  if (signal.type === 'comment_report') return 'comment_report';
+  if (signal.type === 'post_report') return 'post_report';
+  if (signal.type === 'mod_action') {
+    if (
+      signal.metadata?.action === 'removecomment' ||
+      signal.metadata?.action === 'spamcomment'
+    ) {
+      return 'comment_removed';
+    }
+    if (
+      signal.metadata?.action === 'removelink' ||
+      signal.metadata?.action === 'spamlink'
+    ) {
+      return 'post_removed';
+    }
+  }
+  return 'incident_score_changed';
+};
 
 export const conditionLabel = (condition: RuleCondition) => {
   switch (condition.type) {

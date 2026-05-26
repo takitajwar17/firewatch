@@ -2,9 +2,9 @@ import { context, redis } from '@devvit/web/server';
 import type {
   Incident,
   IncidentSignal,
-  RuleTrigger,
   SignalSource,
 } from '../../../shared/api';
+import { ruleTriggerTypeForSignal } from '../../../shared/automation-rules';
 import { sortIncidentsByPriority } from '../../../shared/incidents';
 import { MAX_RECENT_SIGNALS } from '../firewatch-constants';
 import { normalizeDetectionText } from '../firewatch-detection';
@@ -133,31 +133,6 @@ const mergeRecentSignalWithMeta = (
   ]);
 };
 
-
-
-// Signal writer and scorer
-const signalRuleTrigger = (signal: IncidentSignal): RuleTrigger['type'] => {
-  if (signal.type === 'comment_create') return 'new_comment';
-  if (signal.type === 'post_create') return 'new_post';
-  if (signal.type === 'comment_report') return 'comment_report';
-  if (signal.type === 'post_report') return 'post_report';
-  if (signal.type === 'mod_action') {
-    if (
-      signal.metadata?.action === 'removecomment' ||
-      signal.metadata?.action === 'spamcomment'
-    ) {
-      return 'comment_removed';
-    }
-    if (
-      signal.metadata?.action === 'removelink' ||
-      signal.metadata?.action === 'spamlink'
-    ) {
-      return 'post_removed';
-    }
-  }
-  return 'incident_score_changed';
-};
-
 export const recordIncidentSignal = async (input: SignalInput) => {
   const { postSnapshot: providedPostSnapshot, ...signalInput } = input;
   const postId = normalizePostId(input.postId);
@@ -246,7 +221,7 @@ export const recordIncidentSignal = async (input: SignalInput) => {
   return {
     config,
     incident: nextIncident,
-    triggerType: signalRuleTrigger(signal),
+    triggerType: ruleTriggerTypeForSignal(signal),
   };
 };
 

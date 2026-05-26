@@ -8,6 +8,7 @@ import type {
   FirewatchConfigFormDefaults,
   FirewatchConfigUpdate,
 } from '../../../shared/firewatch-config';
+import { openCommentCount } from '../../../shared/incidents';
 import { DEFAULT_CONFIG, INDEX_KEY } from '../firewatch-constants';
 import { responseRulesKey, ruleLogsKey } from '../firewatch-rules/store';
 import {
@@ -339,9 +340,7 @@ export const getIncident = async (
 
 export const shouldShowInQueue = (incident: Incident) => {
   const status = deriveIncidentStatus(incident);
-  const hasUnresolvedComments = incident.flaggedComments.some(
-    (comment) => !comment.removed && !comment.reviewed
-  );
+  const hasUnresolvedComments = openCommentCount(incident) > 0;
 
   if (status === 'resolved' && !hasUnresolvedComments) {
     return false;

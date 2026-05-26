@@ -3,7 +3,11 @@ import { DropdownMenu } from 'radix-ui';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import {
+  FIREWATCH_THRESHOLD_RATINGS,
+  firewatchRatingFromScore,
+  firewatchRatingFromValue,
   firewatchRatingInfo,
+  firewatchRatingMinScore,
   firewatchRatingStars,
 } from '../../shared/firewatch-rating.js';
 import { ratingStarsColorClass } from './format';
@@ -65,12 +69,10 @@ export const SectionHeader = ({
 
 export const RatingStars = ({
   className,
-  showEmptyStars = true,
   showValue = true,
   score,
 }: {
   className?: string;
-  showEmptyStars?: boolean;
   showValue?: boolean;
   score: number;
 }) => {
@@ -92,9 +94,7 @@ export const RatingStars = ({
           <span className={ratingStarsColorClass(rating.rating)}>
             {filledStars}
           </span>
-          {showEmptyStars ? (
-            <span className="text-muted-foreground/35">{emptyStars}</span>
-          ) : null}
+          <span className="text-muted-foreground/35">{emptyStars}</span>
         </span>
       ) : null}
       {showValue ? <span>{rating.rating}/5</span> : null}
@@ -272,6 +272,57 @@ export const FieldBlock = ({
     ) : null}
   </div>
 );
+
+export const FirewatchRatingSelect = ({
+  className,
+  description,
+  id,
+  label,
+  onChangeScore,
+  score,
+}: {
+  className?: string;
+  description: string;
+  id: string;
+  label: string;
+  onChangeScore: (score: number) => void;
+  score: number;
+}) => {
+  const rating = firewatchRatingFromScore(score);
+
+  return (
+    <FieldBlock description={description} htmlFor={id} label={label}>
+      <div className="relative min-w-0">
+        <select
+          id={id}
+          className={cn(
+            'h-9 w-full min-w-0 appearance-none rounded-full border border-transparent bg-secondary py-0 pr-11 pl-4 text-sm outline-none hover:bg-accent focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/25',
+            className
+          )}
+          value={String(rating)}
+          onChange={(event) => {
+            const nextRating = firewatchRatingFromValue(event.target.value);
+            if (nextRating) onChangeScore(firewatchRatingMinScore(nextRating));
+          }}
+        >
+          {FIREWATCH_THRESHOLD_RATINGS.map((optionRating) => {
+            const info = firewatchRatingInfo(
+              firewatchRatingMinScore(optionRating)
+            );
+
+            return (
+              <option key={optionRating} value={optionRating}>
+                {firewatchRatingStars(optionRating)} {info.rating}/5{' '}
+                {info.label}
+              </option>
+            );
+          })}
+        </select>
+        <RedditChevronDownIcon className="pointer-events-none absolute top-1/2 right-4 size-4 -translate-y-1/2 text-muted-foreground" />
+      </div>
+    </FieldBlock>
+  );
+};
 
 type PlaybookButtonProps = {
   className?: string;

@@ -1519,7 +1519,7 @@ test('incident mutations require the current moderator claim', () => {
   assert.match(apiSource, /currentModeratorName\(\)/);
   assert.match(apiSource, /Claim this post before taking mod actions/);
   assert.match(apiSource, /Only that mod can take actions/);
-  assert.match(apiSource, /claimKeyFor\(claimOwner\) !== claimKeyFor\(actor\)/);
+  assert.match(apiSource, /usernameKey\(claimOwner\) !== usernameKey\(actor\)/);
 });
 
 test('claim ownership rejects duplicate ownership and release by another mod', () => {
@@ -1528,7 +1528,7 @@ test('claim ownership rejects duplicate ownership and release by another mod', (
     'utf8'
   );
 
-  assert.match(source, /const claimActorKey/);
+  assert.match(source, /usernameKey\(incident\.claim\.username\)/);
   assert.match(source, /const claimActorName = async/);
   assert.match(source, /Could not identify the current moderator/);
   assert.match(source, /Ask them to unclaim before acting/);

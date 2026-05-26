@@ -10,9 +10,15 @@ import {
   normalizeConfig,
   normalizeThresholds,
 } from '../../shared/firewatch-config';
+import {
+  formatUserHandle,
+  normalizeUsername,
+  usernameKey,
+} from '../../shared/usernames';
 import { INCIDENT_RETENTION_MS } from './firewatch-constants';
 
 export { normalizeConfig, normalizeThresholds };
+export { formatUserHandle, normalizeUsername, usernameKey };
 
 export type T1 = `t1_${string}`;
 export type T3 = `t3_${string}`;
@@ -51,19 +57,8 @@ export const normalizePostId = (postId: string): T3 =>
 export const normalizeCommentId = (commentId: string): T1 =>
   commentId.startsWith('t1_') ? `t1_${commentId.slice(3)}` : `t1_${commentId}`;
 
-export const normalizeUsername = (username: string | undefined) => {
-  const normalized = username?.trim().replace(/^u\//i, '');
-  if (!normalized || normalized.startsWith('t2_')) return undefined;
-  return normalized;
-};
-
 export const isAppUsername = (username: string | undefined) =>
-  normalizeUsername(username)?.toLowerCase() === context.appSlug.toLowerCase();
-
-export const formatUserHandle = (username: string | undefined) => {
-  const normalized = normalizeUsername(username);
-  return normalized ? `u/${normalized}` : 'unknown user';
-};
+  usernameKey(username) === context.appSlug.toLowerCase();
 
 export const inferSignalSource = (signal: {
   author?: string;

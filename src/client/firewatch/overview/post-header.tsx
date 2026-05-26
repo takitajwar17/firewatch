@@ -26,7 +26,6 @@ export const IncidentIntro = ({ incident }: { incident: Incident }) => {
   const postScore = incident.postScore ?? incident.score;
   const postCommentCount =
     incident.postCommentCount ?? incident.flaggedComments.length;
-  const rating = firewatchRatingInfo(incident.score);
 
   return (
     <section className="overflow-hidden border-b border-border bg-background text-card-foreground">
@@ -74,36 +73,7 @@ export const IncidentIntro = ({ incident }: { incident: Incident }) => {
               icon={<RedditCommentIcon />}
               value={String(postCommentCount)}
             />
-            {rating.rating > 0 ? (
-              <span
-                className={ratingPillClass}
-                title={formatRatingTitle(incident.score)}
-              >
-                <RatingStars
-                  score={incident.score}
-                  showValue={false}
-                />
-              </span>
-            ) : null}
-            {rating.rating > 0 ? (
-              <>
-                <span
-                  className={ratingPillClass}
-                  title={formatRatingTitle(incident.score)}
-                >
-                  {rating.rating}/5
-                </span>
-                <span
-                  className={cn(
-                    ratingPillClass,
-                    ratingStarsColorClass(rating.rating)
-                  )}
-                  title={formatRatingTitle(incident.score)}
-                >
-                  {formatRatingLabel(incident.score)}
-                </span>
-              </>
-            ) : null}
+            <RatingPills score={incident.score} />
             <span className="px-1 text-xs font-semibold leading-6 text-muted-foreground">
               Updated {formatTime(incident.updatedAt)}
             </span>
@@ -131,6 +101,30 @@ export const IncidentIntro = ({ incident }: { incident: Incident }) => {
         </article>
       </div>
     </section>
+  );
+};
+
+const RatingPills = ({ score }: { score: number }) => {
+  const rating = firewatchRatingInfo(score);
+  if (rating.rating === 0) return null;
+
+  const title = formatRatingTitle(score);
+
+  return (
+    <>
+      <span className={ratingPillClass} title={title}>
+        <RatingStars score={score} showValue={false} />
+      </span>
+      <span className={ratingPillClass} title={title}>
+        {rating.rating}/5
+      </span>
+      <span
+        className={cn(ratingPillClass, ratingStarsColorClass(rating.rating))}
+        title={title}
+      >
+        {formatRatingLabel(score)}
+      </span>
+    </>
   );
 };
 

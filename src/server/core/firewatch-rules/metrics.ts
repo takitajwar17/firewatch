@@ -7,6 +7,7 @@ import {
   normalizeCommentId,
   normalizeUsername,
   now,
+  usernameKey,
 } from '../firewatch-utils';
 import { compare } from './common';
 
@@ -36,10 +37,11 @@ export const removedCommentCountForUser = (
 ) => {
   const normalizedUsername = normalizeUsername(username);
   if (!normalizedUsername) return 0;
+  const normalizedUserKey = usernameKey(normalizedUsername);
   const commentAuthors = new Map(
     incident.flaggedComments.map((comment) => [
       normalizeCommentId(comment.id),
-      normalizeUsername(comment.author)?.toLowerCase(),
+      usernameKey(comment.author),
     ])
   );
 
@@ -58,7 +60,7 @@ export const removedCommentCountForUser = (
       if (targetId.startsWith('t3_')) return false;
       return (
         commentAuthors.get(normalizeCommentId(targetId)) ===
-        normalizedUsername.toLowerCase()
+        normalizedUserKey
       );
     });
   }).length;

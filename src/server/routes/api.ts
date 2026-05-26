@@ -65,7 +65,7 @@ import {
   saveAutomation,
 } from '../core/firewatch-rules/store';
 import { testAutomation } from '../core/firewatch-rules/matching';
-import { normalizeUsername } from '../core/firewatch-utils';
+import { normalizeUsername, usernameKey } from '../core/firewatch-utils';
 import { logFirewatchWarn } from '../core/firewatch/logging';
 import {
   CONFIG_PERMISSIONS,
@@ -249,6 +249,16 @@ const undoActionPermissions = (type: IncidentActionType) =>
     ? mergePermissions(POST_MODERATION_PERMISSIONS, FLAIR_MODERATION_PERMISSIONS)
     : POST_MODERATION_PERMISSIONS;
 
+const rulesResponse = async (
+  rules: Promise<RulesResponse['rules']>
+): Promise<RulesResponse> => {
+  const [savedRules, ruleLogs] = await Promise.all([
+    rules,
+    getRuleExecutionLogs(context.subredditName),
+  ]);
+  return { type: 'rules', rules: savedRules, ruleLogs };
+};
+
 api.get('/init', async (c) => {
   try {
     const access = await getModeratorAccess(DASHBOARD_PERMISSIONS);
@@ -423,15 +433,15 @@ api.post('/rules', async (c) => {
       'change Firewatch automations'
     );
     const input = await c.req.json<FirewatchRuleInput>();
-    const [rules, ruleLogs] = await Promise.all([
-      saveAutomation({
-        input,
-        subredditName: context.subredditName,
-        username: context.username ?? 'mod',
-      }),
-      getRuleExecutionLogs(context.subredditName),
-    ]);
-    return c.json<RulesResponse>({ type: 'rules', rules, ruleLogs });
+    return c.json<RulesResponse>(
+      await rulesResponse(
+        saveAutomation({
+          input,
+          subredditName: context.subredditName,
+          username: context.username ?? 'mod',
+        })
+      )
+    );
   } catch (error) {
     return incidentActionError(c, error);
   }
@@ -443,11 +453,9 @@ api.post('/rules/import-templates', async (c) => {
       CONFIG_PERMISSIONS,
       'import Firewatch automations'
     );
-    const [rules, ruleLogs] = await Promise.all([
-      importAutomationTemplates(context.subredditName),
-      getRuleExecutionLogs(context.subredditName),
-    ]);
-    return c.json<RulesResponse>({ type: 'rules', rules, ruleLogs });
+    return c.json<RulesResponse>(
+      await rulesResponse(importAutomationTemplates(context.subredditName))
+    );
   } catch (error) {
     return incidentActionError(c, error);
   }
@@ -459,11 +467,9 @@ api.post('/rules/disable-all', async (c) => {
       CONFIG_PERMISSIONS,
       'disable Firewatch automations'
     );
-    const [rules, ruleLogs] = await Promise.all([
-      disableAllAutomations(context.subredditName),
-      getRuleExecutionLogs(context.subredditName),
-    ]);
-    return c.json<RulesResponse>({ type: 'rules', rules, ruleLogs });
+    return c.json<RulesResponse>(
+      await rulesResponse(disableAllAutomations(context.subredditName))
+    );
   } catch (error) {
     return incidentActionError(c, error);
   }
@@ -595,9 +601,6 @@ api.post('/incidents/:postId/users/:username/strikes/clear', async (c) => {
   });
 });
 
-const claimKeyFor = (username: string | undefined) =>
-  normalizeUsername(username)?.toLowerCase();
-
 const requireIncidentClaim = async (postId: string) => {
   const incident = await getIncidentById(postId);
   if (!incident) throw new Error('Post is not in Firewatch yet');
@@ -610,7 +613,7 @@ const requireIncidentClaim = async (postId: string) => {
     throw new Error('Claim this post before taking mod actions.');
   }
 
-  if (claimKeyFor(claimOwner) !== claimKeyFor(actor)) {
+  if (usernameKey(claimOwner) !== usernameKey(actor)) {
     throw new Error(
       `Claimed by u/${claimOwner}. Only that mod can take actions.`
     );

@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from 'react';
+import { useMemo } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -7,16 +7,20 @@ import { formatTime, formatUsername, pluralize } from '../format';
 import type { ActionRunner } from '../types';
 import { UsernameHistoryTrigger } from '../username-history';
 import type { FlaggedComment, Incident } from '../../../shared/api';
+import {
+  isCommentOpenForReview,
+  openCommentsForReview,
+} from '../../../shared/incidents';
 
 type EvidenceRow = {
   label: string;
-  meta?: ReactNode;
+  meta?: string;
   value: string;
 };
 
 const strongestOpenCommentFrom = (incident: Incident) =>
   [...incident.flaggedComments]
-    .filter((comment) => !comment.removed && !comment.reviewed)
+    .filter(isCommentOpenForReview)
     .sort(
       (a, b) =>
         b.score - a.score ||
@@ -53,9 +57,7 @@ const signalSummary = (incident: Incident) => {
 };
 
 const openWorkSummary = (incident: Incident) => {
-  const openComments = incident.flaggedComments.filter(
-    (comment) => !comment.removed && !comment.reviewed
-  );
+  const openComments = openCommentsForReview(incident);
   const authorCount = new Set(
     openComments.map((comment) => comment.author.toLowerCase())
   ).size;
@@ -164,7 +166,7 @@ export const EvidenceCapsuleCard = ({ incident }: { incident: Incident }) => {
                     {row.label}
                   </p>
                   {row.meta ? (
-                    <p className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] leading-4 text-muted-foreground">
+                    <p className="truncate text-[11px] leading-4 text-muted-foreground">
                       {row.meta}
                     </p>
                   ) : null}

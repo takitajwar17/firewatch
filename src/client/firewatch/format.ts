@@ -1,26 +1,20 @@
 import type {
   FirewatchConfig,
   Incident,
-  IncidentLevel,
   IncidentSignal,
 } from '../../shared/api';
 import { EMPTY_CONFIG } from '../../shared/firewatch-config';
 import {
   type FirewatchRating,
+  clampFirewatchScore,
   firewatchRatingInfo,
   firewatchRatingStars,
   firewatchRatingSummary,
 } from '../../shared/firewatch-rating.js';
-
-export const levelBadgeVariant: Record<
-  IncidentLevel,
-  'secondary' | 'outline' | 'destructive'
-> = {
-  watch: 'secondary',
-  heat: 'outline',
-  fire: 'destructive',
-  wildfire: 'destructive',
-};
+import {
+  formatUserHandle,
+  usernameKey,
+} from '../../shared/usernames';
 
 export const emptyConfig: FirewatchConfig = EMPTY_CONFIG;
 
@@ -48,30 +42,8 @@ export const formatStatus = (status: string) => {
   return labels[status] ?? status;
 };
 
-export const formatUsername = (username: string | undefined) => {
-  const normalized = username?.trim().replace(/^u\//i, '');
-  if (
-    !normalized ||
-    normalized.startsWith('t2_') ||
-    normalized === 'unknown user'
-  ) {
-    return 'unknown user';
-  }
-  return `u/${normalized}`;
-};
-
-export const usernameKey = (username: string | undefined) => {
-  const normalized = username?.trim().replace(/^u\//i, '');
-  if (
-    !normalized ||
-    normalized.startsWith('t2_') ||
-    normalized === 'unknown user'
-  ) {
-    return undefined;
-  }
-
-  return normalized.toLowerCase();
-};
+export const formatUsername = formatUserHandle;
+export { usernameKey };
 
 export const isIncidentClaimedByCurrentUser = (
   incident: Incident,
@@ -116,7 +88,7 @@ export const formatSignalDetail = (signal: IncidentSignal) => {
   return signal.reason ?? signal.body ?? 'No details';
 };
 
-export const clampScore = (score: number) => Math.max(0, Math.min(100, score));
+export const clampScore = clampFirewatchScore;
 
 export const formatRating = (score: number) => firewatchRatingSummary(score);
 

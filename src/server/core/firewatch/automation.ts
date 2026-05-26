@@ -1,5 +1,9 @@
 import { reddit } from '@devvit/web/server';
-import type { Incident, RuleExecutionLog } from '../../../shared/api';
+import type {
+  Incident,
+  NativeCommentAction,
+  RuleExecutionLog,
+} from '../../../shared/api';
 import { addUserStrike } from '../firewatch-rules/strikes';
 import { attachRuleContext } from '../firewatch-rules/matching';
 import {
@@ -34,7 +38,7 @@ import { actorName, getConfig, saveIncident } from './store';
 import {
   formatUserHandle,
   normalizePostId,
-  normalizeUsername,
+  usernameKey,
   now,
 } from '../firewatch-utils';
 
@@ -42,20 +46,46 @@ import {
 // Automation action runner
 const AUTO_RUN_ALL_QUEUED = 'Auto-run all selected actions queued';
 
-const automationActorKey = (username: string | undefined) =>
-  normalizeUsername(username)?.toLowerCase();
-
 const requireAutomationClaim = (incident: Incident, actor: string) => {
   const claimOwner = incident.claim?.username;
   if (!claimOwner) {
     throw new Error('Claim this post before running automation actions.');
   }
 
-  if (automationActorKey(claimOwner) !== automationActorKey(actor)) {
+  if (usernameKey(claimOwner) !== usernameKey(actor)) {
     throw new Error(
       `Claimed by u/${claimOwner}. Only that mod can run automation actions.`
     );
   }
+};
+
+const runPreparedPostOrCommentAction = async ({
+  commentAction,
+  postAction,
+  postId,
+  prepared,
+  skippedActions,
+  target,
+}: {
+  commentAction: {
+    action: NativeCommentAction;
+    reason?: string;
+  };
+  postAction: Parameters<typeof applyNativePostAction>[1];
+  postId: string;
+  prepared: NonNullable<Incident['matchedRules']>[number]['preparedActions'][number];
+  skippedActions: string[];
+  target: 'comment' | 'post';
+}) => {
+  if (target === 'post') {
+    return applyNativePostAction(postId, postAction);
+  }
+  if (prepared.targetType !== 'comment' || !prepared.targetId) {
+    skippedActions.push(`${prepared.label}: no comment target`);
+    return undefined;
+  }
+
+  return applyNativeCommentAction(postId, prepared.targetId, commentAction);
 };
 
 const runAutoSafeRuleActions = async (
@@ -272,27 +302,24 @@ export const runPreparedRuleActions = async (
     }
 
     if (action.type === 'mark_spam') {
-      if (action.target === 'post') {
-        currentIncident = await applyNativePostAction(normalizedPostId, {
+      const updatedIncident = await runPreparedPostOrCommentAction({
+        commentAction: {
           action: 'spam',
           reason: `Marked by automation: ${match.ruleName}`,
-        });
+        },
+        postAction: {
+          action: 'spam',
+          reason: `Marked by automation: ${match.ruleName}`,
+        },
+        postId: normalizedPostId,
+        prepared,
+        skippedActions,
+        target: action.target,
+      });
+      if (updatedIncident) {
+        currentIncident = updatedIncident;
         executedActions.push(prepared.label);
-        continue;
       }
-      if (!prepared.targetId || prepared.targetType !== 'comment') {
-        skippedActions.push(`${prepared.label}: no comment target`);
-        continue;
-      }
-      currentIncident = await applyNativeCommentAction(
-        normalizedPostId,
-        prepared.targetId,
-        {
-          action: 'spam',
-          reason: `Marked by automation: ${match.ruleName}`,
-        }
-      );
-      executedActions.push(prepared.label);
       continue;
     }
 
@@ -312,25 +339,22 @@ export const runPreparedRuleActions = async (
     }
 
     if (action.type === 'ignore_reports') {
-      if (action.target === 'post') {
-        currentIncident = await applyNativePostAction(normalizedPostId, {
+      const updatedIncident = await runPreparedPostOrCommentAction({
+        commentAction: {
           action: 'ignore-reports',
-        });
+        },
+        postAction: {
+          action: 'ignore-reports',
+        },
+        postId: normalizedPostId,
+        prepared,
+        skippedActions,
+        target: action.target,
+      });
+      if (updatedIncident) {
+        currentIncident = updatedIncident;
         executedActions.push(prepared.label);
-        continue;
       }
-      if (!prepared.targetId || prepared.targetType !== 'comment') {
-        skippedActions.push(`${prepared.label}: no comment target`);
-        continue;
-      }
-      currentIncident = await applyNativeCommentAction(
-        normalizedPostId,
-        prepared.targetId,
-        {
-          action: 'ignore-reports',
-        }
-      );
-      executedActions.push(prepared.label);
       continue;
     }
 

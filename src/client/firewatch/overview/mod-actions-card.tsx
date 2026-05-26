@@ -18,6 +18,7 @@ import {
 } from '../reddit-icons';
 import type { ActionRunner } from '../types';
 import type { FirewatchConfig, Incident } from '../../../shared/api';
+import { openCommentCount } from '../../../shared/incidents';
 import { actionCompleted, undoActionLabel } from '../../../shared/reddit-actions';
 
 export const IncidentHero = ({
@@ -47,9 +48,7 @@ export const IncidentHero = ({
   );
   const claimedByAnotherMod = Boolean(incident.claim) && !claimedByCurrentUser;
   const claimAction = claimedByCurrentUser ? 'unclaim' : 'claim';
-  const unresolvedCount = incident.flaggedComments.filter(
-    (comment) => !comment.removed && !comment.reviewed
-  ).length;
+  const unresolvedCount = openCommentCount(incident);
   const latestAction = incident.actions.find(
     (action) => action.type !== 'demo_seeded'
   );

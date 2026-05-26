@@ -1,6 +1,6 @@
 import { context, reddit } from '@devvit/web/server';
 import type { FirewatchRule, Incident, RuleScope } from '../../../shared/api';
-import { normalizeSignal, normalizeUsername } from '../firewatch-utils';
+import { normalizeSignal, usernameKey } from '../firewatch-utils';
 
 export type ModeratorScopeResolution = {
   usernames: Set<string>;
@@ -8,16 +8,16 @@ export type ModeratorScopeResolution = {
 };
 
 export const isAutoModerator = (username: string | undefined) =>
-  normalizeUsername(username)?.toLowerCase() === 'automoderator';
+  usernameKey(username) === 'automoderator';
 
 export const isIgnoredAuthor = (
   username: string | undefined,
   ignoredAuthors: string[] | undefined
 ) => {
-  const normalized = normalizeUsername(username)?.toLowerCase();
+  const normalized = usernameKey(username);
   if (!normalized) return false;
   return (ignoredAuthors ?? []).some(
-    (author) => normalizeUsername(author)?.toLowerCase() === normalized
+    (author) => usernameKey(author) === normalized
   );
 };
 
@@ -26,14 +26,14 @@ export const approvedUsernames = (incident: Incident) =>
     incident.actions
       .filter((action) => action.type === 'user_approved')
       .flatMap((action) => action.targetIds ?? [])
-      .map((username) => normalizeUsername(username)?.toLowerCase())
+      .map(usernameKey)
       .filter((username): username is string => Boolean(username))
   );
 
 const knownModeratorUsernames = (incident: Incident) =>
   new Set(
     incident.actions
-      .map((action) => normalizeUsername(action.actor)?.toLowerCase())
+      .map((action) => usernameKey(action.actor))
       .filter((username): username is string => Boolean(username))
       .filter(
         (username) =>
@@ -61,7 +61,7 @@ export const getModeratorUsernames = async (
       .all();
 
     for (const moderator of redditModerators) {
-      const username = normalizeUsername(moderator.username)?.toLowerCase();
+      const username = usernameKey(moderator.username);
       if (username) moderators.add(username);
     }
   } catch {
@@ -111,8 +111,7 @@ export const signalAllowedByScope = ({
     scope.commentAuthors?.length &&
     !scope.commentAuthors.some(
       (allowedAuthor) =>
-        normalizeUsername(allowedAuthor)?.toLowerCase() ===
-        normalizeUsername(author)?.toLowerCase()
+        usernameKey(allowedAuthor) === usernameKey(author)
     )
   ) {
     return false;

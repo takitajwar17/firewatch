@@ -1,9 +1,13 @@
-import type { Incident } from './api';
+import type { FlaggedComment, Incident } from './api';
 
-const openCommentCount = (incident: Incident) =>
-  incident.flaggedComments.filter(
-    (comment) => !comment.removed && !comment.reviewed
-  ).length;
+export const isCommentOpenForReview = (comment: FlaggedComment) =>
+  !comment.removed && !comment.reviewed;
+
+export const openCommentsForReview = (incident: Incident) =>
+  incident.flaggedComments.filter(isCommentOpenForReview);
+
+export const openCommentCount = (incident: Incident) =>
+  openCommentsForReview(incident).length;
 
 const reviewWorkScore = (incident: Incident) =>
   openCommentCount(incident) * 100 +

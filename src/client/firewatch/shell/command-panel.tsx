@@ -7,8 +7,7 @@ import { RedditAutomationIcon, RedditSettingsIcon } from '../reddit-icons';
 import type { FirewatchView, QueueFilter, QueueFilterCounts } from '../types';
 import type { Incident } from '../../../shared/api';
 import {
-  IncidentQueueItem,
-  IncidentQueueItemSkeleton,
+  IncidentQueueListContent,
   QueueFilterTabs,
 } from './incident-queue-item';
 
@@ -75,36 +74,21 @@ export const CommandPanel = ({
           value={queueFilter}
           onChange={onQueueFilterChange}
         />
-        {loading ? (
+        {loading || incidents.length ? (
           <ScrollArea className="min-h-0 flex-1">
-            <div
-              aria-busy="true"
-              aria-label="Loading posts to review"
-              className="flex flex-col border-t border-sidebar-border"
-            >
-              {Array.from({ length: 5 }, (_, index) => (
-                <IncidentQueueItemSkeleton key={index} surface="dark" />
-              ))}
-            </div>
+            <IncidentQueueListContent
+              incidents={incidents}
+              loading={loading}
+              selectedPostId={selectedPostId}
+              skeletonCount={5}
+              surface="dark"
+              onSelectIncident={onSelectIncident}
+            />
           </ScrollArea>
-        ) : incidents.length === 0 ? (
+        ) : (
           <p className="border-t border-sidebar-border px-1 py-3 text-xs leading-5 text-sidebar-foreground/70">
             No posts need review right now.
           </p>
-        ) : (
-          <ScrollArea className="min-h-0 flex-1">
-            <div className="flex flex-col border-t border-sidebar-border">
-              {incidents.map((incident) => (
-                <IncidentQueueItem
-                  key={incident.postId}
-                  incident={incident}
-                  selected={selectedPostId === incident.postId}
-                  surface="dark"
-                  onSelect={() => onSelectIncident(incident.postId)}
-                />
-              ))}
-            </div>
-          </ScrollArea>
         )}
       </div>
     </div>

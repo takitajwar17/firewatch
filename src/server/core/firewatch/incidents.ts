@@ -1,6 +1,7 @@
 import { context, redis, reddit } from '@devvit/web/server';
 import type { Incident, IncidentAction } from '../../../shared/api';
 import { firewatchRatingSummary } from '../../../shared/firewatch-rating.js';
+import { openCommentsForReview } from '../../../shared/incidents';
 import { MAX_ACTIONS } from '../firewatch-constants';
 import { attachRuleContext } from '../firewatch-rules/matching';
 import { clearUserStrikes } from '../firewatch-rules/strikes';
@@ -26,6 +27,7 @@ import {
   normalizeUsername,
   now,
   retentionExpiration,
+  usernameKey,
 } from '../firewatch-utils';
 
 
@@ -201,6 +203,27 @@ const safetyReviewSummary = (incident: Incident) => {
     .join(', ');
 };
 
+const matchedRuleSummaryLines = (incident: Incident) =>
+  (incident.matchedRules ?? [])
+    .slice(0, 5)
+    .map(
+      (rule) =>
+        `- ${rule.ruleName}: ${rule.why.join('; ')}; prepared ${rule.preparedActions
+          .map((action) => action.label)
+          .join(', ')}`
+    )
+    .join('\n');
+
+const getRefreshedIncidentOrThrow = async (postId: string) => {
+  const normalizedPostId = normalizePostId(postId);
+  const storedIncident = await getIncident(normalizedPostId);
+  if (!storedIncident) throw new Error('Post is not in Firewatch yet');
+  return {
+    incident: await refreshIncident(storedIncident),
+    normalizedPostId,
+  };
+};
+
 export const buildSummary = (incident: Incident) => {
   const handler = incident.claim?.username;
   const topReasons = (
@@ -225,15 +248,7 @@ export const buildSummary = (incident: Incident) => {
     .slice(0, 5)
     .map((action) => `- ${action.detail}`)
     .join('\n');
-  const matchedRules = (incident.matchedRules ?? [])
-    .slice(0, 5)
-    .map(
-      (rule) =>
-        `- ${rule.ruleName}: ${rule.why.join('; ')}; prepared ${rule.preparedActions
-          .map((action) => action.label)
-          .join(', ')}`
-    )
-    .join('\n');
+  const matchedRules = matchedRuleSummaryLines(incident);
   const resolutionTime =
     incident.resolvedAt && (incident.openedAt ?? incident.createdAt)
       ? `${Math.max(1, Math.round((incident.resolvedAt - (incident.openedAt ?? incident.createdAt)) / 60000))}m`
@@ -265,9 +280,7 @@ export const buildSummary = (incident: Incident) => {
 
 export const buildEscalationSummary = (incident: Incident) => {
   const handler = incident.claim?.username;
-  const unresolved = incident.flaggedComments.filter(
-    (comment) => !comment.removed && !comment.reviewed
-  );
+  const unresolved = openCommentsForReview(incident);
   const topReasons = incident.reasons
     .slice(0, 4)
     .map((reason) => `${reason.label}: ${reason.detail}`)
@@ -279,15 +292,7 @@ export const buildEscalationSummary = (incident: Incident) => {
         `- ${formatUserHandle(comment.author)} (${firewatchRatingSummary(comment.score)}): ${comment.body.slice(0, 180)}`
     )
     .join('\n');
-  const matchedRules = (incident.matchedRules ?? [])
-    .slice(0, 5)
-    .map(
-      (rule) =>
-        `- ${rule.ruleName}: ${rule.why.join('; ')}; prepared ${rule.preparedActions
-          .map((action) => action.label)
-          .join(', ')}`
-    )
-    .join('\n');
+  const matchedRules = matchedRuleSummaryLines(incident);
   const safetySummary = safetyReviewSummary(incident);
 
   return [
@@ -482,9 +487,6 @@ export const getIncidentOrThrow = async (postId: string) => {
 // Incident-level actions
 type IncidentClaim = NonNullable<Incident['claim']>;
 
-const claimActorKey = (username: string | undefined) =>
-  normalizeUsername(username)?.toLowerCase();
-
 const claimActorName = async () =>
   normalizeUsername(
     context.username ?? (await reddit.getCurrentUsername()) ?? undefined
@@ -523,11 +525,11 @@ export const claimIncident = async (postId: string) => {
   const actor = await claimActorName();
   if (!actor) throw new Error('Could not identify the current moderator');
 
-  const actorKey = claimActorKey(actor);
+  const actorKey = usernameKey(actor);
 
   const claimedAt = now();
   if (incident.claim) {
-    if (claimActorKey(incident.claim.username) !== actorKey) {
+    if (usernameKey(incident.claim.username) !== actorKey) {
       throw new Error(
         `Claimed by u/${incident.claim.username}. Ask them to unclaim before acting.`
       );
@@ -559,7 +561,7 @@ export const claimIncident = async (postId: string) => {
   };
 
   await saveIncident(claimed);
-  if (claimActorKey(storedClaim.username) !== actorKey) {
+  if (usernameKey(storedClaim.username) !== actorKey) {
     throw new Error(
       `Claimed by u/${storedClaim.username}. Ask them to unclaim before acting.`
     );
@@ -581,7 +583,7 @@ export const unclaimIncident = async (postId: string) => {
   const actor = await claimActorName();
   if (!actor) throw new Error('Could not identify the current moderator');
 
-  if (claimActorKey(incident.claim.username) !== claimActorKey(actor)) {
+  if (usernameKey(incident.claim.username) !== usernameKey(actor)) {
     throw new Error(
       `Claimed by u/${incident.claim.username}. Only that mod can release claim.`
     );
@@ -744,10 +746,9 @@ export const clearIncidentUserStrikes = async (
 
 // Incident lifecycle
 export const escalateIncident = async (postId: string) => {
-  const normalizedPostId = normalizePostId(postId);
-  const storedIncident = await getIncident(normalizedPostId);
-  if (!storedIncident) throw new Error('Post is not in Firewatch yet');
-  const incident = await refreshIncident(storedIncident);
+  const { incident, normalizedPostId } = await getRefreshedIncidentOrThrow(
+    postId
+  );
   const config = await getConfig(incident.subredditName);
   if (!config.actionControls.handoffNotes) {
     throw new Error('Handoff notes are disabled in Settings');
@@ -773,17 +774,14 @@ export const escalateIncident = async (postId: string) => {
 };
 
 export const resolveIncident = async (postId: string) => {
-  const normalizedPostId = normalizePostId(postId);
-  const storedIncident = await getIncident(normalizedPostId);
-  if (!storedIncident) throw new Error('Post is not in Firewatch yet');
-  const incident = await refreshIncident(storedIncident);
+  const { incident, normalizedPostId } = await getRefreshedIncidentOrThrow(
+    postId
+  );
   const config = await getConfig(incident.subredditName);
   if (!config.actionControls.markResolved) {
     throw new Error('Mark resolved is disabled in Settings');
   }
-  const unresolvedCount = incident.flaggedComments.filter(
-    (comment) => !comment.removed && !comment.reviewed
-  ).length;
+  const unresolvedCount = openCommentsForReview(incident).length;
   if (unresolvedCount > 0) {
     throw new Error('Review all comments before marking resolved');
   }

@@ -47,6 +47,18 @@ export const approveCommentIfReal = async (
   return true;
 };
 
+export const markFlaggedCommentsRemoved = (
+  incident: Incident,
+  targetIds: string[]
+): Incident => ({
+  ...incident,
+  flaggedComments: incident.flaggedComments.map((flaggedComment) =>
+    targetIds.includes(flaggedComment.id)
+      ? { ...flaggedComment, removed: true, reviewed: false }
+      : flaggedComment
+  ),
+});
+
 export const collectThreadCommentIds = async (
   incident: Incident,
   commentId: string

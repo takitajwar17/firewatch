@@ -33,6 +33,7 @@ import type {
   Incident,
   PostFlairOption,
 } from '../../shared/api';
+import { openCommentsForReview } from '../../shared/incidents';
 
 export const IncidentDetail = ({
   busyAction,
@@ -50,11 +51,8 @@ export const IncidentDetail = ({
   onAction: ActionRunner;
 }) => {
   const unresolvedComments = useMemo(
-    () =>
-      incident.flaggedComments.filter(
-        (comment) => !comment.removed && !comment.reviewed
-      ),
-    [incident.flaggedComments]
+    () => openCommentsForReview(incident),
+    [incident]
   );
   const [activeTab, setActiveTab] = useState('overview');
   const actionLocked = !isIncidentClaimedByCurrentUser(incident, username);
@@ -88,6 +86,13 @@ export const IncidentDetail = ({
     },
     [onAction]
   );
+  const actionGateProps = {
+    actionLocked,
+    actionLockReason,
+    busyAction,
+    incident,
+    onAction: runModAction,
+  };
 
   return (
     <div className="flex min-w-0 flex-col gap-3 sm:gap-4">
@@ -155,30 +160,18 @@ export const IncidentDetail = ({
           <div className="flex flex-col gap-3">
             <EvidenceCapsuleCard incident={incident} />
             <IncidentHero
-              actionLocked={actionLocked}
-              actionLockReason={actionLockReason}
-              busyAction={busyAction}
+              {...actionGateProps}
               config={config}
-              incident={incident}
               username={username}
               onReviewComments={() => setActiveTab('comments')}
-              onAction={runModAction}
             />
             <NativePostControlsCard
-              actionLocked={actionLocked}
-              actionLockReason={actionLockReason}
-              busyAction={busyAction}
+              {...actionGateProps}
               config={config}
-              incident={incident}
               postFlairOptions={postFlairOptions}
-              onAction={runModAction}
             />
             <MatchedRulesCard
-              actionLocked={actionLocked}
-              actionLockReason={actionLockReason}
-              busyAction={busyAction}
-              incident={incident}
-              onAction={runModAction}
+              {...actionGateProps}
             />
             <RiskReasonsCard incident={incident} />
           </div>
@@ -186,11 +179,7 @@ export const IncidentDetail = ({
             <SafetyReviewCard incident={incident} />
             <ResponseCard incident={incident} />
             <ParticipantsCard
-              actionLocked={actionLocked}
-              actionLockReason={actionLockReason}
-              busyAction={busyAction}
-              incident={incident}
-              onAction={runModAction}
+              {...actionGateProps}
             />
           </div>
         </TabsContent>
@@ -200,12 +189,8 @@ export const IncidentDetail = ({
           value="comments"
         >
           <FlaggedCommentsCard
-            actionLocked={actionLocked}
-            actionLockReason={actionLockReason}
-            busyAction={busyAction}
+            {...actionGateProps}
             config={config}
-            incident={incident}
-            onAction={runModAction}
           />
           <RepeatedPhrasesCard incident={incident} />
         </TabsContent>
@@ -217,11 +202,7 @@ export const IncidentDetail = ({
           <LatestSignalsCard incident={incident} />
           <ImpactSnapshotCard incident={incident} />
           <ActionLogCard
-            actionLocked={actionLocked}
-            actionLockReason={actionLockReason}
-            busyAction={busyAction}
-            incident={incident}
-            onAction={runModAction}
+            {...actionGateProps}
           />
         </TabsContent>
 
@@ -230,12 +211,8 @@ export const IncidentDetail = ({
           value="notes"
         >
           <HandoffActionCard
-            actionLocked={actionLocked}
-            actionLockReason={actionLockReason}
-            busyAction={busyAction}
+            {...actionGateProps}
             canSaveHandoff={config.actionControls.handoffNotes}
-            incident={incident}
-            onAction={runModAction}
           />
           <SummariesCard incident={incident} />
         </TabsContent>
