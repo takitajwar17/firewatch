@@ -68,7 +68,7 @@ export const RULE_CONDITION_OPTIONS: {
   { label: 'Author has Firewatch strikes', value: 'user_strikes' },
   { label: 'Author has removed comments', value: 'user_removed_comments' },
   { label: 'Post has reports', value: 'post_reports' },
-  { label: 'Review score is at least', value: 'incident_score' },
+  { label: 'Firewatch rating is at least', value: 'incident_score' },
 ];
 
 export const RULE_ACTION_OPTIONS: {

@@ -15,7 +15,8 @@ context before acting.
 - Sends a post to Firewatch from the post menu, or queues it from reports,
   watched words, watched domains, comment bursts, repeated user wording,
   AutoModerator filters, and mod actions.
-- Shows the reasons in plain Reddit terms: reports, comments waiting for a mod
+- Shows a simple 0-5 Firewatch rating and the reasons in plain Reddit terms:
+  reports, comments waiting for a mod
   decision, users in review, reply clusters, watched words, watched domains,
   repeated phrases, and recent activity.
 - Lets one moderator claim the post so the team can see who is handling it.
@@ -38,11 +39,11 @@ context before acting.
 
 1. Install Firewatch in a subreddit you moderate.
 2. Open the subreddit menu and choose **Open Firewatch**.
-3. Open **Firewatch settings** to tune watched words, watched domains, score
+3. Open **Firewatch settings** to tune watched words, watched domains, rating
    thresholds, reminder text, signal weights, and available mod actions.
 4. Let Firewatch queue matching activity from triggers, or choose **Send to
    Firewatch** from a post menu when a thread needs attention.
-5. Review the score, visible reasons, impact snapshot, comments, users,
+5. Review the Firewatch rating, visible reasons, impact snapshot, comments, users,
    activity, mod notes, and matched automations.
 6. Claim the post, approve acceptable comments, remove rule-breaking comments,
    lock the thread, run prepared automation actions, or save a handoff note.
@@ -50,7 +51,7 @@ context before acting.
 
 ## Automations
 
-Firewatch Automations watch posts, comments, reports, incident scores, and user
+Firewatch Automations watch posts, comments, reports, incident ratings, and user
 strike counts. An automation can:
 
 - Suggest actions without running them.
@@ -68,7 +69,7 @@ actions in an active community.
 
 ## Moderator Control
 
-Firewatch scores are advisory. The app explains its reasons, but moderators
+Firewatch ratings are advisory. The app explains its reasons, but moderators
 remain responsible for reviewing context, applying community rules, and deciding
 whether to approve, remove, lock, ban, mute, flair, ignore reports, or take any
 other action. Firewatch is designed to reduce queue work, not replace moderator
@@ -93,7 +94,7 @@ subreddit permissions before returning mod data or accepting actions.
   and post flair. Reddit calls these `posts` and `flair`, or `all` for full mod
   access.
 - Moderators who cannot change subreddit settings do not receive watched lists,
-  score thresholds, automation rules, or automation logs in the webview payload.
+  rating thresholds, automation rules, or automation logs in the webview payload.
   They can still see the review data, available action controls, and reminder
   text needed for post moderation.
 - Moderators who cannot manage post flair do not receive post flair templates or

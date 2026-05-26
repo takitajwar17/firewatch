@@ -12,6 +12,7 @@ import type {
   RepeatedPhrase,
   ResponseSuggestion,
 } from '../../../shared/api';
+import { firewatchRatingSummary } from '../../../shared/firewatch-rating.js';
 import { actionCompleted } from '../../../shared/reddit-actions';
 import {
   MAX_INVOLVED_USERS,
@@ -240,7 +241,7 @@ export const getResponseSuggestion = (
 
   return {
     label: 'Watch post',
-    detail: `Review score is ${score}/100. Watch reports, comment volume, and repeated user wording.`,
+    detail: `Firewatch rating is ${firewatchRatingSummary(score)}. Watch reports, comment volume, and repeated user wording.`,
     level,
     steps: [
       'Leave the post open.',

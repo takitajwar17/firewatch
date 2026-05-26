@@ -11,6 +11,7 @@ import type {
   RuleTrigger,
   UserStrikeSummary,
 } from '../../../shared/api';
+import { firewatchRatingSummary } from '../../../shared/firewatch-rating.js';
 import { preparedRuleAction } from '../../../shared/automation-rules';
 import { linkCount, textContainsTerm } from '../firewatch-detection';
 import { normalizeUsername } from '../firewatch-utils';
@@ -324,12 +325,15 @@ const conditionReason = ({
     });
   }
   if (condition.type === 'incident_score') {
-    return compareConditionValue({
+    const match = compareConditionValue({
       actual: incident.score,
       expected: condition.value,
-      label: 'review score',
+      label: 'Firewatch score',
       operator: condition.operator,
     });
+    return match
+      ? `Firewatch rating ${condition.operator} ${firewatchRatingSummary(condition.value)}`
+      : undefined;
   }
   if (condition.type === 'repeated_phrase') {
     const maxMatches = Math.max(

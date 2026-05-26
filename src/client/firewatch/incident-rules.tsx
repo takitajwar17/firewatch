@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { RULE_MODE_LABELS } from '../../shared/automation-rules';
 import type { Incident, MatchedAutomationRule } from '../../shared/api';
 import { PlaybookButton } from './common';
+import { formatRating, formatRatingTitle } from './format';
 import type { ActionRunner } from './types';
 import {
   RedditApproveIcon,
@@ -141,7 +142,9 @@ const MatchedRuleItem = ({
           </p>
           <div className="mt-1 flex flex-wrap gap-1.5">
             <Badge variant="secondary">{RULE_MODE_LABELS[rule.mode]}</Badge>
-            <Badge variant="outline">{incident.score}/100</Badge>
+            <Badge title={formatRatingTitle(incident.score)} variant="outline">
+              {formatRating(incident.score)}
+            </Badge>
           </div>
         </div>
         <RedditShieldIcon className="size-5 text-muted-foreground" />

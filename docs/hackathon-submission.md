@@ -55,12 +55,12 @@ Capabilities:
 - Ingests post creates, post edits, new comments, comment reports, post reports,
   AutoModerator filter events, mod actions, and delete events through Devvit
   triggers.
-- Scores incidents with deterministic, explainable signals: comment velocity,
+- Rates incidents from 0-5 with deterministic, explainable signals: comment velocity,
   reports, watched words, watched domains, repeated wording across user
   comments, reply pile-ons, recent removals, and manual mod sends.
 - Excludes Firewatch notices and mod-generated comments from repeated wording
   and user scoring so the app does not inflate its own incidents.
-- Shows review score, peak score, queue reasons, comment review items,
+- Shows Firewatch rating, peak rating, queue reasons, comment review items,
   users in review, repeated wording, recent activity, trend, suggested action,
   and mod log.
 - Shows a review progress snapshot: reports grouped, comments reviewed,

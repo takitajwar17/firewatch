@@ -1,6 +1,15 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { cn } from '@/lib/utils';
-import { formatStatus, formatTime, formatUsername, pluralize } from '../format';
+import { RatingStars } from '../common';
+import {
+  formatRatingLabel,
+  formatRatingTitle,
+  formatStatus,
+  formatTime,
+  formatUsername,
+  pluralize,
+  ratingStarsColorClass,
+} from '../format';
 import {
   RedditCommentIcon,
   RedditDownvoteIcon,
@@ -8,11 +17,16 @@ import {
 } from '../reddit-icons';
 import { UsernameHistoryTrigger } from '../username-history';
 import type { Incident } from '../../../shared/api';
+import { firewatchRatingInfo } from '../../../shared/firewatch-rating.js';
+
+const ratingPillClass =
+  'inline-flex h-7 items-center rounded-full bg-secondary px-2.5 text-xs font-semibold text-secondary-foreground sm:h-8 sm:text-sm';
 
 export const IncidentIntro = ({ incident }: { incident: Incident }) => {
   const postScore = incident.postScore ?? incident.score;
   const postCommentCount =
     incident.postCommentCount ?? incident.flaggedComments.length;
+  const rating = firewatchRatingInfo(incident.score);
 
   return (
     <section className="overflow-hidden border-b border-border bg-background text-card-foreground">
@@ -60,9 +74,36 @@ export const IncidentIntro = ({ incident }: { incident: Incident }) => {
               icon={<RedditCommentIcon />}
               value={String(postCommentCount)}
             />
-            <span className="inline-flex h-7 items-center rounded-full bg-secondary px-2.5 text-xs font-semibold text-secondary-foreground sm:h-8 sm:text-sm">
-              Review score {incident.score}
-            </span>
+            {rating.rating > 0 ? (
+              <span
+                className={ratingPillClass}
+                title={formatRatingTitle(incident.score)}
+              >
+                <RatingStars
+                  score={incident.score}
+                  showValue={false}
+                />
+              </span>
+            ) : null}
+            {rating.rating > 0 ? (
+              <>
+                <span
+                  className={ratingPillClass}
+                  title={formatRatingTitle(incident.score)}
+                >
+                  {rating.rating}/5
+                </span>
+                <span
+                  className={cn(
+                    ratingPillClass,
+                    ratingStarsColorClass(rating.rating)
+                  )}
+                  title={formatRatingTitle(incident.score)}
+                >
+                  {formatRatingLabel(incident.score)}
+                </span>
+              </>
+            ) : null}
             <span className="px-1 text-xs font-semibold leading-6 text-muted-foreground">
               Updated {formatTime(incident.updatedAt)}
             </span>

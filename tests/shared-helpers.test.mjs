@@ -13,6 +13,13 @@ import {
   normalizeConfig,
 } from '../dist/types/shared/firewatch-config.js';
 import {
+  firewatchRatingFromScore,
+  firewatchRatingMinScore,
+  firewatchRatingScoreRange,
+  firewatchRatingStars,
+  firewatchRatingSummary,
+} from '../dist/types/shared/firewatch-rating.js';
+import {
   CROWD_CONTROL_OPTIONS,
   commentActionControl,
   commentActionDetail,
@@ -100,6 +107,18 @@ test('detection matches watched words without substring false positives', () => 
       ['admin fee', 1],
     ]
   );
+});
+
+test('Firewatch rating maps signal scores to simple 0-5 labels', () => {
+  assert.equal(firewatchRatingFromScore(0), 0);
+  assert.equal(firewatchRatingFromScore(1), 1);
+  assert.equal(firewatchRatingFromScore(40), 2);
+  assert.equal(firewatchRatingFromScore(41), 3);
+  assert.equal(firewatchRatingFromScore(81), 5);
+  assert.equal(firewatchRatingMinScore(4), 61);
+  assert.equal(firewatchRatingScoreRange(5), '81-100');
+  assert.equal(firewatchRatingStars(3), '★★★☆☆');
+  assert.equal(firewatchRatingSummary(85), '5/5 Wildfire');
 });
 
 test('detection parses domains and matches exact hosts or subdomains', () => {

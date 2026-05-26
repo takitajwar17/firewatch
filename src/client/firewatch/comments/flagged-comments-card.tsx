@@ -12,7 +12,12 @@ import {
   RedditMenuSeparator,
   RedditOverflowMenu,
 } from '../common';
-import { formatTime, formatUsername } from '../format';
+import {
+  formatRatingLabel,
+  formatTime,
+  formatUsername,
+  ratingStarsColorClass,
+} from '../format';
 import { openRedditUrlInNewTab } from '../navigation';
 import {
   RedditApproveIcon,
@@ -28,6 +33,7 @@ import {
 import type { ActionRunner } from '../types';
 import { UsernameHistoryTrigger } from '../username-history';
 import type { FirewatchConfig, Incident } from '../../../shared/api';
+import { firewatchRatingInfo } from '../../../shared/firewatch-rating.js';
 import { CommentActionPrepPanel } from './comment-action-prep';
 import { CommentContextBlock } from './comment-context';
 import {
@@ -346,6 +352,7 @@ export const FlaggedCommentsCard = ({
               const threadContext = contextByCommentId.get(comment.id);
               const selected =
                 !actionLocked && selectedCommentIds.has(comment.id);
+              const rating = firewatchRatingInfo(comment.score);
 
               return (
                 <article
@@ -376,15 +383,26 @@ export const FlaggedCommentsCard = ({
                           incident={incident}
                           username={comment.author}
                         />
-                        <span
-                          aria-hidden="true"
-                          className="text-muted-foreground/70"
-                        >
-                          ·
-                        </span>
-                        <span className="text-xs font-semibold leading-5 text-muted-foreground">
-                          score {comment.score}
-                        </span>
+                        {rating.rating > 0 ? (
+                          <>
+                            <span
+                              aria-hidden="true"
+                              className="text-muted-foreground/70"
+                            >
+                              ·
+                            </span>
+                            <Badge
+                              className={cn(
+                                'max-w-full',
+                                ratingStarsColorClass(rating.rating)
+                              )}
+                              title={`${rating.rating}/5 ${formatRatingLabel(comment.score)}`}
+                              variant="secondary"
+                            >
+                              {formatRatingLabel(comment.score)}
+                            </Badge>
+                          </>
+                        ) : null}
                         <span
                           aria-hidden="true"
                           className="text-muted-foreground/70"

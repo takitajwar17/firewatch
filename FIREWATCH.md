@@ -14,7 +14,7 @@ Firewatch does these things end to end:
   support-safety cleanup, plus a reset control for clearing demo queue state.
 - Tracks Devvit trigger events for post creates/edits, comments, reports,
   deletes, mod actions, and AutoModerator filter events.
-- Scores posts with deterministic signals and displays the reasons.
+- Rates posts from 0-5 with deterministic signals and displays the reasons.
 - Shows a moderator impact snapshot with reports grouped, comments reviewed,
   users resolved, actions taken, and time open.
 - Lets one mod take ownership of a post.
@@ -28,9 +28,10 @@ Firewatch does these things end to end:
 - Deletes stored post or comment content when Reddit delete triggers arrive.
 - Expires stored incident records after 30 days.
 
-## Scoring Signals
+## Rating Signals
 
-The review score is calculated from:
+The Firewatch rating is shown as 0-5 stars. It is calculated from an internal
+signal score built from:
 
 - comment bursts in the last hour
 - comment reports and post report count
@@ -41,13 +42,13 @@ The review score is calculated from:
 - recent removals from Firewatch, moderators, or AutoModerator
 - manual sends from the post menu
 
-The score is advisory. Firewatch does not automatically remove comments, lock
+The rating is advisory. Firewatch does not automatically remove comments, lock
 posts, or mark anything resolved. A moderator must click the action.
 
 ## Mod Workflow
 
 1. Open **Open Firewatch queue** from the subreddit menu.
-2. Configure watched words, watched domains, and scores in **Firewatch filters**.
+2. Configure watched words, watched domains, and ratings in **Firewatch filters**.
 3. Wait for report/comment/mod-action triggers or use **Send to Firewatch** on a
    post.
 4. Use **Create demo** to run a judge or mod training drill if needed.
@@ -85,7 +86,7 @@ Firewatch uses:
   comment moderation access.
 - Flair actions are available only to mods who can manage both posts and post
   flair. Reddit calls these `posts` and `flair`, or `all`.
-- Mods who cannot change subreddit settings do not receive watched lists, score
+- Mods who cannot change subreddit settings do not receive watched lists, rating
   thresholds, automation rules, or automation logs in the webview payload.
 - Mods who cannot manage post flair do not receive post flair templates or run
   flair actions.
@@ -96,5 +97,5 @@ Firewatch uses:
 
 Firewatch is not a machine-learning classifier and does not inspect private
 messages. It can only react to events and Reddit API data available to an
-installed Devvit app. Scores explain review priority; moderators make the final
+installed Devvit app. Ratings explain review priority; moderators make the final
 decision.

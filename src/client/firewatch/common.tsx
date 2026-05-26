@@ -1,10 +1,12 @@
 import type { ComponentProps, ReactNode } from 'react';
 import { DropdownMenu } from 'radix-ui';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import type { Incident } from '../../shared/api';
-import { levelBadgeVariant } from './format';
+import {
+  firewatchRatingInfo,
+  firewatchRatingStars,
+} from '../../shared/firewatch-rating.js';
+import { ratingStarsColorClass } from './format';
 import {
   RedditChevronDownIcon,
   RedditOverflowIcon,
@@ -61,16 +63,44 @@ export const SectionHeader = ({
   </div>
 );
 
-export const ScoreBadge = ({ incident }: { incident: Incident }) => (
-  <Badge
-    aria-label={`Review score ${incident.score} out of 100`}
-    className="shrink-0 font-semibold tabular-nums"
-    title={`Review score ${incident.score}/100`}
-    variant={levelBadgeVariant[incident.level]}
-  >
-    {incident.score}
-  </Badge>
-);
+export const RatingStars = ({
+  className,
+  showEmptyStars = true,
+  showValue = true,
+  score,
+}: {
+  className?: string;
+  showEmptyStars?: boolean;
+  showValue?: boolean;
+  score: number;
+}) => {
+  const rating = firewatchRatingInfo(score);
+  const filledStars = '★'.repeat(rating.rating);
+  const emptyStars = '☆'.repeat(5 - rating.rating);
+
+  return (
+    <span
+      aria-label={`Firewatch rating ${rating.rating} out of 5, ${rating.label}`}
+      className={cn(
+        'inline-flex items-center gap-1 font-semibold tabular-nums',
+        className
+      )}
+      title={`${firewatchRatingStars(rating.rating)} Rating ${rating.rating}/5 ${rating.label} (${rating.detail}; signal score ${score}/100)`}
+    >
+      {rating.rating > 0 ? (
+        <span aria-hidden="true" className="tracking-normal">
+          <span className={ratingStarsColorClass(rating.rating)}>
+            {filledStars}
+          </span>
+          {showEmptyStars ? (
+            <span className="text-muted-foreground/35">{emptyStars}</span>
+          ) : null}
+        </span>
+      ) : null}
+      {showValue ? <span>{rating.rating}/5</span> : null}
+    </span>
+  );
+};
 
 export const EmptyText = ({ children }: { children: ReactNode }) => (
   <p className="text-sm leading-5 text-muted-foreground">{children}</p>

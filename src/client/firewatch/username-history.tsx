@@ -1,7 +1,12 @@
 import { useMemo, type ReactNode } from 'react';
 import { DropdownMenu } from 'radix-ui';
 import { cn } from '@/lib/utils';
-import { formatSignalType, formatTime, formatUsername } from './format';
+import {
+  formatRating,
+  formatSignalType,
+  formatTime,
+  formatUsername,
+} from './format';
 import type {
   FlaggedComment,
   Incident,
@@ -404,7 +409,8 @@ export const UsernameHistoryTrigger = ({
                       {comment.body}
                     </p>
                     <p className="text-xs leading-5 text-muted-foreground">
-                      score {comment.score} · {formatTime(comment.createdAt)}
+                      {formatRating(comment.score)} ·{' '}
+                      {formatTime(comment.createdAt)}
                       {isOpenComment(comment) ? ' · open' : ' · reviewed'}
                     </p>
                   </div>

@@ -6,14 +6,14 @@ Target length: 90 to 120 seconds.
 
 1. Open Firewatch in `r/firewatch17_dev`.
 2. If the queue is empty, click **Suspicious giveaway thread**.
-3. Show the new incident in **Posts to review** with its review score and state.
+3. Show the new incident in **Posts to review** with its 0-5 Firewatch rating and state.
 4. Open the incident and show the top post state: author, title, post score,
-   comments, review score, flair/lock/removal badges if present.
+   comments, Firewatch rating, flair/lock/removal badges if present.
 5. In **Mod actions**, show the primary loop: Open on Reddit, Review comments,
    Claim, Save handoff note, Mark resolved.
 6. Show **Post tools** briefly, then skip the secondary controls.
 7. Show **Prepared automation** and say actions wait for moderator approval.
-8. Show **Signals** so the score is visibly explainable.
+8. Show **Signals** so the rating is visibly explainable.
 9. Open **Comments**.
 10. Approve one acceptable comment.
 11. Remove one rule-breaking comment with a removal reason.
@@ -39,7 +39,7 @@ Here I create a clean demo drill. The app creates a real source post and feeds
 the same signal pipeline used in production: reports, comments, watched words,
 watched domains, repeated user wording, reply clusters, and mod sends.
 
-Every score is explainable. Firewatch does not make hidden AI decisions and it
+Every rating is explainable. Firewatch does not make hidden AI decisions and it
 does not automatically punish users.
 
 The review progress panel shows what the mod team has already resolved.
@@ -59,7 +59,7 @@ team.
 ## Screenshot Checklist
 
 - Queue with at least one incident selected.
-- Post review showing review score, state badges, actions, and signals.
+- Post review showing Firewatch rating, state badges, actions, and signals.
 - Post review showing latest action and prepared automation.
 - Comments tab showing Approve, Remove, and Ban user.
 - Activity tab showing Reddit activity, review progress, and mod log.

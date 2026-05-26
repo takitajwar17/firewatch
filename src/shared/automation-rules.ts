@@ -7,6 +7,7 @@ import type {
   RuleScope,
   RuleTrigger,
 } from './api';
+import { firewatchRatingSummary } from './firewatch-rating.js';
 
 export const defaultRuleScope = (
   subredditId: string,
@@ -34,7 +35,7 @@ export const RULE_TRIGGER_LABELS: Record<RuleTrigger['type'], string> = {
   comment_report: 'Comment report',
   comment_removed: 'Comment is removed',
   post_removed: 'Post is removed',
-  incident_score_changed: 'Review score changes',
+  incident_score_changed: 'Firewatch rating changes',
   user_strike_count_changed: 'User strike count changes',
 };
 
@@ -69,7 +70,7 @@ export const conditionLabel = (condition: RuleCondition) => {
     case 'post_reports':
       return `post reports ${condition.operator} ${condition.value}`;
     case 'incident_score':
-      return `review score ${condition.operator} ${condition.value}`;
+      return `Firewatch rating ${condition.operator} ${firewatchRatingSummary(condition.value)}`;
     case 'repeated_phrase':
       return `${condition.minMatches}+ repeated phrase matches`;
     case 'reply_cluster':
@@ -268,7 +269,7 @@ export const defaultRuleTemplates = ({
     id: 'rule_heated_thread_cooldown',
     name: 'Crowded thread cooldown',
     description:
-      'Prepares a sticky comment draft when the review score reaches action level.',
+      'Prepares a sticky comment draft when the Firewatch rating reaches action level.',
     enabled: true,
     trigger: { type: 'incident_score_changed' },
     scope: defaultRuleScope(subredditId, 'incident'),

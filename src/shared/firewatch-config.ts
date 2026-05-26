@@ -752,19 +752,19 @@ export const buildConfigFormFields = (
   {
     type: 'number',
     name: 'heatThreshold',
-    label: 'Review at',
+    label: 'Review rating threshold score',
     defaultValue: defaults.heatThreshold,
   },
   {
     type: 'number',
     name: 'fireThreshold',
-    label: 'Act score',
+    label: 'Priority rating threshold score',
     defaultValue: defaults.fireThreshold,
   },
   {
     type: 'number',
     name: 'wildfireThreshold',
-    label: 'Lock score',
+    label: 'Wildfire rating threshold score',
     defaultValue: defaults.wildfireThreshold,
   },
   ...CONFIG_SIGNAL_WEIGHT_FIELDS.map((field) =>

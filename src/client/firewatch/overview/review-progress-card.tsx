@@ -2,7 +2,13 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { EmptyText } from '../common';
-import { clampScore, formatTime } from '../format';
+import {
+  clampScore,
+  formatRating,
+  formatRatingTitle,
+  formatRatingValue,
+  formatTime,
+} from '../format';
 import type { Incident } from '../../../shared/api';
 
 const formatDuration = (minutes: number) => {
@@ -60,7 +66,9 @@ export const ImpactSnapshotCard = ({ incident }: { incident: Incident }) => {
           <Badge variant="outline">
             Open {formatDuration(impact.timeOpenMinutes)}
           </Badge>
-          <Badge variant="outline">Peak score {impact.peakAttention}/100</Badge>
+          <Badge title={formatRatingTitle(impact.peakAttention)} variant="outline">
+            Peak {formatRating(impact.peakAttention)}
+          </Badge>
           {impact.handoffSaved ? (
             <Badge variant="secondary">Handoff saved</Badge>
           ) : null}
@@ -82,16 +90,16 @@ const ScoreHistoryBlock = ({
   incident: Incident;
 }) => (
   <div className={cn('flex flex-col gap-2', className)}>
-    <p className="text-sm font-semibold leading-5">Review score history</p>
+    <p className="text-sm font-semibold leading-5">Rating history</p>
     {incident.trend.length === 0 ? (
-      <EmptyText>No score history yet.</EmptyText>
+      <EmptyText>No rating history yet.</EmptyText>
     ) : (
       <div className="flex h-28 items-stretch gap-2 rounded-md border bg-background p-3">
         {incident.trend.map((point) => (
           <div
             key={point.timestamp}
             className="flex min-w-0 flex-1 flex-col gap-2"
-            title={`${formatTime(point.timestamp)} review score ${point.score}`}
+            title={`${formatTime(point.timestamp)} ${formatRatingTitle(point.score)}`}
           >
             <div className="flex min-h-0 flex-1 items-end">
               <div
@@ -99,9 +107,14 @@ const ScoreHistoryBlock = ({
                 style={{ height: `${Math.max(8, clampScore(point.score))}%` }}
               />
             </div>
-            <span className="text-[11px] font-semibold leading-none text-muted-foreground">
-              {formatTime(point.timestamp)}
-            </span>
+            <div className="flex flex-col gap-1">
+              <span className="text-[11px] font-semibold leading-none tabular-nums text-foreground">
+                {formatRatingValue(point.score)}
+              </span>
+              <span className="text-[11px] font-semibold leading-none text-muted-foreground">
+                {formatTime(point.timestamp)}
+              </span>
+            </div>
           </div>
         ))}
       </div>

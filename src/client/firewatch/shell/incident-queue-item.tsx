@@ -1,6 +1,6 @@
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { PanelLabel, ScoreBadge, Skeleton } from '../common';
+import { PanelLabel, RatingStars, Skeleton } from '../common';
 import {
   formatStatus,
   formatTime,
@@ -16,6 +16,7 @@ import {
 } from '../reddit-icons';
 import type { QueueFilter, QueueFilterCounts } from '../types';
 import type { Incident } from '../../../shared/api';
+import { firewatchRatingInfo } from '../../../shared/firewatch-rating.js';
 
 const QUEUE_FILTER_OPTIONS: {
   label: string;
@@ -30,6 +31,22 @@ const QUEUE_FILTER_OPTIONS: {
   },
   { label: 'Resolved posts', shortLabel: 'Resolved', value: 'resolved' },
 ];
+
+const formatSidebarStatus = (status: string) => {
+  const labels: Record<string, string> = {
+    active: 'Open',
+    claimed: 'Claimed',
+    cooldown: 'Reminder',
+    locked: 'Locked',
+    monitoring: 'Watching',
+    open: 'Open',
+    resolved: 'Resolved',
+    review: 'Review',
+    watching: 'Watching',
+  };
+
+  return labels[status] ?? formatStatus(status).split(/\s+/)[0] ?? status;
+};
 
 export const QueueFilterTabs = ({
   counts,
@@ -226,11 +243,11 @@ export const IncidentQueueItem = ({
       ? 'Removed'
       : postState?.approved
         ? 'Approved'
-        : postState?.locked
-          ? 'Locked'
-          : needsSafetyReview
-            ? 'Safety review'
-            : formatStatus(incident.status);
+          : postState?.locked
+            ? 'Locked'
+            : needsSafetyReview
+              ? 'Safety'
+              : formatSidebarStatus(incident.status);
   const firstReason = incident.reasons[0]?.label;
   const secondReason = incident.reasons[1]?.label;
   const signalParts = [
@@ -247,6 +264,7 @@ export const IncidentQueueItem = ({
       ? pluralize(incident.stats.keywordHits, 'keyword hit')
       : undefined,
   ].filter(Boolean);
+  const rating = firewatchRatingInfo(incident.score);
 
   return (
     <button
@@ -265,20 +283,17 @@ export const IncidentQueueItem = ({
       )}
       onClick={onSelect}
     >
-      <div className="flex items-start justify-between gap-3">
-        <p
-          className={cn(
-            'line-clamp-2 text-sm font-semibold leading-5',
-            surface === 'dark' ? 'text-sidebar-foreground' : 'text-foreground'
-          )}
-        >
-          {incident.title}
-        </p>
-        <ScoreBadge incident={incident} />
-      </div>
+      <p
+        className={cn(
+          'line-clamp-2 text-sm font-semibold leading-5',
+          surface === 'dark' ? 'text-sidebar-foreground' : 'text-foreground'
+        )}
+      >
+        {incident.title}
+      </p>
       <div
         className={cn(
-          'mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs leading-5',
+          'mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs leading-5',
           surface === 'dark'
             ? 'text-sidebar-foreground/60'
             : 'text-muted-foreground'
@@ -296,6 +311,15 @@ export const IncidentQueueItem = ({
           )}
           {stateLabel}
         </span>
+        {rating.rating > 0 ? (
+          <>
+            <span aria-hidden="true">·</span>
+            <RatingStars
+              score={incident.score}
+              showValue={false}
+            />
+          </>
+        ) : null}
         <span aria-hidden="true">·</span>
         <span>{formatTime(incident.updatedAt)}</span>
       </div>

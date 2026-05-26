@@ -5,6 +5,12 @@ import type {
   IncidentSignal,
 } from '../../shared/api';
 import { EMPTY_CONFIG } from '../../shared/firewatch-config';
+import {
+  type FirewatchRating,
+  firewatchRatingInfo,
+  firewatchRatingStars,
+  firewatchRatingSummary,
+} from '../../shared/firewatch-rating.js';
 
 export const levelBadgeVariant: Record<
   IncidentLevel,
@@ -111,6 +117,36 @@ export const formatSignalDetail = (signal: IncidentSignal) => {
 };
 
 export const clampScore = (score: number) => Math.max(0, Math.min(100, score));
+
+export const formatRating = (score: number) => firewatchRatingSummary(score);
+
+export const formatRatingValue = (score: number) =>
+  `${firewatchRatingInfo(score).rating}/5`;
+
+export const formatRatingLabel = (score: number) =>
+  firewatchRatingInfo(score).label;
+
+export const formatRatingTitle = (score: number) => {
+  const info = firewatchRatingInfo(score);
+  return `${firewatchRatingStars(info.rating)} Rating ${info.rating}/5 ${info.label} (${info.detail}; score ${clampScore(score)}/100)`;
+};
+
+export const ratingStarsColorClass = (rating: FirewatchRating) => {
+  switch (rating) {
+    case 1:
+      return 'text-[#007fae]';
+    case 2:
+      return 'text-[#b78800] dark:text-[#ffd15c]';
+    case 3:
+      return 'text-primary';
+    case 4:
+      return 'text-[#ae2c00] dark:text-[#ff895d]';
+    case 5:
+      return 'text-destructive';
+    case 0:
+      return 'text-muted-foreground';
+  }
+};
 
 export const pluralize = (
   count: number,

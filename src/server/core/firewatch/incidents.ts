@@ -1,5 +1,6 @@
 import { context, redis, reddit } from '@devvit/web/server';
 import type { Incident, IncidentAction } from '../../../shared/api';
+import { firewatchRatingSummary } from '../../../shared/firewatch-rating.js';
 import { MAX_ACTIONS } from '../firewatch-constants';
 import { attachRuleContext } from '../firewatch-rules/matching';
 import { clearUserStrikes } from '../firewatch-rules/strikes';
@@ -242,7 +243,7 @@ export const buildSummary = (incident: Incident) => {
   return [
     `Final mod note for ${incident.title}`,
     `Started at: ${new Date(incident.openedAt ?? incident.createdAt).toISOString()}`,
-    `Peak review score: ${incident.peakScore}/100 (${formatLevel(incident.peakLevel)})`,
+    `Peak Firewatch rating: ${firewatchRatingSummary(incident.peakScore)} (${formatLevel(incident.peakLevel)})`,
     `Final status: ${formatStatus(incident.status)}`,
     `Time open: ${resolutionTime}`,
     `Impact: ${incident.impact.reportsGrouped} reports grouped, ${incident.impact.commentsReviewed} comments reviewed, ${incident.impact.actionsTaken} mod actions recorded`,
@@ -275,7 +276,7 @@ export const buildEscalationSummary = (incident: Incident) => {
     .slice(0, 5)
     .map(
       (comment) =>
-        `- ${formatUserHandle(comment.author)} (${comment.score}): ${comment.body.slice(0, 180)}`
+        `- ${formatUserHandle(comment.author)} (${firewatchRatingSummary(comment.score)}): ${comment.body.slice(0, 180)}`
     )
     .join('\n');
   const matchedRules = (incident.matchedRules ?? [])
@@ -291,7 +292,7 @@ export const buildEscalationSummary = (incident: Incident) => {
 
   return [
     `Mod handoff note: ${incident.title}`,
-    `Review score: ${incident.score}/100 (${formatLevel(incident.level)}); peak score: ${incident.peakScore}/100; next mod move: ${incident.responseSuggestion.label}`,
+    `Firewatch rating: ${firewatchRatingSummary(incident.score)} (${formatLevel(incident.level)}); peak ${firewatchRatingSummary(incident.peakScore)}; next mod move: ${incident.responseSuggestion.label}`,
     `Post: ${incident.permalink ?? incident.postId}`,
     `Resolved by: ${handler ? formatUserHandle(handler) : 'unclaimed'}`,
     safetySummary ? `Safety review: ${safetySummary}` : undefined,

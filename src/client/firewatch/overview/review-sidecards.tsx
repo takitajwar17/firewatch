@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -10,7 +10,7 @@ import type { FlaggedComment, Incident } from '../../../shared/api';
 
 type EvidenceRow = {
   label: string;
-  meta?: string;
+  meta?: ReactNode;
   value: string;
 };
 
@@ -24,8 +24,7 @@ const strongestOpenCommentFrom = (incident: Incident) =>
         b.createdAt - a.createdAt
     )[0];
 
-const commentMeta = (comment: FlaggedComment) =>
-  `${formatUsername(comment.author)} · review score ${comment.score}`;
+const commentMeta = (comment: FlaggedComment) => formatUsername(comment.author);
 
 const signalSummary = (incident: Incident) => {
   const parts = [
@@ -165,7 +164,7 @@ export const EvidenceCapsuleCard = ({ incident }: { incident: Incident }) => {
                     {row.label}
                   </p>
                   {row.meta ? (
-                    <p className="truncate text-[11px] leading-4 text-muted-foreground">
+                    <p className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] leading-4 text-muted-foreground">
                       {row.meta}
                     </p>
                   ) : null}
@@ -305,7 +304,9 @@ export const RiskReasonsCard = ({ incident }: { incident: Incident }) => (
                     </p>
                   ) : null}
                 </div>
-                <Badge variant="outline">+{reason.points}</Badge>
+                <Badge title="Signal weight used for the Firewatch rating" variant="outline">
+                  +{reason.points}
+                </Badge>
               </div>
             </div>
           ))}
