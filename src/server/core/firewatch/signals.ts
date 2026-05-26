@@ -23,6 +23,7 @@ import { appendAction, getPostSnapshot, refreshIncident } from './incidents';
 import {
   getConfig,
   getIncident,
+  getIncidentRegistry,
   getIndex,
   removeFromIncidentRegistry,
   saveIncident,
@@ -197,8 +198,7 @@ export const recordIncidentSignal = async (input: SignalInput) => {
     signal.source === 'user' ||
     signal.source === 'report';
   const nextStatus =
-    shouldReopen &&
-    (baseIncident.status === 'resolved' || baseIncident.status === 'handled')
+    shouldReopen && normalizeStatus(baseIncident.status) === 'resolved'
       ? 'open'
       : normalizeStatus(baseIncident.status);
   const config = await getConfig(postSnapshot.subredditName);
@@ -330,7 +330,41 @@ export const getIncidents = async () => {
   const visibleIncidents = incidents.filter(shouldShowInQueue);
   await saveIndex(visibleIncidents.map((incident) => incident.postId));
 
-  return sortIncidentsByPriority(visibleIncidents).slice(0, 25);
+  const visiblePostIds = new Set(
+    visibleIncidents.map((incident) => incident.postId)
+  );
+  const registry = await getIncidentRegistry();
+  const resolvedIncidents = (
+    await Promise.all(
+      registry
+        .filter((postId) => !visiblePostIds.has(postId))
+        .slice(0, 100)
+        .map(async (postId) => {
+          const incident = await getIncident(postId);
+          if (!incident) return undefined;
+
+          try {
+            const refreshed = await refreshIncident(incident);
+            await saveIncident(refreshed);
+            return refreshed;
+          } catch (error) {
+            console.error(`Failed to refresh incident ${postId}`, error);
+            return incident;
+          }
+        })
+    )
+  )
+    .filter((incident): incident is Incident => Boolean(incident))
+    .filter(
+      (incident) => normalizeStatus(incident.status) === 'resolved'
+    )
+    .sort((left, right) => right.updatedAt - left.updatedAt)
+    .slice(0, 25);
+
+  return [
+    ...sortIncidentsByPriority(visibleIncidents),
+    ...resolvedIncidents,
+  ].slice(0, 50);
 };
 
 export const getIncidentById = async (postId: string) => {

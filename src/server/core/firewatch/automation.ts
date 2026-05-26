@@ -354,7 +354,7 @@ export const runPreparedRuleActions = async (
       continue;
     }
 
-    if (action.type === 'mark_handled') {
+    if (action.type === 'mark_resolved') {
       currentIncident = await resolveIncident(normalizedPostId);
       executedActions.push(prepared.label);
       continue;

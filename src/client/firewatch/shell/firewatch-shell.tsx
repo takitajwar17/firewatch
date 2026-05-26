@@ -1,6 +1,11 @@
 import type { ReactNode } from 'react';
 import type { Incident } from '../../../shared/api';
-import type { FirewatchView, Notice } from '../types';
+import type {
+  FirewatchView,
+  Notice,
+  QueueFilter,
+  QueueFilterCounts,
+} from '../types';
 import { CommandPanel } from './command-panel';
 import { MobileIncidentStrip } from './incident-queue-item';
 import { NoticeToast } from './notice-toast';
@@ -12,9 +17,12 @@ export const FirewatchShell = ({
   incidents,
   loading = false,
   notice,
+  queueFilter,
+  queueFilterCounts,
   selectedPostId,
   subredditName,
   username,
+  onQueueFilterChange,
   onRefresh,
   onSelectIncident,
   onViewChange,
@@ -24,9 +32,12 @@ export const FirewatchShell = ({
   incidents: Incident[];
   loading?: boolean;
   notice: Notice | undefined;
+  queueFilter: QueueFilter;
+  queueFilterCounts: QueueFilterCounts;
   selectedPostId: string | undefined;
   subredditName: string;
   username: string;
+  onQueueFilterChange: (filter: QueueFilter) => void;
   onRefresh: () => void;
   onSelectIncident: (postId: string) => void;
   onViewChange: (view: FirewatchView) => void;
@@ -38,9 +49,12 @@ export const FirewatchShell = ({
         activeView={activeView}
         incidents={incidents}
         loading={loading}
+        queueFilter={queueFilter}
+        queueFilterCounts={queueFilterCounts}
         selectedPostId={selectedPostId}
         subredditName={subredditName}
         username={username}
+        onQueueFilterChange={onQueueFilterChange}
         onSelectIncident={onSelectIncident}
         onViewChange={onViewChange}
       />
@@ -58,7 +72,10 @@ export const FirewatchShell = ({
               <MobileIncidentStrip
                 incidents={incidents}
                 loading={loading}
+                queueFilter={queueFilter}
+                queueFilterCounts={queueFilterCounts}
                 selectedPostId={selectedPostId}
+                onQueueFilterChange={onQueueFilterChange}
                 onSelectIncident={onSelectIncident}
               />
             ) : null}

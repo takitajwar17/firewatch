@@ -16,12 +16,12 @@ Firewatch does these things end to end:
   deletes, mod actions, and AutoModerator filter events.
 - Scores posts with deterministic signals and displays the reasons.
 - Shows a moderator impact snapshot with reports grouped, comments reviewed,
-  users handled, actions taken, and time open.
+  users resolved, actions taken, and time open.
 - Lets one mod take ownership of a post.
 - Lets mods add a sticky reminder, approve acceptable comments, remove
   rule-breaking comments with Reddit removal notes, ban a user after removing
   their queued comments, lock a post, save a handoff note, and mark the post
-  handled.
+  resolved.
 - Provides one combined filter set for heated discussions, scam cleanup,
   support-safety issues, and sensitive-topic review.
 - Generates copyable handoff and final notes.
@@ -42,7 +42,7 @@ The review score is calculated from:
 - manual sends from the post menu
 
 The score is advisory. Firewatch does not automatically remove comments, lock
-posts, or mark anything handled. A moderator must click the action.
+posts, or mark anything resolved. A moderator must click the action.
 
 ## Mod Workflow
 
@@ -55,7 +55,7 @@ posts, or mark anything handled. A moderator must click the action.
    and activity.
 6. Click **Take post** if handling it.
 7. Use **Sticky reminder**, **Approve**, **Remove**, **Ban user**,
-   **Lock post**, **Save handoff note**, or **Mark handled** as needed.
+   **Lock post**, **Save handoff note**, or **Mark resolved** as needed.
 
 ## Platform Notes
 

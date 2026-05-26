@@ -32,6 +32,10 @@ export type ConfigSaveHandler = (values: ConfigFormValues) => Promise<void>;
 
 export type FirewatchView = 'queue' | 'automations' | 'settings';
 
+export type QueueFilter = 'all' | 'claimed' | 'resolved';
+
+export type QueueFilterCounts = Record<QueueFilter, number>;
+
 export type DemoCreateHandler = (scenarioId?: FirewatchDemoScenarioId) => void;
 
 export type AppResetHandler = () => void;

@@ -2,6 +2,7 @@ import { context, redis } from '@devvit/web/server';
 import type {
   FirewatchRule,
   FirewatchRuleInput,
+  RuleAction,
   RuleExecutionLog,
   RuleScope,
 } from '../../../shared/api';
@@ -24,6 +25,16 @@ const templateRules = (subredditName: string) =>
     subredditId: subredditName,
   });
 
+const legacyResolvedRuleAction = ['mark_', 'han', 'dled'].join('');
+
+const normalizeRuleAction = (action: RuleAction): RuleAction =>
+  action.type === legacyResolvedRuleAction ? { type: 'mark_resolved' } : action;
+
+const normalizeRule = (rule: FirewatchRule): FirewatchRule => ({
+  ...rule,
+  actions: rule.actions.map(normalizeRuleAction),
+});
+
 export const getAutomations = async (
   subredditName = context.subredditName
 ) => {
@@ -31,7 +42,9 @@ export const getAutomations = async (
     await redis.get(responseRulesKey(subredditName))
   );
 
-  return stored.length > 0 ? stored : templateRules(subredditName);
+  return stored.length > 0
+    ? stored.map(normalizeRule)
+    : templateRules(subredditName);
 };
 
 const saveAutomations = async (

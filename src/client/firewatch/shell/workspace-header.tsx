@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { SubredditAvatar } from '../common';
 import {
-  RedditListIcon,
+  RedditAutomationIcon,
   RedditQueueIcon,
   RedditRefreshIcon,
   RedditSettingsIcon,
@@ -25,7 +25,7 @@ export const WorkspaceHeader = ({
   const headerIcon = isSettings ? (
     <RedditSettingsIcon />
   ) : isAutomations ? (
-    <RedditListIcon />
+    <RedditAutomationIcon />
   ) : (
     <RedditQueueIcon />
   );
@@ -87,7 +87,7 @@ export const WorkspaceHeader = ({
           variant={isAutomations ? 'secondary' : 'ghost'}
           onClick={() => onViewChange(isAutomations ? 'queue' : 'automations')}
         >
-          <RedditListIcon />
+          <RedditAutomationIcon />
           <span className="sr-only">Automations</span>
         </Button>
         <Button

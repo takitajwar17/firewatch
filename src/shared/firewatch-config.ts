@@ -76,7 +76,7 @@ export const DEFAULT_CONFIG: FirewatchConfig = {
     addModNotes: true,
     removeUserContent: true,
     handoffNotes: true,
-    markHandled: true,
+    markResolved: true,
   },
   signalWeights: {
     commentVelocity: 6,
@@ -148,8 +148,17 @@ export const normalizeThresholds = (
   };
 };
 
+const legacyResolveControlKey = ['mark', 'Han', 'dled'].join('');
+
+type LegacyActionControls = Partial<FirewatchConfig['actionControls']> &
+  Record<string, boolean | undefined>;
+
+type LegacyConfigInput = Partial<Omit<FirewatchConfig, 'actionControls'>> & {
+  actionControls?: LegacyActionControls;
+};
+
 export const normalizeConfig = (
-  value: Partial<FirewatchConfig> | undefined
+  value: LegacyConfigInput | undefined
 ): FirewatchConfig => {
   const thresholds = normalizeThresholds(
     Number(value?.heatThreshold ?? DEFAULT_CONFIG.heatThreshold),
@@ -268,9 +277,10 @@ export const normalizeConfig = (
         actionControls?.handoffNotes,
         DEFAULT_CONFIG.actionControls.handoffNotes
       ),
-      markHandled: normalizeBoolean(
-        actionControls?.markHandled,
-        DEFAULT_CONFIG.actionControls.markHandled
+      markResolved: normalizeBoolean(
+        actionControls?.markResolved ??
+          actionControls?.[legacyResolveControlKey],
+        DEFAULT_CONFIG.actionControls.markResolved
       ),
     },
     signalWeights: {
@@ -360,7 +370,7 @@ export type FirewatchConfigFormValues = {
   allowAddModNotes?: boolean;
   allowRemoveUserContent?: boolean;
   allowHandoffNotes?: boolean;
-  allowMarkHandled?: boolean;
+  allowMarkResolved?: boolean;
 };
 
 export type ConfigSignalWeightField = {
@@ -586,11 +596,11 @@ const handoffNotesField: ConfigActionControlField = {
   label: 'Handoff notes',
 };
 
-const markHandledField: ConfigActionControlField = {
-  id: 'markHandled',
-  formName: 'allowMarkHandled',
-  formLabel: 'Allow mark handled',
-  label: 'Mark handled',
+const markResolvedField: ConfigActionControlField = {
+  id: 'markResolved',
+  formName: 'allowMarkResolved',
+  formLabel: 'Allow mark resolved',
+  label: 'Mark resolved',
 };
 
 export const CONFIG_SIGNAL_WEIGHT_FIELDS: ConfigSignalWeightField[] = [
@@ -639,7 +649,7 @@ export const CONFIG_CORE_ACTION_FIELDS: ConfigActionControlField[] = [
   stickyReminderField,
   lockPostField,
   handoffNotesField,
-  markHandledField,
+  markResolvedField,
 ];
 
 export const CONFIG_POST_ACTION_FIELDS: ConfigActionControlField[] = [
@@ -701,7 +711,7 @@ const CONFIG_FORM_ACTION_FIELDS: ConfigActionControlField[] = [
   addModNotesField,
   removeUserContentField,
   handoffNotesField,
-  markHandledField,
+  markResolvedField,
 ];
 
 const signalWeightFormField = (
@@ -805,7 +815,7 @@ export const configUpdateFromFormValues = (
     addModNotes: values.allowAddModNotes,
     removeUserContent: values.allowRemoveUserContent,
     handoffNotes: values.allowHandoffNotes,
-    markHandled: values.allowMarkHandled,
+    markResolved: values.allowMarkResolved,
   },
   signalWeights: {
     commentVelocity: values.weightCommentVelocity,

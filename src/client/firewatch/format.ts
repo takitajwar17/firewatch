@@ -34,7 +34,6 @@ export const formatStatus = (status: string) => {
     claimed: 'Claimed',
     cooldown: 'Reminder posted',
     locked: 'Locked',
-    handled: 'Handled',
     resolved: 'Resolved',
     active: 'Open',
     monitoring: 'Watching',
@@ -78,11 +77,8 @@ export const claimGateMessage = (incident: Incident) =>
     ? `Claimed by ${formatUsername(incident.claim.username)}. Only that mod can take actions.`
     : 'Claim this post before taking mod actions.';
 
-const isHandledStatus = (status: string) =>
-  status === 'handled' || status === 'resolved';
-
 export const isTerminalStatus = (status: string) =>
-  isHandledStatus(status) || status === 'resolved';
+  status === 'resolved';
 
 const isFirewatchNotice = (signal: IncidentSignal) =>
   signal.source === 'firewatch_notice' ||
@@ -168,7 +164,7 @@ export const actionLabel = (action: string) => {
     'cool-down': 'Add sticky comment',
     lock: 'Lock post',
     escalate: 'Save handoff note',
-    resolve: 'Mark handled',
+    resolve: 'Mark resolved',
     demo: 'Create demo thread',
     config: 'Save settings',
   };
@@ -251,7 +247,7 @@ export const actionSuccessMessage = (action: string) => {
     'cool-down': 'Sticky comment posted.',
     lock: 'Post locked.',
     escalate: 'Handoff saved.',
-    resolve: 'Handled.',
+    resolve: 'Resolved.',
     demo: 'Demo post created.',
     config: 'Saved.',
   };

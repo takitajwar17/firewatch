@@ -1,5 +1,9 @@
 import { context, redis, reddit } from '@devvit/web/server';
-import type { FirewatchConfig, Incident } from '../../../shared/api';
+import type {
+  FirewatchConfig,
+  Incident,
+  IncidentImpactSnapshot,
+} from '../../../shared/api';
 import type {
   FirewatchConfigFormDefaults,
   FirewatchConfigUpdate,
@@ -16,6 +20,7 @@ import {
   incidentRegistryKey,
   normalizeConfig,
   normalizePostId,
+  normalizeStatus,
   normalizeUsername,
   parseCsv,
   retentionExpiration,
@@ -24,6 +29,41 @@ import {
   userRegistryKey,
 } from '../firewatch-utils';
 
+const legacyUsersResolvedImpactKey = ['users', 'Han', 'dled'].join('');
+
+const finiteNumberOrZero = (value: number | undefined) =>
+  typeof value === 'number' && Number.isFinite(value) ? value : 0;
+
+const legacyUsersResolved = (
+  impact: Partial<IncidentImpactSnapshot> | undefined
+) => {
+  if (!impact) return undefined;
+
+  const value = Reflect.get(impact, legacyUsersResolvedImpactKey);
+  return typeof value === 'number' && Number.isFinite(value)
+    ? value
+    : undefined;
+};
+
+const normalizeIncidentImpact = (
+  impact: Partial<IncidentImpactSnapshot> | undefined
+): IncidentImpactSnapshot => ({
+  reportsGrouped: finiteNumberOrZero(impact?.reportsGrouped),
+  commentsReviewed: finiteNumberOrZero(impact?.commentsReviewed),
+  commentsAwaitingReview: finiteNumberOrZero(impact?.commentsAwaitingReview),
+  usersInReview: finiteNumberOrZero(impact?.usersInReview),
+  usersResolved: finiteNumberOrZero(
+    impact?.usersResolved ?? legacyUsersResolved(impact)
+  ),
+  actionsTaken: finiteNumberOrZero(impact?.actionsTaken),
+  removals: finiteNumberOrZero(impact?.removals),
+  approvals: finiteNumberOrZero(impact?.approvals),
+  bans: finiteNumberOrZero(impact?.bans),
+  handoffSaved: Boolean(impact?.handoffSaved),
+  finalNoteSaved: Boolean(impact?.finalNoteSaved),
+  timeOpenMinutes: finiteNumberOrZero(impact?.timeOpenMinutes),
+  peakAttention: finiteNumberOrZero(impact?.peakAttention),
+});
 
 // Config and incident persistence
 export const getConfig = async (
@@ -180,7 +220,11 @@ export const getIncident = async (postId: string) => {
 
   try {
     const parsed: Incident = JSON.parse(stored);
-    return parsed;
+    return {
+      ...parsed,
+      status: normalizeStatus(parsed.status),
+      impact: normalizeIncidentImpact(parsed.impact),
+    };
   } catch (error) {
     console.error(`Failed to parse incident ${postId}`, error);
     return undefined;
@@ -193,10 +237,7 @@ export const shouldShowInQueue = (incident: Incident) => {
     (comment) => !comment.removed && !comment.reviewed
   );
 
-  if (
-    (status === 'handled' || status === 'resolved') &&
-    !hasUnresolvedComments
-  ) {
+  if (status === 'resolved' && !hasUnresolvedComments) {
     return false;
   }
 

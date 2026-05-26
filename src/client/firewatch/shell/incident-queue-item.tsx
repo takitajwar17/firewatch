@@ -1,71 +1,166 @@
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { PanelLabel, ScoreBadge, Skeleton } from '../common';
-import { formatStatus, formatTime, formatUsername, pluralize } from '../format';
+import {
+  formatStatus,
+  formatTime,
+  formatUsername,
+  isTerminalStatus,
+  pluralize,
+} from '../format';
 import {
   RedditCommentIcon,
   RedditLockIcon,
   RedditRemoveIcon,
   RedditShieldIcon,
 } from '../reddit-icons';
+import type { QueueFilter, QueueFilterCounts } from '../types';
 import type { Incident } from '../../../shared/api';
+
+const QUEUE_FILTER_OPTIONS: {
+  label: string;
+  shortLabel: string;
+  value: QueueFilter;
+}[] = [
+  { label: 'Unresolved posts', shortLabel: 'All', value: 'all' },
+  {
+    label: 'Unresolved posts I claimed',
+    shortLabel: 'Claimed',
+    value: 'claimed',
+  },
+  { label: 'Resolved posts', shortLabel: 'Resolved', value: 'resolved' },
+];
+
+export const QueueFilterTabs = ({
+  counts,
+  disabled,
+  onChange,
+  surface,
+  value,
+}: {
+  counts: QueueFilterCounts;
+  disabled?: boolean;
+  onChange: (filter: QueueFilter) => void;
+  surface: 'dark' | 'light';
+  value: QueueFilter;
+}) => (
+  <div
+    aria-label="Filter posts"
+    className={cn(
+      'mb-2 grid grid-cols-3 gap-1 rounded-full border p-1',
+      surface === 'dark'
+        ? 'border-sidebar-border bg-sidebar-accent/35'
+        : 'border-border bg-muted/35'
+    )}
+    role="radiogroup"
+  >
+    {QUEUE_FILTER_OPTIONS.map((option) => {
+      const selected = option.value === value;
+
+      return (
+        <button
+          key={option.value}
+          aria-checked={selected}
+          aria-label={`${option.label}, ${counts[option.value]}`}
+          className={cn(
+            'ui-feedback flex h-7 min-w-0 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold leading-none whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50',
+            selected
+              ? surface === 'dark'
+                ? 'bg-sidebar text-sidebar-foreground shadow-sm'
+                : 'bg-background text-foreground shadow-sm'
+              : surface === 'dark'
+                ? 'text-sidebar-foreground/70 hover:bg-sidebar hover:text-sidebar-foreground'
+                : 'text-muted-foreground hover:bg-background hover:text-foreground'
+          )}
+          disabled={disabled}
+          role="radio"
+          type="button"
+          onClick={() => onChange(option.value)}
+        >
+          <span className="min-w-0 truncate">{option.shortLabel}</span>
+        </button>
+      );
+    })}
+  </div>
+);
 
 export const MobileIncidentStrip = ({
   incidents,
   loading,
+  queueFilter,
+  queueFilterCounts,
   selectedPostId,
+  onQueueFilterChange,
   onSelectIncident,
 }: {
   incidents: Incident[];
   loading: boolean;
+  queueFilter: QueueFilter;
+  queueFilterCounts: QueueFilterCounts;
   selectedPostId: string | undefined;
+  onQueueFilterChange: (filter: QueueFilter) => void;
   onSelectIncident: (postId: string) => void;
-}) => (
-  <div className="lg:hidden">
-    <div className="mb-3 flex items-end justify-between gap-3">
-      <div>
-        <PanelLabel>POSTS TO REVIEW</PanelLabel>
-        <p className="mt-1 text-sm leading-6 text-muted-foreground">
-          {loading
-            ? 'Loading posts'
-            : `${pluralize(incidents.length, 'post')} waiting`}
-        </p>
+}) => {
+  const selectedCount = queueFilterCounts[queueFilter];
+  const statusCopy =
+    queueFilter === 'resolved'
+      ? `${pluralize(selectedCount, 'post')} resolved`
+      : queueFilter === 'claimed'
+        ? `${pluralize(selectedCount, 'post')} claimed by you`
+        : `${pluralize(queueFilterCounts.all, 'post')} waiting`;
+
+  return (
+    <div className="lg:hidden">
+      <div className="mb-3 flex items-end justify-between gap-3">
+        <div>
+          <PanelLabel>POSTS TO REVIEW</PanelLabel>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">
+            {loading ? 'Loading posts' : statusCopy}
+          </p>
+        </div>
+        {loading ? (
+          <Skeleton className="h-7 w-9 rounded-full" />
+        ) : (
+          <Badge variant="outline">{selectedCount}</Badge>
+        )}
       </div>
+      <QueueFilterTabs
+        counts={queueFilterCounts}
+        disabled={loading}
+        surface="light"
+        value={queueFilter}
+        onChange={onQueueFilterChange}
+      />
       {loading ? (
-        <Skeleton className="h-7 w-9 rounded-full" />
-      ) : (
-        <Badge variant="outline">{incidents.length}</Badge>
-      )}
+        <div className="no-scrollbar -mx-2 overflow-x-auto overscroll-x-contain px-2 pb-2 sm:-mx-5 sm:px-5">
+          <div
+            aria-busy="true"
+            aria-label="Loading posts to review"
+            className="flex w-max max-w-none snap-x snap-mandatory gap-2"
+          >
+            {Array.from({ length: 3 }, (_, index) => (
+              <IncidentQueueItemSkeleton key={index} surface="light" />
+            ))}
+          </div>
+        </div>
+      ) : incidents.length ? (
+        <div className="no-scrollbar -mx-2 overflow-x-auto overscroll-x-contain px-2 pb-2 sm:-mx-5 sm:px-5">
+          <div className="flex w-max max-w-none snap-x snap-mandatory gap-2">
+            {incidents.map((incident) => (
+              <IncidentQueueItem
+                key={incident.postId}
+                incident={incident}
+                selected={selectedPostId === incident.postId}
+                surface="light"
+                onSelect={() => onSelectIncident(incident.postId)}
+              />
+            ))}
+          </div>
+        </div>
+      ) : null}
     </div>
-    {loading ? (
-      <div className="no-scrollbar -mx-2 overflow-x-auto overscroll-x-contain px-2 pb-2 sm:-mx-5 sm:px-5">
-        <div
-          aria-busy="true"
-          aria-label="Loading posts to review"
-          className="flex w-max max-w-none snap-x snap-mandatory gap-2"
-        >
-          {Array.from({ length: 3 }, (_, index) => (
-            <IncidentQueueItemSkeleton key={index} surface="light" />
-          ))}
-        </div>
-      </div>
-    ) : incidents.length ? (
-      <div className="no-scrollbar -mx-2 overflow-x-auto overscroll-x-contain px-2 pb-2 sm:-mx-5 sm:px-5">
-        <div className="flex w-max max-w-none snap-x snap-mandatory gap-2">
-          {incidents.map((incident) => (
-            <IncidentQueueItem
-              key={incident.postId}
-              incident={incident}
-              selected={selectedPostId === incident.postId}
-              surface="light"
-              onSelect={() => onSelectIncident(incident.postId)}
-            />
-          ))}
-        </div>
-      </div>
-    ) : null}
-  </div>
-);
+  );
+};
 
 export const IncidentQueueItemSkeleton = ({
   surface,
@@ -124,8 +219,7 @@ export const IncidentQueueItem = ({
   const postState = incident.postState;
   const needsSafetyReview =
     Boolean(incident.safetyReview) &&
-    incident.status !== 'handled' &&
-    incident.status !== 'resolved';
+    !isTerminalStatus(incident.status);
   const stateLabel = postState?.spam
     ? 'Spam'
     : postState?.removed

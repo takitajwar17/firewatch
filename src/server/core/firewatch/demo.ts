@@ -246,7 +246,7 @@ export const createDemoIncident = async (
     text: [
       `This is a Firewatch demo post for: ${scenario.label}.`,
       'Posts show up in Firewatch through the same path used by comments, reports, and posts sent by mods.',
-      'Mods can test claiming the post, adding a sticky comment, removing comments, locking the post, saving a handoff note, and marking it handled without waiting for real reports.',
+      'Mods can test claiming the post, adding a sticky comment, removing comments, locking the post, saving a handoff note, and marking it resolved without waiting for real reports.',
     ].join('\n\n'),
   });
   const branchParentId = `t1_fw_demo_branch_${seed.toString(36)}`;

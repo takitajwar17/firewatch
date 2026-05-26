@@ -155,7 +155,7 @@ export const makeEmptyImpact = (): IncidentImpactSnapshot => ({
   commentsReviewed: 0,
   commentsAwaitingReview: 0,
   usersInReview: 0,
-  usersHandled: 0,
+  usersResolved: 0,
   actionsTaken: 0,
   removals: 0,
   approvals: 0,
@@ -176,12 +176,12 @@ export const getResponseSuggestion = (
     return {
       label: 'Review remaining comments',
       detail:
-        'The post is locked, but comments still need a mod decision before it can be handled.',
+        'The post is locked, but comments still need a mod decision before it can be resolved.',
       level,
       steps: [
         'Review the remaining unremoved comments.',
         'Approve acceptable comments or remove comments that break the rules.',
-        'Mark handled after no comments remain in review.',
+        'Mark resolved after no comments remain in review.',
       ],
     };
   }
@@ -194,18 +194,18 @@ export const getResponseSuggestion = (
           : `Review ${unresolvedCount} comments`,
       detail:
         unresolvedCount === 1
-          ? 'One comment still needs a mod decision before this post can be handled.'
-          : `${unresolvedCount} comments still need a mod decision before this post can be handled.`,
+          ? 'One comment still needs a mod decision before this post can be resolved.'
+          : `${unresolvedCount} comments still need a mod decision before this post can be resolved.`,
       level,
       steps: [
         'Open Comments.',
         'Approve acceptable comments or remove comments that break the rules.',
-        'Mark handled after comment review is clear.',
+        'Mark resolved after comment review is clear.',
       ],
     };
   }
 
-  if (status === 'handled' || status === 'resolved') {
+  if (status === 'resolved') {
     return {
       label: 'No further action',
       detail:
@@ -228,7 +228,7 @@ export const getResponseSuggestion = (
       steps: [
         'Save a handoff note if another mod may need context.',
         'Review the mod log for actions taken.',
-        'Mark handled to generate the final note.',
+        'Mark resolved to generate the final note.',
       ],
     };
   }
@@ -503,13 +503,13 @@ export const buildImpactSnapshot = ({
       .map((comment) => normalizeUsername(comment.author))
       .filter((author): author is string => Boolean(author))
   );
-  const usersHandled = new Set(
+  const usersResolved = new Set(
     reviewedComments
       .map((comment) => normalizeUsername(comment.author))
       .filter((author): author is string => Boolean(author))
   );
   for (const username of usersInReview) {
-    usersHandled.delete(username);
+    usersResolved.delete(username);
   }
   const moderationActions = incident.actions.filter(
     (action) => action.type !== 'demo_seeded'
@@ -528,7 +528,7 @@ export const buildImpactSnapshot = ({
     commentsReviewed: reviewedComments.length,
     commentsAwaitingReview: activeFlaggedComments.length,
     usersInReview: usersInReview.size,
-    usersHandled: usersHandled.size,
+    usersResolved: usersResolved.size,
     actionsTaken: moderationActions.length,
     removals,
     approvals:

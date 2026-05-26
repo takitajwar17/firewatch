@@ -356,7 +356,7 @@ Firewatch version:
 Why it helps:
 
 Mods often cannot decide immediately. This gives them a native-feeling way to
-park a thread without pretending it is handled.
+park a thread without pretending it is resolved.
 
 Avoid:
 
@@ -504,7 +504,7 @@ Add a small walkthrough for demo incidents:
 2. Open comments.
 3. Take one comment action.
 4. Save handoff.
-5. Mark handled.
+5. Mark resolved.
 
 Why it helps:
 

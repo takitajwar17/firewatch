@@ -64,18 +64,18 @@ Capabilities:
   users in review, repeated wording, recent activity, trend, suggested action,
   and mod log.
 - Shows a review progress snapshot: reports grouped, comments reviewed,
-  comments still waiting, users handled, mod actions taken, time open, and peak
+  comments still waiting, users resolved, mod actions taken, time open, and peak
   attention.
 - Lets a mod claim a post so teammates can see ownership.
 - Lets mods approve acceptable comments, remove rule-breaking comments with a
   Reddit removal note, ban a user after removing their queued comments, add a
   sticky reminder, lock the post, save a handoff note, and mark the post
-  handled.
+  resolved.
 - Includes a combined filter set for heated discussions, scam cleanup,
   support-safety issues, and sensitive-topic review. Mods can tune watched
   words, watched domains, and thresholds for their community.
 - Keeps actions manual and auditable. Firewatch does not automatically remove,
-  lock, ban, or mark handled based only on a score.
+  lock, ban, or mark resolved based only on a score.
 - Deletes stored post/comment content when Reddit delete triggers arrive and
   expires incident records after 30 days.
 - Includes selectable demo drills for heated threads, scam-link cleanup, and
@@ -102,7 +102,7 @@ Moderator benefit:
 - Saves time by grouping post-level signals into one incident instead of making
   mods inspect reports, comments, mod log events, and context separately.
 - Makes that saved work visible through an impact snapshot that counts grouped
-  reports, reviewed comments, handled users, mod actions, and time open.
+  reports, reviewed comments, resolved users, mod actions, and time open.
 - Reduces duplicated work by showing who has taken a post.
 - Improves consistency by turning comments into clear decisions: approve,
   remove, or ban after cleanup.

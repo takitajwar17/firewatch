@@ -13,7 +13,6 @@ export type IncidentStatus =
   | 'claimed'
   | 'cooldown'
   | 'locked'
-  | 'handled'
   | 'resolved';
 
 export type SignalType =
@@ -247,7 +246,7 @@ export type RuleAction =
   | { type: 'prepare_temp_ban'; durationDays: number; reason: string }
   | { type: 'prepare_permanent_ban'; reason: string }
   | { type: 'mute_user'; durationDays?: number; reason: string }
-  | { type: 'mark_handled' };
+  | { type: 'mark_resolved' };
 
 export type FirewatchRule = {
   id: string;
@@ -375,7 +374,7 @@ export type FirewatchConfig = {
     addModNotes: boolean;
     removeUserContent: boolean;
     handoffNotes: boolean;
-    markHandled: boolean;
+    markResolved: boolean;
   };
   signalWeights: {
     commentVelocity: number;
@@ -504,7 +503,7 @@ export type IncidentImpactSnapshot = {
   commentsReviewed: number;
   commentsAwaitingReview: number;
   usersInReview: number;
-  usersHandled: number;
+  usersResolved: number;
   actionsTaken: number;
   removals: number;
   approvals: number;

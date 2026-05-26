@@ -142,15 +142,15 @@ export const IncidentHero = ({
               actionLocked ||
               terminal ||
               unresolvedCount > 0 ||
-              !config.actionControls.markHandled
+              !config.actionControls.markResolved
             }
             icon={<RedditApproveIcon data-icon="inline-start" />}
             label={
               terminal
-                ? 'Handled'
+                ? 'Resolved'
                 : unresolvedCount > 0
                   ? 'Review comments first'
-                  : 'Mark handled'
+                  : 'Mark resolved'
             }
             loading={busyAction === 'resolve'}
             title={actionLocked ? actionLockReason : undefined}

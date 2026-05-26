@@ -21,8 +21,8 @@ export const ImpactSnapshotCard = ({ incident }: { incident: Incident }) => {
       detail: `${impact.commentsAwaitingReview} waiting`,
     },
     {
-      label: 'Users handled',
-      value: String(impact.usersHandled),
+      label: 'Users resolved',
+      value: String(impact.usersResolved),
       detail: `${impact.usersInReview} in review`,
     },
     {

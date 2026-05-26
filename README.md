@@ -45,7 +45,7 @@ context before acting.
    activity, mod notes, and matched automations.
 6. Claim the post, approve acceptable comments, remove rule-breaking comments,
    lock the thread, run prepared automation actions, or save a handoff note.
-7. Mark the incident handled once the queue item no longer needs active review.
+7. Mark the incident resolved once the queue item no longer needs active review.
 
 ## Automations
 

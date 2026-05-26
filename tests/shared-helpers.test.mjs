@@ -505,7 +505,7 @@ test('all automation actions are represented in shared and server handlers', () 
     { type: 'prepare_temp_ban', durationDays: 1, reason: 'repeat' },
     { type: 'prepare_permanent_ban', reason: 'severe repeat' },
     { type: 'mute_user', durationDays: 3, reason: 'mute' },
-    { type: 'mark_handled' },
+    { type: 'mark_resolved' },
   ];
   const sampleTypes = Array.from(
     new Set(executableActions.map((action) => action.type))
@@ -1035,4 +1035,40 @@ test('client action surfaces disable post actions without the current claim', ()
   assert.match(source, /Boolean\(busyAction\) \|\| actionLocked \|\| !canSaveHandoff/);
   assert.match(source, /description=\{actionLocked \? actionLockReason : undefined\}/);
   assert.match(source, /title=\{actionLocked \? actionLockReason : undefined\}/);
+});
+
+test('sidebar queue filters keep resolved posts out of active queues', () => {
+  const appSource = readFileSync('src/client/firewatch/app.tsx', 'utf8');
+  const shellSource = readFileSync(
+    'src/client/firewatch/shell/firewatch-shell.tsx',
+    'utf8'
+  );
+  const commandPanelSource = readFileSync(
+    'src/client/firewatch/shell/command-panel.tsx',
+    'utf8'
+  );
+  const queueItemSource = readFileSync(
+    'src/client/firewatch/shell/incident-queue-item.tsx',
+    'utf8'
+  );
+  const signalsSource = readFileSync(
+    'src/server/core/firewatch/signals.ts',
+    'utf8'
+  );
+
+  assert.match(appSource, /useState<QueueFilter>\('all'\)/);
+  assert.match(appSource, /const unresolvedIncidents = useMemo/);
+  assert.match(appSource, /!isTerminalStatus\(incident\.status\)/);
+  assert.match(appSource, /all: unresolvedIncidents\.length/);
+  assert.match(appSource, /isIncidentClaimedByCurrentUser\(incident, data\.username\)/);
+  assert.match(appSource, /isTerminalStatus\(incident\.status\)/);
+  assert.match(appSource, /FilteredQueueEmptyBoard/);
+  assert.match(shellSource, /queueFilterCounts/);
+  assert.match(commandPanelSource, /<QueueFilterTabs/);
+  assert.match(queueItemSource, /Unresolved posts I claimed/);
+  assert.match(queueItemSource, /shortLabel: 'Claimed'/);
+  assert.match(queueItemSource, /role="radiogroup"/);
+  assert.match(signalsSource, /getIncidentRegistry/);
+  assert.match(signalsSource, /resolvedIncidents/);
+  assert.match(signalsSource, /normalizeStatus\(incident\.status\) === 'resolved'/);
 });

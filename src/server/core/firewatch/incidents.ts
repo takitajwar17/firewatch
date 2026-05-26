@@ -195,7 +195,7 @@ export const buildSummary = (incident: Incident) => {
     safetySummary ? `Safety review: ${safetySummary}` : undefined,
     `Comments reviewed: ${incident.impact.commentsReviewed}`,
     `Comments still waiting: ${incident.impact.commentsAwaitingReview}`,
-    `Handled by: ${handler ? formatUserHandle(handler) : 'unclaimed'}`,
+    `Resolved by: ${handler ? formatUserHandle(handler) : 'unclaimed'}`,
     `Users in post: ${involvedUsers || 'none detected'}`,
     `Repeated wording: ${commonPhrases || 'none detected'}`,
     'Matched automations:',
@@ -238,7 +238,7 @@ export const buildEscalationSummary = (incident: Incident) => {
     `Mod handoff note: ${incident.title}`,
     `Review score: ${incident.score}/100 (${formatLevel(incident.level)}); peak score: ${incident.peakScore}/100; next mod move: ${incident.responseSuggestion.label}`,
     `Post: ${incident.permalink ?? incident.postId}`,
-    `Handled by: ${handler ? formatUserHandle(handler) : 'unclaimed'}`,
+    `Resolved by: ${handler ? formatUserHandle(handler) : 'unclaimed'}`,
     safetySummary ? `Safety review: ${safetySummary}` : undefined,
     `Impact so far: ${incident.impact.reportsGrouped} reports grouped, ${incident.impact.commentsReviewed} comments reviewed, ${incident.impact.commentsAwaitingReview} comments still waiting`,
     'Why this is here:',
@@ -552,14 +552,14 @@ export const resolveIncident = async (postId: string) => {
   if (!storedIncident) throw new Error('Post is not in Firewatch yet');
   const incident = await refreshIncident(storedIncident);
   const config = await getConfig(incident.subredditName);
-  if (!config.actionControls.markHandled) {
-    throw new Error('Mark handled is disabled in Settings');
+  if (!config.actionControls.markResolved) {
+    throw new Error('Mark resolved is disabled in Settings');
   }
   const unresolvedCount = incident.flaggedComments.filter(
     (comment) => !comment.removed && !comment.reviewed
   ).length;
   if (unresolvedCount > 0) {
-    throw new Error('Review all comments before marking handled');
+    throw new Error('Review all comments before marking resolved');
   }
 
   const actor = await actorName();
@@ -569,11 +569,11 @@ export const resolveIncident = async (postId: string) => {
     type: 'resolved',
     actor,
     createdAt: now(),
-    detail: 'Marked post handled',
+    detail: 'Marked post resolved',
   };
   const resolved: Incident = {
     ...incident,
-    status: 'handled',
+    status: 'resolved',
     resolvedAt,
     updatedAt: resolvedAt,
     actions: [resolvedAction, ...incident.actions].slice(0, MAX_ACTIONS),

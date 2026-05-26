@@ -7,7 +7,7 @@ import {
   FIREWATCH_DEMO_SCENARIOS,
 } from '../../shared/firewatch-presets';
 import { Skeleton } from './common';
-import type { DemoCreateHandler } from './types';
+import type { DemoCreateHandler, QueueFilter } from './types';
 import { RedditRefreshIcon, RedditReportIcon } from './reddit-icons';
 
 export const LoadingBoard = () => (
@@ -101,6 +101,34 @@ export const ErrorBoard = ({
   </div>
 );
 
+export const FilteredQueueEmptyBoard = ({
+  filter,
+}: {
+  filter: Exclude<QueueFilter, 'all'>;
+}) => {
+  const copy =
+    filter === 'claimed'
+      ? {
+          title: 'No posts claimed by you',
+          body: 'Claim a post from All posts when you are ready to take the next action.',
+        }
+      : {
+          title: 'No resolved posts yet',
+          body: 'Resolved posts will show here after a moderator marks them resolved.',
+        };
+
+  return (
+    <div className="flex min-h-[60vh] items-center justify-center py-6 sm:py-8">
+      <div className="mx-auto w-full max-w-xl">
+        <h1 className="text-xl font-semibold leading-tight">{copy.title}</h1>
+        <p className="mt-2 text-sm leading-5 text-muted-foreground">
+          {copy.body}
+        </p>
+      </div>
+    </div>
+  );
+};
+
 export const EmptyBoard = ({
   busy,
   onCreateDemo,
@@ -127,7 +155,7 @@ export const EmptyBoard = ({
         </h1>
         <p className="text-sm leading-5 text-muted-foreground">
           Start a clean demo thread to see reports, watched links, comment
-          review, handoff, and handled state in one pass.
+          review, handoff, and resolved state in one pass.
         </p>
 
         <div className="mt-1 flex flex-col gap-2">

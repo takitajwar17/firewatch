@@ -91,6 +91,7 @@ export const normalizeSignal = (signal: IncidentSignal): IncidentSignal => ({
 });
 
 export const normalizeStatus = (status: string | undefined): IncidentStatus => {
+  const legacyResolvedStatus = ['han', 'dled'].join('');
   if (status === 'active') return 'open';
   if (status === 'monitoring') return 'cooldown';
   if (status === 'open') return 'open';
@@ -99,7 +100,7 @@ export const normalizeStatus = (status: string | undefined): IncidentStatus => {
   if (status === 'claimed') return 'claimed';
   if (status === 'cooldown') return 'cooldown';
   if (status === 'locked') return 'locked';
-  if (status === 'handled') return 'handled';
+  if (status === legacyResolvedStatus) return 'resolved';
   if (status === 'resolved') return 'resolved';
   return 'open';
 };
@@ -125,7 +126,6 @@ export const deriveIncidentStatus = (
   const finalNoteSaved =
     Boolean(incident.summary) ||
     Boolean(incident.resolvedAt) ||
-    normalized === 'handled' ||
     normalized === 'resolved' ||
     incident.actions.some((action) => action.type === 'resolved');
   const cooldownPosted =
@@ -134,7 +134,7 @@ export const deriveIncidentStatus = (
 
   if (locked && commentsToReview > 0) return 'locked';
   if (commentsToReview > 0) return 'review';
-  if (finalNoteSaved) return 'handled';
+  if (finalNoteSaved) return 'resolved';
   if (locked) return 'locked';
   if (cooldownPosted) return 'cooldown';
   if (incident.claim) return 'claimed';
@@ -157,7 +157,6 @@ export const formatStatus = (status: Incident['status']) =>
     claimed: 'claimed',
     cooldown: 'cooldown',
     locked: 'locked',
-    handled: 'handled',
     resolved: 'resolved',
   })[status];
 

@@ -1,14 +1,24 @@
 import { useCallback, useMemo, useState } from 'react';
 import { AutomationsPage } from './automations';
-import { EmptyBoard, ErrorBoard, LoadingBoard } from './board-states';
+import {
+  EmptyBoard,
+  ErrorBoard,
+  FilteredQueueEmptyBoard,
+  LoadingBoard,
+} from './board-states';
+import {
+  isIncidentClaimedByCurrentUser,
+  isTerminalStatus,
+} from './format';
 import { IncidentDetail } from './incident-detail';
 import { CommunitySettingsPage } from './settings/community-settings-page';
 import { FirewatchShell } from './shell/firewatch-shell';
-import type { FirewatchView } from './types';
+import type { FirewatchView, QueueFilter } from './types';
 import { useDashboard } from './use-dashboard';
 
 export const App = () => {
   const [activeView, setActiveView] = useState<FirewatchView>('queue');
+  const [queueFilter, setQueueFilter] = useState<QueueFilter>('all');
   const {
     busyAction,
     createDemoIncident,
@@ -23,7 +33,6 @@ export const App = () => {
     runAction,
     saveAutomation,
     saveDashboardConfig,
-    selectedIncident,
     selectedPostId,
     setSelectedPostId,
     testAutomation,
@@ -31,6 +40,58 @@ export const App = () => {
   const hasDemoIncidents = useMemo(
     () => data.incidents.some((incident) => Boolean(incident.demo)),
     [data.incidents]
+  );
+  const unresolvedIncidents = useMemo(
+    () =>
+      data.incidents.filter((incident) => !isTerminalStatus(incident.status)),
+    [data.incidents]
+  );
+  const claimedUnresolvedIncidents = useMemo(
+    () =>
+      unresolvedIncidents.filter((incident) =>
+        isIncidentClaimedByCurrentUser(incident, data.username)
+      ),
+    [data.username, unresolvedIncidents]
+  );
+  const resolvedIncidents = useMemo(
+    () =>
+      data.incidents.filter((incident) => isTerminalStatus(incident.status)),
+    [data.incidents]
+  );
+  const queueFilterCounts = useMemo(
+    () => ({
+      all: unresolvedIncidents.length,
+      claimed: claimedUnresolvedIncidents.length,
+      resolved: resolvedIncidents.length,
+    }),
+    [
+      claimedUnresolvedIncidents.length,
+      resolvedIncidents.length,
+      unresolvedIncidents.length,
+    ]
+  );
+  const filteredIncidents = useMemo(() => {
+    if (queueFilter === 'claimed') {
+      return claimedUnresolvedIncidents;
+    }
+
+    if (queueFilter === 'resolved') {
+      return resolvedIncidents;
+    }
+
+    return unresolvedIncidents;
+  }, [
+    claimedUnresolvedIncidents,
+    queueFilter,
+    resolvedIncidents,
+    unresolvedIncidents,
+  ]);
+  const queueSelectedIncident = useMemo(
+    () =>
+      filteredIncidents.find(
+        (incident) => incident.postId === selectedPostId
+      ) ?? filteredIncidents[0],
+    [filteredIncidents, selectedPostId]
   );
   const selectIncident = useCallback((postId: string) => {
     setActiveView('queue');
@@ -41,11 +102,14 @@ export const App = () => {
     return (
       <FirewatchShell
         activeView={activeView}
-        incidents={data.incidents}
+        incidents={filteredIncidents}
         notice={undefined}
-        selectedPostId={selectedIncident?.postId}
+        queueFilter={queueFilter}
+        queueFilterCounts={queueFilterCounts}
+        selectedPostId={queueSelectedIncident?.postId}
         subredditName={data.subredditName}
         username={data.username}
+        onQueueFilterChange={setQueueFilter}
         onRefresh={refresh}
         onSelectIncident={selectIncident}
         onViewChange={setActiveView}
@@ -58,12 +122,15 @@ export const App = () => {
   return (
     <FirewatchShell
       activeView={activeView}
-      incidents={data.incidents}
+      incidents={filteredIncidents}
       notice={notice}
-      selectedPostId={selectedIncident?.postId ?? selectedPostId}
+      queueFilter={queueFilter}
+      queueFilterCounts={queueFilterCounts}
+      selectedPostId={queueSelectedIncident?.postId}
       subredditName={data.subredditName}
       username={data.username}
       loading={loadState.status === 'loading'}
+      onQueueFilterChange={setQueueFilter}
       onRefresh={refresh}
       onSelectIncident={selectIncident}
       onViewChange={setActiveView}
@@ -91,16 +158,18 @@ export const App = () => {
           onResetDemos={resetDemoIncidents}
           onSaveConfig={saveDashboardConfig}
         />
-      ) : selectedIncident ? (
+      ) : queueSelectedIncident ? (
         <IncidentDetail
-          key={selectedIncident.postId}
+          key={queueSelectedIncident.postId}
           busyAction={busyAction}
           config={data.config}
-          incident={selectedIncident}
+          incident={queueSelectedIncident}
           postFlairOptions={data.postFlairOptions}
           username={data.username}
           onAction={runAction}
         />
+      ) : queueFilter !== 'all' ? (
+        <FilteredQueueEmptyBoard filter={queueFilter} />
       ) : (
         <EmptyBoard
           busy={busyAction === 'demo'}

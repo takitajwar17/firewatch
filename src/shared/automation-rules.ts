@@ -113,8 +113,8 @@ export const ruleActionLabel = (action: RuleAction) => {
       return 'Prepare permanent ban';
     case 'mute_user':
       return 'Mute user';
-    case 'mark_handled':
-      return 'Mark post handled';
+    case 'mark_resolved':
+      return 'Mark post resolved';
   }
 };
 

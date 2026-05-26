@@ -20,7 +20,7 @@
   - lock post updates status
   - latest action updates after each mod action
   - handoff note saves
-  - handled is blocked while comments still need review
+  - resolved is blocked while comments still need review
 
 ## Reddit Developer App Listing
 
@@ -56,4 +56,4 @@
 - No claim that communities have adopted it unless they actually have.
 - No hidden demo-only behavior in the core workflow.
 - No app-generated comments included in user repeated wording.
-- No `Handled` status while comments still need review.
+- No `Resolved` status while comments still need review.

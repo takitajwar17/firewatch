@@ -3,27 +3,37 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { PanelLabel, Skeleton, SubredditAvatar } from '../common';
 import { formatUsername } from '../format';
-import { RedditListIcon, RedditSettingsIcon } from '../reddit-icons';
-import type { FirewatchView } from '../types';
+import { RedditAutomationIcon, RedditSettingsIcon } from '../reddit-icons';
+import type { FirewatchView, QueueFilter, QueueFilterCounts } from '../types';
 import type { Incident } from '../../../shared/api';
-import { IncidentQueueItem, IncidentQueueItemSkeleton } from './incident-queue-item';
+import {
+  IncidentQueueItem,
+  IncidentQueueItemSkeleton,
+  QueueFilterTabs,
+} from './incident-queue-item';
 
 export const CommandPanel = ({
   activeView,
   incidents,
   loading,
+  queueFilter,
+  queueFilterCounts,
   selectedPostId,
   subredditName,
   username,
+  onQueueFilterChange,
   onSelectIncident,
   onViewChange,
 }: {
   activeView: FirewatchView;
   incidents: Incident[];
   loading: boolean;
+  queueFilter: QueueFilter;
+  queueFilterCounts: QueueFilterCounts;
   selectedPostId: string | undefined;
   subredditName: string;
   username: string;
+  onQueueFilterChange: (filter: QueueFilter) => void;
   onSelectIncident: (postId: string) => void;
   onViewChange: (view: FirewatchView) => void;
 }) => (
@@ -54,10 +64,17 @@ export const CommandPanel = ({
             <Skeleton className="h-4 w-5 bg-sidebar-accent" />
           ) : (
             <span className="text-xs font-semibold tabular-nums text-sidebar-foreground/60">
-              {incidents.length}
+              {queueFilterCounts.all}
             </span>
           )}
         </div>
+        <QueueFilterTabs
+          counts={queueFilterCounts}
+          disabled={loading}
+          surface="dark"
+          value={queueFilter}
+          onChange={onQueueFilterChange}
+        />
         {loading ? (
           <ScrollArea className="min-h-0 flex-1">
             <div
@@ -94,7 +111,7 @@ export const CommandPanel = ({
     <div className="flex flex-col gap-1 border-t border-sidebar-border px-3 py-3">
       <SidebarNavButton
         active={activeView === 'automations'}
-        icon={<RedditListIcon />}
+        icon={<RedditAutomationIcon />}
         label="Automations"
         onClick={() => onViewChange('automations')}
       />
