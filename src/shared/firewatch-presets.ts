@@ -15,7 +15,7 @@ export const FIREWATCH_DEMO_SCENARIOS: FirewatchDemoScenario[] = [
     id: 'suspicious_giveaway_escalating',
     label: 'Suspicious giveaway thread',
     description:
-      'Giveaway bait, watched links, repeat user behavior, and prepared cleanup actions.',
+      'Giveaway bait, watched domains, repeat user behavior, and prepared cleanup actions.',
   },
   HEATED_THREAD_SCENARIO,
   {

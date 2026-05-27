@@ -10,6 +10,7 @@ import {
   CONFIG_ACTION_CONTROL_GROUPS,
   CONFIG_CORE_ACTION_FIELDS,
   CONFIG_SIGNAL_WEIGHT_FIELDS,
+  normalizeConfigList,
   type ConfigActionControlField,
 } from '../../../shared/firewatch-config';
 import type { FirewatchConfig } from '../../../shared/api';
@@ -75,6 +76,14 @@ export const CommunityFiltersCard = ({
     parsedFire <= parsedHeat ||
     parsedWildfire <= parsedFire ||
     parsedWildfire > 100;
+  const normalizedKeywordCount = normalizeConfigList(
+    splitList(keywords),
+    []
+  ).length;
+  const normalizedDomainCount = normalizeConfigList(
+    splitList(suspiciousDomains),
+    []
+  ).length;
 
   const saveSettings = () =>
     onSave({
@@ -103,7 +112,7 @@ export const CommunityFiltersCard = ({
         <CardContent className="flex flex-col gap-5">
           <FieldBlock
             htmlFor="fw-keywords"
-            label={`Watched words (${splitList(keywords).length})`}
+            label={`Watched words (${normalizedKeywordCount})`}
           >
             <SettingsTextarea
               id="fw-keywords"
@@ -115,7 +124,7 @@ export const CommunityFiltersCard = ({
 
           <FieldBlock
             htmlFor="fw-domains"
-            label={`Watched domains (${splitList(suspiciousDomains).length})`}
+            label={`Watched domains (${normalizedDomainCount})`}
           >
             <SettingsTextarea
               id="fw-domains"

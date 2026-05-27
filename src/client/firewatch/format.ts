@@ -156,6 +156,7 @@ export const actionLabel = (action: string) => {
   if (action === 'bulk-comments:approve') return 'Approve selected comments';
   if (action === 'bulk-comments:remove') return 'Remove selected comments';
   if (action.startsWith('undo:')) return 'Undo action';
+  if (action.startsWith('rule-dismiss:')) return 'Hide automation';
   if (action.startsWith('post:')) return 'Post action';
   if (action.startsWith('comment:')) return 'Comment action';
   if (action.startsWith('user:')) return 'User action';
@@ -193,6 +194,7 @@ export const actionSuccessMessage = (action: string) => {
   if (action.startsWith('ban:')) {
     return 'Comment removed and user banned.';
   }
+  if (action.startsWith('rule-dismiss:')) return 'Automation hidden.';
   if (action === 'post:approve') return 'Post approved.';
   if (action === 'post:remove') return 'Post removed.';
   if (action === 'post:spam') return 'Post marked as spam.';

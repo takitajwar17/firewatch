@@ -20,6 +20,7 @@ import type {
   AccessDeniedResponse,
   FirewatchModeratorPermission,
 } from '../../shared/api';
+import { openCommentCount } from '../../shared/incidents';
 
 const canConfigureFirewatch = (permissions: FirewatchModeratorPermission[]) =>
   permissions.includes('all') || permissions.includes('config');
@@ -51,7 +52,10 @@ export const App = () => {
   );
   const unresolvedIncidents = useMemo(
     () =>
-      data.incidents.filter((incident) => !isTerminalStatus(incident.status)),
+      data.incidents.filter(
+        (incident) =>
+          openCommentCount(incident) > 0 || !isTerminalStatus(incident.status)
+      ),
     [data.incidents]
   );
   const claimedUnresolvedIncidents = useMemo(
@@ -63,7 +67,10 @@ export const App = () => {
   );
   const resolvedIncidents = useMemo(
     () =>
-      data.incidents.filter((incident) => isTerminalStatus(incident.status)),
+      data.incidents.filter(
+        (incident) =>
+          isTerminalStatus(incident.status) && openCommentCount(incident) === 0
+      ),
     [data.incidents]
   );
   const queueFilterCounts = useMemo(

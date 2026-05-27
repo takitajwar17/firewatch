@@ -32,10 +32,12 @@ export {
   claimIncident,
   clearIncidentUserStrikes,
   coolDownIncident,
+  dismissMatchedRule,
   lockIncident,
   unclaimIncident,
 } from './firewatch/incidents';
 export {
+  clearRememberedIncident,
   getRememberedIncidentPostId,
   rememberSelectedIncident,
   resetAppData,

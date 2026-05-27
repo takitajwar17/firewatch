@@ -7,7 +7,6 @@ import {
 } from '../../../../shared/reddit-actions';
 import { isCommentOpenForReview } from '../../../../shared/incidents';
 import {
-  normalizeCommentId,
   normalizePostId,
   normalizeUsername,
   usernameKey,
@@ -82,7 +81,7 @@ export const banUserAndRemoveComments = async (
     detail: removalPendingDetail,
     targetIds,
   });
-  let removedContentIds: string[] = [];
+  let removedContentIds: string[];
   try {
     removedContentIds = await removeRecentUserContent(
       sourceIncident,
@@ -119,14 +118,10 @@ export const banUserAndRemoveComments = async (
     },
     `Removed comments for u/${normalizedUsername} but failed to refresh incident ${normalizedPostId}`
   );
-  const incidentWithRemovedComments: Incident = {
-    ...incidentWithRemovalAction,
-    flaggedComments: incidentWithRemovalAction.flaggedComments.map((flaggedComment) =>
-      removedContentIds.includes(flaggedComment.id)
-        ? { ...flaggedComment, removed: true, reviewed: false }
-        : flaggedComment
-    ),
-  };
+  const incidentWithRemovedComments = markFlaggedCommentsRemoved(
+    incidentWithRemovalAction,
+    removedContentIds
+  );
   const refreshedRemovalIncident = await saveAndRefreshIncident(
     incidentWithRemovedComments,
     `Removed comments for u/${normalizedUsername} but failed to refresh incident ${normalizedPostId}`
@@ -207,9 +202,7 @@ export const banPreparedRuleUser = async ({
   const detail = demoUser
     ? `Recorded ${durationLabel} ban for u/${normalizedUsername}: ${actionReason}`
     : `Banned u/${normalizedUsername} (${durationLabel}): ${actionReason}`;
-  const targetIds = contextId?.startsWith('t1_')
-    ? [normalizeCommentId(contextId)]
-    : undefined;
+  const targetIds = [normalizedUsername];
   const { actionId } = await startIncidentAction(normalizedPostId, {
     type: 'user_banned',
     actor,

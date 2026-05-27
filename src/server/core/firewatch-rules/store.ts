@@ -131,16 +131,17 @@ export const getRuleExecutionLogs = async (
   parseJsonList<RuleExecutionLog>(await redis.get(ruleLogsKey(subredditName)));
 
 export const recordRuleExecutionLog = async (
-  log: Omit<RuleExecutionLog, 'id' | 'triggeredAt'>
+  log: Omit<RuleExecutionLog, 'id' | 'triggeredAt'>,
+  subredditName = context.subredditName
 ) => {
   const nextLog: RuleExecutionLog = {
     ...log,
     id: makeId('rulelog'),
     triggeredAt: currentIso(),
   };
-  const logs = await getRuleExecutionLogs(context.subredditName);
+  const logs = await getRuleExecutionLogs(subredditName);
   await redis.set(
-    ruleLogsKey(context.subredditName),
+    ruleLogsKey(subredditName),
     JSON.stringify([nextLog, ...logs].slice(0, MAX_RULE_LOGS)),
     { expiration: retentionExpiration() }
   );

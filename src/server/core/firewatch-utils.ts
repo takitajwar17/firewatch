@@ -6,6 +6,7 @@ import type {
   IncidentStatus,
   SignalSource,
 } from '../../shared/api';
+import { actionCompleted } from '../../shared/reddit-actions';
 import {
   normalizeConfig,
   normalizeThresholds,
@@ -15,13 +16,16 @@ import {
   normalizeUsername,
   usernameKey,
 } from '../../shared/usernames';
+import {
+  normalizeCommentId,
+  normalizeParentId,
+  normalizePostId,
+} from '../../shared/incidents';
 import { INCIDENT_RETENTION_MS } from './firewatch-constants';
 
 export { normalizeConfig, normalizeThresholds };
 export { formatUserHandle, normalizeUsername, usernameKey };
-
-export type T1 = `t1_${string}`;
-export type T3 = `t3_${string}`;
+export { normalizeCommentId, normalizeParentId, normalizePostId };
 
 export const incidentKey = (postId: string) => `fw:incident:${postId}`;
 export const indexKey = (subredditName: string) =>
@@ -51,12 +55,6 @@ export const makeId = (prefix: string) =>
 export const clamp = (value: number, min: number, max: number) =>
   Math.max(min, Math.min(max, value));
 
-export const normalizePostId = (postId: string): T3 =>
-  postId.startsWith('t3_') ? `t3_${postId.slice(3)}` : `t3_${postId}`;
-
-export const normalizeCommentId = (commentId: string): T1 =>
-  commentId.startsWith('t1_') ? `t1_${commentId.slice(3)}` : `t1_${commentId}`;
-
 export const isAppUsername = (username: string | undefined) =>
   usernameKey(username) === context.appSlug.toLowerCase();
 
@@ -85,6 +83,11 @@ export const inferSignalSource = (signal: {
 
 export const normalizeSignal = (signal: IncidentSignal): IncidentSignal => ({
   ...signal,
+  postId: normalizePostId(signal.postId),
+  commentId: signal.commentId
+    ? normalizeCommentId(signal.commentId)
+    : undefined,
+  parentId: normalizeParentId(signal.parentId, signal.postId),
   author: normalizeUsername(signal.author),
   source: inferSignalSource(signal),
 });
@@ -111,7 +114,9 @@ export const deriveIncidentStatus = (
 ): IncidentStatus => {
   const normalized = normalizeStatus(incident.status);
   const latestLockAction = incident.actions.find(
-    (action) => action.type === 'locked' || action.type === 'post_unlocked'
+    (action) =>
+      (action.type === 'locked' || action.type === 'post_unlocked') &&
+      actionCompleted(action)
   );
   const actionLocked = latestLockAction?.type === 'locked';
   const actionUnlocked = latestLockAction?.type === 'post_unlocked';
@@ -126,12 +131,15 @@ export const deriveIncidentStatus = (
     Boolean(incident.summary) ||
     Boolean(incident.resolvedAt) ||
     normalized === 'resolved' ||
-    incident.actions.some((action) => action.type === 'resolved');
+    incident.actions.some(
+      (action) => action.type === 'resolved' && actionCompleted(action)
+    );
   const cooldownPosted =
     normalized === 'cooldown' ||
-    incident.actions.some((action) => action.type === 'cool_down');
+    incident.actions.some(
+      (action) => action.type === 'cool_down' && actionCompleted(action)
+    );
 
-  if (locked && commentsToReview > 0) return 'locked';
   if (commentsToReview > 0) return 'review';
   if (finalNoteSaved) return 'resolved';
   if (locked) return 'locked';

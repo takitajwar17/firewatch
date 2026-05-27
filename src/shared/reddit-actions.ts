@@ -34,11 +34,11 @@ export const parseCrowdControlLevel = (
 
 const undoActionLabels: Partial<Record<IncidentActionType, string>> = {
   comment_locked: 'Unlock comment',
-  comment_removed: 'Restore comment',
+  comment_removed: 'Approve removed comment',
   comment_reports_ignored: 'Unignore comment reports',
   comment_reports_unignored: 'Ignore comment reports',
-  comment_spammed: 'Restore comment',
-  comment_thread_removed: 'Restore comment thread',
+  comment_spammed: 'Approve spammed comment',
+  comment_thread_removed: 'Approve removed comment thread',
   comment_unlocked: 'Lock comment',
   locked: 'Unlock post',
   post_marked_nsfw: 'Remove NSFW tag',
@@ -60,7 +60,7 @@ export const undoActionLabel = (type: IncidentActionType) =>
   undoActionLabels[type];
 
 export const actionCompleted = (action: Pick<IncidentAction, 'status'>) =>
-  action.status === undefined || action.status === 'succeeded';
+  action.status === 'succeeded';
 
 export const postActionControl = (
   action: NativePostAction

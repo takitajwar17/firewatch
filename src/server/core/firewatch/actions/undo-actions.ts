@@ -149,7 +149,7 @@ const applyCommentToggle = async ({
     return runCommentUndo({
       incident,
       pendingDetail: `Undo removal: approve ${countLabel(targetIds.length, 'comment')}`,
-      patch: { removed: false, reviewed: true, spam: false },
+      patch: { approved: true, removed: false, reviewed: true, spam: false },
       run: () =>
         runTargetedRedditActions(targetIds, (targetId) =>
           approveCommentIfReal(incident, targetId)

@@ -19,7 +19,7 @@ Firewatch: Hot Thread Queue
 Description:
 
 ```text
-Find threads heating up. Firewatch groups reports, risky comments, and watched links into one mod queue with clear reasons, mod ownership, Reddit actions, and handoff notes.
+Find threads heating up. Firewatch groups reports, risky comments, and watched domains into one mod queue with clear reasons, mod ownership, Reddit actions, and handoff notes.
 ```
 
 Terms and privacy:
@@ -95,7 +95,7 @@ Example communities:
   suspicious domains, and fast argument branches.
 - `r/NoStupidQuestions`: high-volume posts can accumulate many reports and
   repeated phrases before a mod has enough context.
-- `r/techsupport`: support threads benefit from fast review of scam links,
+- `r/techsupport`: support threads benefit from fast review of scam domains,
   unsafe advice, and users who repeatedly post harmful comments.
 
 Moderator benefit:

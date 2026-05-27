@@ -26,12 +26,7 @@ export const MatchedRulesCard = ({
   incident: Incident;
   onAction: ActionRunner;
 }) => {
-  const [dismissedRuleIds, setDismissedRuleIds] = useState<Set<string>>(
-    () => new Set()
-  );
-  const matchedRules = (incident.matchedRules ?? []).filter(
-    (rule) => !dismissedRuleIds.has(rule.id)
-  );
+  const matchedRules = incident.matchedRules ?? [];
 
   if (matchedRules.length === 0) return null;
 
@@ -50,11 +45,15 @@ export const MatchedRulesCard = ({
             incident={incident}
             rule={rule}
             onDismiss={() =>
-              setDismissedRuleIds((current) => {
-                const next = new Set(current);
-                next.add(rule.id);
-                return next;
-              })
+              onAction(
+                `rule-dismiss:${rule.ruleId}:${rule.targetId}`,
+                `/api/incidents/${incident.postId}/rules/${rule.ruleId}/dismiss`,
+                {
+                  ruleUpdatedAt: rule.ruleUpdatedAt,
+                  targetId: rule.targetId,
+                  targetType: rule.targetType,
+                }
+              )
             }
             onRun={() =>
               onAction(
@@ -206,7 +205,10 @@ const MatchedRuleItem = ({
           onClick={runActions}
         />
         <PlaybookButton
+          disabled={Boolean(busyAction) || actionLocked}
           label="Hide for now"
+          loading={busyAction === `rule-dismiss:${rule.ruleId}:${rule.targetId}`}
+          title={actionLocked ? actionLockReason : undefined}
           variant="ghost"
           onClick={() => {
             setConfirmRun(false);

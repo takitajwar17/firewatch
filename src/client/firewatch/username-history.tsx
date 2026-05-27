@@ -17,6 +17,10 @@ import type {
   UserStrike,
   UserStrikeSummary,
 } from '../../shared/api';
+import {
+  isCommentOpenForReview,
+  normalizeCommentId,
+} from '../../shared/incidents';
 
 type UsernameHistoryTriggerProps = {
   align?: 'start' | 'center' | 'end';
@@ -43,27 +47,8 @@ type HistorySummaryRow = [label: string, value: string];
 const sameUser = (left: string | undefined, rightKey: string | undefined) =>
   usernameKey(left) === rightKey;
 
-const numberAtStart = (value: string) => {
-  const match = value.trim().match(/^(\d+)/);
-  if (!match) return 1;
-
-  const parsed = Number.parseInt(match[1] ?? '1', 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
-};
-
-const reasonCount = (reasons: string[], pattern: RegExp) =>
-  reasons.reduce(
-    (total, reason) =>
-      pattern.test(reason) ? total + numberAtStart(reason) : total,
-    0
-  );
-
 const reportCountFrom = (comment: FlaggedComment) =>
-  comment.numReports ??
-  comment.reasons.filter((reason) => /^reported:/i.test(reason)).length;
-
-const isOpenComment = (comment: FlaggedComment) =>
-  !comment.removed && !comment.reviewed && !comment.approved && !comment.spam;
+  comment.numReports ?? 0;
 
 const newestFirst = (
   left: { createdAt: number },
@@ -88,7 +73,9 @@ const actionInvolvesUser = ({
   key: string | undefined;
 }) =>
   (action.targetIds ?? []).some(
-    (targetId) => commentIds.has(targetId) || usernameKey(targetId) === key
+    (targetId) =>
+      commentIds.has(normalizeCommentId(targetId)) ||
+      usernameKey(targetId) === key
   );
 
 const automationInvolvesUser = ({
@@ -100,14 +87,18 @@ const automationInvolvesUser = ({
   key: string | undefined;
   rule: MatchedAutomationRule;
 }) => {
-  if (sameUser(rule.username, key) || commentIds.has(rule.targetId)) {
+  if (sameUser(rule.username, key)) return true;
+
+  if (commentIds.has(normalizeCommentId(rule.targetId))) {
     return true;
   }
 
   return rule.preparedActions.some(
     (action) =>
       sameUser(action.username, key) ||
-      (action.targetId ? commentIds.has(action.targetId) : false)
+      (action.targetId
+        ? commentIds.has(normalizeCommentId(action.targetId))
+        : false)
   );
 };
 
@@ -141,7 +132,9 @@ const buildUserHistory = ({
   const comments = incident.flaggedComments
     .filter((comment) => commentBelongsToUser(comment, key))
     .sort(newestFirst);
-  const commentIds = new Set(comments.map((comment) => comment.id));
+  const commentIds = new Set(
+    comments.map((comment) => normalizeCommentId(comment.id))
+  );
   const participant = incident.involvedUsers.find((user) =>
     sameUser(user.username, key)
   );
@@ -192,31 +185,18 @@ const formatIsoTime = (value: string) => {
 };
 
 const summaryRowsFrom = (history: UserHistory) => {
-  const openComments = history.comments.filter(isOpenComment).length;
+  const openComments = history.comments.filter(isCommentOpenForReview).length;
   const reviewedComments = history.comments.length - openComments;
   const reports = history.comments.reduce(
     (total, comment) => total + reportCountFrom(comment),
     0
   );
-  const watchedDomains = history.comments.reduce(
-    (total, comment) => total + reasonCount(comment.reasons, /watched domain/i),
-    0
-  );
-  const watchedWords = history.comments.reduce(
-    (total, comment) =>
-      total + reasonCount(comment.reasons, /watched word|keyword/i),
-    0
-  );
-
   return [
     openComments > 0 ? ['Open comments', String(openComments)] : undefined,
     reviewedComments > 0
       ? ['Reviewed comments', String(reviewedComments)]
       : undefined,
     reports > 0 ? ['Reports', String(reports)] : undefined,
-    watchedDomains + watchedWords > 0
-      ? ['Watched hits', String(watchedDomains + watchedWords)]
-      : undefined,
     history.participant && history.participant.branchCount > 0
       ? ['Reply branches', String(history.participant.branchCount)]
       : undefined,
@@ -303,7 +283,7 @@ export const UsernameHistoryTrigger = ({
               {history.displayName}
             </p>
             <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
-              Firewatch facts for this thread and recent strikes.
+              Firewatch facts for this thread and stored strikes.
               {history.lastSeenAt
                 ? ` Last seen ${formatTime(history.lastSeenAt)}.`
                 : ''}
@@ -395,7 +375,7 @@ export const UsernameHistoryTrigger = ({
                     <p className="text-xs leading-5 text-muted-foreground">
                       {formatRating(comment.score)} ·{' '}
                       {formatTime(comment.createdAt)}
-                      {isOpenComment(comment) ? ' · open' : ' · reviewed'}
+                      {isCommentOpenForReview(comment) ? ' · open' : ' · reviewed'}
                     </p>
                   </div>
                 ))}

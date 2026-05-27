@@ -5,7 +5,7 @@ the same thread. Firewatch puts that post in one queue, shows why it needs
 review, lets one mod claim it, and keeps the cleanup trail in one place.
 
 Firewatch is built for posts that need more than a single approve/remove click:
-scam links, heated arguments, support-safety cleanup, repeated wording, report
+scam domains, heated arguments, support-safety cleanup, repeated wording, report
 spikes, AutoModerator filters, and threads where the mod team needs shared
 context before acting.
 
@@ -24,7 +24,7 @@ context before acting.
   comments with a removal note, ban a user after cleanup, lock or unlock posts,
   set flair, mark NSFW or spoiler, ignore reports, add mod notes, mute users,
   approve users, and remove recent user content.
-- Runs Automations as visible playbooks for scam cleanup, repeated offenders,
+- Runs Automations as visible prepared actions for scam cleanup, repeated offenders,
   crowded thread cooldowns, and lock recommendations.
 - Saves handoff notes and final notes with the reasons, users, actions, and
   remaining review work.

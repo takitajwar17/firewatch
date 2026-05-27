@@ -226,7 +226,7 @@ export const EmptyBoard = ({
           No posts need review right now
         </h1>
         <p className="text-sm leading-5 text-muted-foreground">
-          Start a clean demo thread to see reports, watched links, comment
+          Start clean demo posts to see reports, watched domains, comment
           review, handoff, and resolved state in one pass.
         </p>
 
@@ -280,7 +280,7 @@ export const EmptyBoard = ({
 
         <div className="flex flex-col gap-2 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs leading-5 text-muted-foreground">
-            Firewatch will add the selected demo threads to the review queue.
+            Firewatch will add the selected demo posts to the review queue.
           </p>
           <Button
             className="w-full sm:w-fit"

@@ -34,6 +34,7 @@ import type { ActionRunner } from '../types';
 import { UsernameHistoryTrigger } from '../username-history';
 import type { FirewatchConfig, Incident } from '../../../shared/api';
 import { firewatchRatingInfo } from '../../../shared/firewatch-rating.js';
+import { normalizeCommentId } from '../../../shared/incidents';
 import { CommentActionPrepPanel } from './comment-action-prep';
 import { CommentContextBlock } from './comment-context';
 import {
@@ -205,6 +206,11 @@ export const FlaggedCommentsCard = ({
           <h3 className="text-sm font-semibold leading-5">
             Comments to review
           </h3>
+          {incident.demo?.commentModel === 'sample_review_signals' ? (
+            <p className="text-xs leading-5 text-muted-foreground">
+              Demo comments are sample review signals in Firewatch.
+            </p>
+          ) : null}
           {omittedReviewComments > 0 ? (
             <p className="text-xs leading-5 text-muted-foreground">
               Showing the top {needsReview.length} open comments.{' '}
@@ -310,10 +316,11 @@ export const FlaggedCommentsCard = ({
               </div>
             ) : null}
             {needsReview.map((comment) => {
+              const normalizedCommentId = normalizeCommentId(comment.id);
               const authorLabel = formatUsername(comment.author);
               const permalink = comment.permalink;
               const canBanAuthor = authorLabel !== 'unknown user';
-              const commentState = commentStateById.get(comment.id);
+              const commentState = commentStateById.get(normalizedCommentId);
               if (!commentState) return null;
               const commentOpen =
                 !commentState.removed && !commentState.reviewed;
@@ -349,7 +356,7 @@ export const FlaggedCommentsCard = ({
                 firstOpenCommentIdByAuthor.get(
                   commentAuthorKey(comment.author)
                 ) === comment.id;
-              const threadContext = contextByCommentId.get(comment.id);
+              const threadContext = contextByCommentId.get(normalizedCommentId);
               const selected =
                 !actionLocked && selectedCommentIds.has(comment.id);
               const rating = firewatchRatingInfo(comment.score);
@@ -417,9 +424,9 @@ export const FlaggedCommentsCard = ({
                             {comment.numReports} reports
                           </Badge>
                         ) : null}
-                        {comment.reasons.map((reason) => (
+                        {comment.reasons.map((reason, reasonIndex) => (
                           <Badge
-                            key={reason}
+                            key={`${comment.id}:reason:${reasonIndex}:${reason}`}
                             className="max-w-full"
                             variant="secondary"
                           >
@@ -848,9 +855,12 @@ export const FlaggedCommentsCard = ({
             </div>
             <div className="flex flex-col">
               {alreadyActioned.map((comment) => {
+                const normalizedCommentId = normalizeCommentId(comment.id);
                 const permalink = comment.permalink;
-                const commentState = commentStateById.get(comment.id);
-                const actionSnapshot = actionSnapshotById.get(comment.id);
+                const commentState = commentStateById.get(normalizedCommentId);
+                const actionSnapshot = actionSnapshotById.get(
+                  normalizedCommentId
+                );
                 if (!commentState) return null;
                 const approveAction = `approve:${comment.id}`;
                 const removeAction = `remove:${comment.id}`;
@@ -903,9 +913,9 @@ export const FlaggedCommentsCard = ({
                           {comment.body}
                         </p>
                         <div className="mt-2 flex flex-wrap gap-1.5">
-                          {comment.reasons.map((reason) => (
+                          {comment.reasons.map((reason, reasonIndex) => (
                             <Badge
-                              key={reason}
+                              key={`${comment.id}:reason:${reasonIndex}:${reason}`}
                               className="max-w-full"
                               variant="secondary"
                             >
