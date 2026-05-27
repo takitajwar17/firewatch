@@ -6,7 +6,7 @@
 - `npm run type-check`: runs TypeScript project checks.
 - `npm run lint`: runs ESLint.
 - `npm run login`: logs the Devvit CLI into Reddit.
-- `npm run dev`: starts Devvit playtest without the retry patch.
+- `npm run dev`: starts Devvit playtest.
 - `npm run deploy`: uploads a private app version.
 - `npm run launch`: submits the app for review.
 
