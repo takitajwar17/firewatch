@@ -21,6 +21,9 @@ Use the [feature request template](.github/ISSUE_TEMPLATE/feature_request.md). D
 
 ## Development Setup
 
+Detailed setup and Devvit playtest commands live in
+[.github/DEV_SETUP.md](.github/DEV_SETUP.md).
+
 1. Install Node.js `22.2.0` or newer.
 2. Install dependencies:
 

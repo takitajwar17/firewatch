@@ -1,188 +1,124 @@
-# Firewatch
+# Firewatch: Thread Incident Room
 
-Firewatch is a Devvit Web moderation app that gives Reddit moderator teams a shared incident queue for posts that need coordinated review. It is designed for high-volume, support, marketplace, gaming, advice, technology, and other communities where reports, watched words, watched domains, AutoModerator filters, repeated wording, or fast comment growth can turn one thread into a team workflow.
+One Reddit post can turn into 420 comments, 69 reports, and three mods opening
+the same thread. Firewatch puts that post in one queue, shows why it needs
+review, lets one mod claim it, and keeps the cleanup trail in one place.
 
-## Key Features
+Firewatch is built for posts that need more than a single approve/remove click:
+scam domains, heated arguments, support-safety cleanup, repeated wording, report
+spikes, AutoModerator filters, and threads where the mod team needs shared
+context before acting.
 
-- Creates a moderator-only Firewatch review post for each installed subreddit.
-- Queues posts from moderator menu actions, reports, post and comment triggers, AutoModerator filters, watched words, watched domains, repeated wording, and mod actions.
-- Calculates a deterministic 0-5 Firewatch rating with visible reasons.
-- Lets one moderator claim an incident so the team can see who is handling it.
-- Shows flagged comments, repeated phrases, involved users, post state, mod log context, and review history in one web view.
-- Supports Reddit-native moderation actions such as approve, remove, spam, lock, unlock, flair, NSFW, spoiler, ignore reports, mod notes, mutes, user approvals, bans, and recent content cleanup.
-- Includes configurable Automations that can suggest actions, prepare actions for approval, or run explicitly enabled safe workflows.
-- Stores incident, configuration, claim, action, automation, and strike data in Devvit Redis.
-- Cleans stored post and comment content when Reddit delete triggers arrive.
-- Provides demo incident creation for moderator training and sandbox testing by seeding sample reports
-  and comments into Firewatch's review pipeline.
+## What Firewatch Does
 
-## Tech Stack
+- Creates a subreddit-level queue post for moderators.
+- Sends a post to Firewatch from the post menu, or queues it from reports,
+  watched words, watched domains, comment bursts, repeated user wording,
+  AutoModerator filters, and mod actions.
+- Shows a simple 0-5 Firewatch rating and the reasons in plain Reddit terms:
+  reports, comments waiting for a mod
+  decision, users in review, reply clusters, watched words, watched domains,
+  repeated phrases, and recent activity.
+- Lets one moderator claim the post so the team can see who is handling it.
+- Keeps Reddit-native controls close to the evidence: approve comments, remove
+  comments with a removal note, ban a user after cleanup, lock or unlock posts,
+  set flair, mark NSFW or spoiler, ignore reports, add mod notes, mute users,
+  approve users, and remove recent user content.
+- Runs Automations as visible prepared actions for scam cleanup, repeated offenders,
+  crowded thread cooldowns, and lock recommendations.
+- Saves handoff notes and final notes with the reasons, users, actions, and
+  remaining review work.
+- Excludes moderator comments, AutoModerator, and Firewatch notices from user
+  wording scores so the app does not score its own cleanup comments.
+- Includes demo drills that create a real source post, then seed sample reports
+  and comments into Firewatch's review pipeline so moderators can test the
+  workflow without posting harmful comments on Reddit.
+- Deletes stored post or comment content when Reddit delete triggers arrive.
 
-- Devvit Web `0.13.0`
-- Devvit CLI `0.13.0`
-- Node.js `>=22.2.0`
-- TypeScript `6.0`
-- React `19`
-- Vite `8`
-- Tailwind CSS `4`
-- Hono REST routes for the Devvit server
-- Devvit APIs: custom posts, menu actions, forms, triggers, Reddit API, Redis, and client navigation
+## How Moderators Use It
 
-This project uses `devvit.json`; there is no `devvit.yaml`. Devvit's current configuration docs describe `devvit.json` as the app configuration file for entrypoints, permissions, triggers, menus, forms, and build scripts. See the official [Devvit documentation](https://developers.reddit.com/docs) and [Devvit Web configuration guide](https://developers.reddit.com/docs/capabilities/devvit-web/devvit_web_configuration).
+1. Install Firewatch in a subreddit you moderate.
+2. Open the subreddit menu and choose **Open Firewatch**.
+3. Open **Firewatch settings** to tune watched words, watched domains, rating
+   thresholds, reminder text, signal weights, and available mod actions.
+4. Let Firewatch queue matching activity from triggers, or choose **Send to
+   Firewatch** from a post menu when a thread needs attention.
+5. Review the Firewatch rating, visible reasons, impact snapshot, comments, users,
+   activity, mod notes, and matched automations.
+6. Claim the post, approve acceptable comments, remove rule-breaking comments,
+   lock the thread, run prepared automation actions, or save a handoff note.
+7. Mark the incident resolved once the queue item no longer needs active review.
 
-## Prerequisites
+## Automations
 
-- Node.js `22.2.0` or newer.
-- npm.
-- A Reddit account with access to [Reddit for Developers](https://developers.reddit.com/).
-- Moderator permissions on a small test subreddit for playtesting.
-- For production installation, moderator permissions on the target subreddit.
+Firewatch Automations watch posts, comments, reports, incident ratings, and user
+strike counts. An automation can:
 
-The Devvit CLI is installed as this project's local `devvit` dev dependency. You can run it through npm scripts or `npx devvit`. A global CLI install is optional, but the local CLI keeps the project pinned to the same Devvit version for every contributor.
+- Suggest actions without running them.
+- Prepare actions for a moderator to review and run.
+- Auto-run safe Firewatch-only actions while leaving Reddit-native actions for
+  moderator approval.
+- Auto-run all selected actions when a mod team deliberately enables that mode
+  for a trusted rule. Reddit-native auto-run actions still require the post to
+  be claimed, and Firewatch records the claimant as the responsible actor.
 
-## Installation
+Automations are transparent: each match records why it matched, which actions
+were prepared, which actions ran, and which actions were skipped. Moderators
+should test automations in a sandbox subreddit before enabling automatic
+actions in an active community.
 
-1. Clone the repository.
+## Moderator Control
 
-   ```bash
-   git clone <repository-url>
-   cd Firewatch
-   ```
+Firewatch ratings are advisory. The app explains its reasons, but moderators
+remain responsible for reviewing context, applying community rules, and deciding
+whether to approve, remove, lock, ban, mute, flair, ignore reports, or take any
+other action. Firewatch is designed to reduce queue work, not replace moderator
+judgment.
 
-2. Install dependencies.
+## Moderator Permissions
 
-   ```bash
-   npm install
-   ```
+Firewatch is a moderator-only app. All menu items are registered with
+`forUserType: "moderator"`, and the server also checks the current moderator's
+subreddit permissions before returning mod data or accepting actions.
 
-3. Authenticate the Devvit CLI.
+- To open the review queue, a moderator must be allowed to manage posts and
+  comments. Reddit calls this `posts`, or `all` for full mod access.
+- To change Firewatch settings, automations, demo data, or reset app data, a
+  moderator must be allowed to change subreddit settings. Reddit calls this
+  `config`, or `all` for full mod access.
+- To ban, mute, approve users, add mod notes, clear Firewatch strikes, or clean
+  up a user's recent content, a moderator must be allowed to manage users.
+  Reddit calls this `access`, or `all` for full mod access. User-content cleanup
+  also needs post and comment moderation access.
+- To set or clear post flair, a moderator must be allowed to manage both posts
+  and post flair. Reddit calls these `posts` and `flair`, or `all` for full mod
+  access.
+- Moderators who cannot change subreddit settings do not receive watched lists,
+  rating thresholds, automation rules, or automation logs in the webview payload.
+  They can still see the review data, available action controls, and reminder
+  text needed for post moderation.
+- Moderators who cannot manage post flair do not receive post flair templates or
+  run flair actions.
 
-   ```bash
-   npm run login
-   ```
+If someone without enough mod access opens Firewatch, the app shows a plain
+access screen instead of loading private queue, settings, automation, or action
+data.
 
-   This opens Reddit authentication in your browser. You can also run `npx devvit login --copy-paste` if your environment cannot open a browser.
+## Data And Privacy
 
-4. Confirm the local CLI works.
+Firewatch stores only the data needed to run the moderation workflow for
+installed communities: incident state, public Reddit identifiers, public content
+excerpts needed for review, moderator settings, automation logs, action
+history, user strike summaries, and handoff notes. Incident, claim, and
+automation log records expire after 30 days. Per-moderator selected incident
+state expires after 24 hours. Community configuration, automations, user strike
+summaries, and the Firewatch queue post reference do not have an app-set expiry
+and remain until changed, cleared, reset by app logic, or removed by platform
+storage behavior.
 
-   ```bash
-   npx devvit version
-   ```
+Firewatch is a deterministic signal queue, not a complete abuse detector. It
+handles common watched-word, watched-domain, report, repeated wording, and
+reply-cluster patterns, including simple domain obfuscation, but moderators
+should still review context and tune community-specific rules.
 
-## Playtest
-
-Devvit playtests install the app into a real test subreddit and stream logs while rebuilding on changes. Use a small subreddit you moderate.
-
-```bash
-DEVVIT_SUBREDDIT=<test-subreddit-name> npm run dev
-```
-
-You can also pass the subreddit directly:
-
-```bash
-npx devvit playtest <test-subreddit-name>
-```
-
-If your network has intermittent Reddit edge timeouts, this repository includes an optional retry patch for Devvit upload/playtest traffic:
-
-```bash
-DEVVIT_SUBREDDIT=<test-subreddit-name> npm run dev:edge
-```
-
-After playtest starts, open the subreddit on reddit.com and use the subreddit menu item named **Open Firewatch**. Use **Firewatch settings** to configure watched words, domains, thresholds, and available actions.
-
-## Deploy
-
-1. Run local checks.
-
-   ```bash
-   npm run type-check
-   npm run lint
-   npm run test
-   npm run build
-   ```
-
-2. Upload a private app version.
-
-   ```bash
-   npm run deploy
-   ```
-
-   If needed, use the edge retry variant:
-
-   ```bash
-   npm run deploy:edge
-   ```
-
-3. Install the uploaded app into a subreddit you moderate.
-
-   ```bash
-   npx devvit install <subreddit-name>
-   ```
-
-4. To publish publicly after Reddit review, use the Devvit publish workflow:
-
-   ```bash
-   npm run launch:public
-   ```
-
-See the official [Devvit CLI docs](https://developers.reddit.com/docs/guides/tools/devvit_cli), [playtest docs](https://developers.reddit.com/docs/get-started/playtest), and [`devvit install` reference](https://developers.reddit.com/docs/cli/install) for command details.
-
-## Subreddit Configuration
-
-Firewatch is moderator-only. The app requests Devvit Reddit moderator scope and Redis because it reads subreddit moderation context, writes queue state, and performs moderator-approved Reddit actions.
-
-Recommended moderator permissions:
-
-- `posts` or `all` to open the queue and moderate posts/comments.
-- `config` or `all` to change Firewatch settings, automations, demo data, and reset app data.
-- `access` or `all` to ban, mute, approve users, add mod notes, clear Firewatch strikes, or clean up recent user content.
-- `flair` plus `posts`, or `all`, to set or clear post flair.
-
-If a moderator does not have enough access, Firewatch returns an access screen instead of private queue, configuration, automation, or action data.
-
-## Tests
-
-```bash
-npm run type-check
-npm run lint
-npm run test
-```
-
-`npm run test` runs the TypeScript build first and then executes the Node test suite in `tests/`.
-
-## Project Structure
-
-- `src/client`: React web view rendered inside Reddit.
-- `src/server`: Hono routes and Devvit server code.
-- `src/shared`: Typed request/response contracts and shared domain helpers.
-- `docs/architecture.md`: High-level architecture and data-flow notes.
-- `devvit.json`: Devvit Web manifest, entrypoints, triggers, forms, menu actions, scripts, and permissions.
-
-The client and server communicate through typed contracts in `src/shared/api.ts`.
-
-## Known Limitations
-
-- Firewatch is a deterministic moderation workflow tool, not a machine-learning abuse classifier.
-- Firewatch is a deterministic signal queue, not a complete abuse detector.
-- Devvit apps run on Reddit's platform and are subject to Devvit API availability, Reddit API limits, permissions, and platform behavior.
-- Playtesting happens in a real subreddit. Use a small private or restricted test subreddit before installing into an active community.
-- Firewatch cannot access Reddit private messages, private profile data, off-Reddit browsing history, or communities where it is not installed.
-- Reddit-native automated actions should be enabled only after moderators have tested the rule in a sandbox subreddit.
-- File downloads are not used in this app because Devvit web views run inside reddit.com.
-- Incident records expire after the configured retention window. Configuration, automations, user strike
-  summaries, and rule logs persist until a moderator changes or resets them.
-
-## Security
-
-Do not commit Reddit credentials, Devvit tokens, OAuth secrets, `.env` files, local page captures, or subreddit-specific private notes. Devvit handles Reddit API authentication for this app when the Reddit permission is enabled; this repository does not need Reddit OAuth client IDs or client secrets.
-
-Report vulnerabilities privately using the process in [.github/SECURITY.md](.github/SECURITY.md).
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, branch naming, commit conventions, pull request expectations, and Devvit-specific testing notes.
-
-## License
-
-Firewatch is released under the [MIT License](LICENSE).
+See [Privacy Policy](https://raw.githubusercontent.com/takitajwar17/firewatch/main/PRIVACY.md) and [Terms of Service](https://raw.githubusercontent.com/takitajwar17/firewatch/main/TERMS.md) for the full policy text.
