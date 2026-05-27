@@ -115,5 +115,4 @@ handles common watched-word, watched-domain, report, repeated wording, and
 reply-cluster patterns, including simple domain obfuscation, but moderators
 should still review context and tune community-specific rules.
 
-See [Privacy Policy](PRIVACY.md) and [Terms of Service](TERMS.md) for the full
-policy text.
+See [Privacy Policy](https://raw.githubusercontent.com/takitajwar17/firewatch/main/PRIVACY.md) and [Terms of Service](https://raw.githubusercontent.com/takitajwar17/firewatch/main/TERMS.md) for the full policy text.
