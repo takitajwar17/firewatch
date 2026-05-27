@@ -87,14 +87,6 @@ npx devvit playtest <test-subreddit-name>
 The `r/` prefix is optional. Do not commit personal or private subreddit names
 to `devvit.json`; use `DEVVIT_SUBREDDIT` or a local shell profile instead.
 
-If upload or playtest traffic repeatedly fails with transient Reddit edge
-timeouts, use the retry-patched scripts:
-
-```bash
-DEVVIT_SUBREDDIT=<test-subreddit-name> npm run dev:edge
-npm run deploy:edge
-```
-
 ### Deploy
 
 Upload a private version after local checks pass:
@@ -114,6 +106,14 @@ Public release is handled through the Devvit publish flow:
 ```bash
 npm run launch:public
 ```
+
+`devvit publish` uploads the release version and the source-code bundle Devvit
+requires for review. Do not run `npm run deploy` immediately before
+`npm run launch:public`; that creates an extra private upload and version bump.
+If the CLI attempts to install into a default playtest subreddit that already
+has the app installed, the duplicate-install warning is non-fatal. Set
+`DEVVIT_SUBREDDIT=<test-subreddit-name>` before publish if you want the CLI to
+use a specific test subreddit during that step.
 
 ## Branch Naming
 
