@@ -1771,7 +1771,7 @@ test('runtime docs and logs describe reliability-sensitive behavior honestly', (
 
   assert.match(readmeSource, /sample reports\s+and comments into Firewatch's review pipeline/);
   assert.match(readmeSource, /deterministic signal queue, not a complete abuse detector/);
-  assert.match(readmeSource, /automation, and strike data in Devvit Redis/);
+  assert.match(architectureSource, /automation rules, rule logs, user strikes/);
   assert.doesNotMatch(readmeSource, /automation, and user strike records expire after 30 days/);
   assert.match(architectureSource, /All client\/server payloads flow through types in `src\/shared\/api\.ts`/);
   assert.match(architectureSource, /Delete Handling/);
