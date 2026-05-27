@@ -1,4 +1,4 @@
-# Firewatch: Incident Room for Reddit Mod
+# Firewatch: Incident Room for Reddit Mods
 
 One Reddit post can turn into 420 comments, 69 reports, and three mods opening
 the same thread. Firewatch turns that into a shared **incident room**: one queue
