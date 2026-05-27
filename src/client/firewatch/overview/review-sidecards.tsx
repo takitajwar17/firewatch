@@ -8,7 +8,6 @@ import type { ActionRunner } from '../types';
 import { UsernameHistoryTrigger } from '../username-history';
 import type { FlaggedComment, Incident } from '../../../shared/api';
 import {
-  currentReportCount,
   isCommentOpenForReview,
   openCommentsForReview,
 } from '../../../shared/incidents';
@@ -32,10 +31,10 @@ const strongestOpenCommentFrom = (incident: Incident) =>
 const commentMeta = (comment: FlaggedComment) => formatUsername(comment.author);
 
 const signalSummary = (incident: Incident) => {
-  const currentReports = currentReportCount(incident);
+  const activeReports = incident.stats.reportSignals;
   const parts = [
-    currentReports > 0
-      ? pluralize(currentReports, 'current report')
+    activeReports > 0
+      ? pluralize(activeReports, 'current report')
       : undefined,
     incident.stats.suspiciousLinkHits > 0
       ? pluralize(incident.stats.suspiciousLinkHits, 'watched domain')

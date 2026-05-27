@@ -47,8 +47,11 @@ import {
 } from '../firewatch-utils';
 import { externalModActionDetail, externalModActionType } from '../mod-actions';
 
-
-// Signal input and recent-signal dedupe
+/**
+ * Server-side shape accepted by trigger, menu, demo, and action flows before
+ * Firewatch normalizes IDs, dedupes recent signals, and recalculates incident
+ * state.
+ */
 export type SignalInput = Omit<IncidentSignal, 'id' | 'createdAt' | 'source'> & {
   createdAt?: number;
   postSnapshot?: PostSnapshot;
@@ -374,6 +377,10 @@ export const deleteStoredCommentContent = async (
 
 
 
+/**
+ * Records a new moderation signal, recalculates the incident, attaches rule
+ * matches, and runs any automation mode that is allowed for the matched rules.
+ */
 export const upsertIncidentSignal = async (input: SignalInput) => {
   const { config, incident, triggerType } = await recordIncidentSignal(input);
   const ruleLogs = await recordRuleMatches({
@@ -384,6 +391,11 @@ export const upsertIncidentSignal = async (input: SignalInput) => {
   return runRuleAutomationActions(incident, ruleLogs);
 };
 
+/**
+ * Loads queue-visible incidents, refreshes Reddit state for active records,
+ * repairs the Redis queue index, and returns recent resolved incidents for
+ * review history.
+ */
 export const getIncidents = async () => {
   const index = await getIndex();
   const registry = await getIncidentRegistry();

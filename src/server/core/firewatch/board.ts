@@ -7,8 +7,11 @@ import {
 } from './reddit-runtime';
 import { logFirewatchWarn } from './logging';
 
-
-// Custom post entrypoint
+/**
+ * Creates the Firewatch custom post that hosts the web view. A board post is
+ * reused per subreddit, while incident-specific posts can carry postData that
+ * opens the matching incident directly.
+ */
 export const createFirewatchPost = async (options?: {
   incidentPostId?: string;
 }) => {
@@ -25,10 +28,6 @@ export const createFirewatchPost = async (options?: {
       ? `Firewatch review: ${sourcePost.title.slice(0, 220)}`
       : 'Firewatch posts to review',
     entry: 'default',
-    splash: {
-      appDisplayName: 'Firewatch',
-      appIconUri: 'icon.png',
-    },
     postData: normalizedIncidentPostId
       ? {
           incidentPostId: normalizedIncidentPostId,

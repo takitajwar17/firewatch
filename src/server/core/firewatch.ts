@@ -1,3 +1,6 @@
+// Public Firewatch server facade used by route modules. Keeping this as a
+// narrow barrel makes route imports explicit while preserving module ownership
+// under src/server/core/firewatch.
 export {
   createFirewatchPost,
   getOrCreateFirewatchBoardPost,
@@ -32,7 +35,7 @@ export {
   claimIncident,
   clearIncidentUserStrikes,
   coolDownIncident,
-  dismissMatchedRule,
+  hideMatchedRule,
   lockIncident,
   unclaimIncident,
 } from './firewatch/incidents';

@@ -14,11 +14,11 @@
 ## Current App
 
 - App slug: `firewatch17`
-- Playtest subreddit: `r/firewatch17_dev`
-- Playtest URL: https://www.reddit.com/r/firewatch17_dev/?playtest=firewatch17
+- Playtest subreddit: set `DEVVIT_SUBREDDIT=<test-subreddit-name>` when running `npm run dev`.
+- Playtest URL: Devvit prints the active playtest URL after upload.
 
 ## Network Note
 
-On this machine, Reddit's Fastly edge sometimes causes Node `fetch failed`
-timeouts during Devvit upload/playtest. Use `npm run dev:edge` when that
-happens.
+Some networks can hit Reddit edge timeouts during Devvit upload or playtest.
+Use `npm run dev:edge` if normal playtest or upload commands repeatedly fail
+with transient `fetch failed` errors.

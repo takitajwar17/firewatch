@@ -11,7 +11,7 @@ use of Reddit and Reddit's Developer Platform.
 
 Firewatch is a moderation workflow tool. It helps moderators detect escalating
 posts, review public Reddit activity, coordinate ownership, run configurable
-response rules, take Reddit-native mod actions, and save handoff notes.
+Automations, take Reddit-native mod actions, and save handoff notes.
 
 Firewatch is not a Reddit safety enforcement system, legal advisor, or
 replacement for moderator judgment. Scores, labels, suggestions, rule matches,
@@ -38,9 +38,9 @@ Firewatch, including approvals, removals, spam actions, locks, report handling,
 flair changes, user approvals, user mutes, moderator notes, recent content
 cleanup, and bans.
 
-## Automation And Response Rules
+## Automations
 
-Firewatch includes configurable Response Rules. Depending on how a moderator
+Firewatch includes configurable Automations. Depending on how a moderator
 configures a rule, Firewatch may suggest actions, prepare actions for approval,
 auto-run safe Firewatch-only actions, or auto-run all selected actions.
 

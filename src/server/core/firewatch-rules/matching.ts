@@ -583,12 +583,12 @@ export const attachRuleContext = async (
       match.matchedAt,
     ])
   );
-  const dismissedRuleKeys = new Set(incident.dismissedRuleKeys ?? []);
+  const hiddenRuleMatchKeys = new Set(incident.hiddenRuleMatchKeys ?? []);
 
   return {
     ...incident,
     matchedRules: matches
-      .filter((match) => !dismissedRuleKeys.has(ruleMatchKey(match)))
+      .filter((match) => !hiddenRuleMatchKeys.has(ruleMatchKey(match)))
       .map((match) => ({
         ...match,
         matchedAt: previousMatchedAt.get(ruleMatchKey(match)) ?? match.matchedAt,

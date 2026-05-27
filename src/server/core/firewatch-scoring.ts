@@ -6,7 +6,11 @@ import type {
   IncidentTrendPoint,
   RiskReason,
 } from '../../shared/api';
-import { isCommentOpenForReview } from '../../shared/incidents';
+import {
+  getReportIgnoreState,
+  isCommentOpenForReview,
+  isReportSignalIgnored,
+} from '../../shared/incidents';
 import { actionCompleted } from '../../shared/reddit-actions';
 import {
   MAX_FLAGGED_COMMENTS,
@@ -158,53 +162,10 @@ export const calculateIncident = (
         (!removedCommentIds.has(signal.commentId) &&
           !reviewedCommentIds.has(signal.commentId)))
   );
-  const latestCommentReportActionById = new Map<
-    string,
-    'ignored' | 'unignored'
-  >();
-  for (const action of [...incident.actions].sort(
-    (left, right) => right.createdAt - left.createdAt
-  )) {
-    if (
-      action.type !== 'comment_reports_ignored' &&
-      action.type !== 'comment_reports_unignored'
-    ) {
-      continue;
-    }
-    if (!actionCompleted(action)) continue;
-
-    for (const targetId of action.targetIds ?? []) {
-      const normalizedTargetId = normalizeCommentId(targetId);
-      if (latestCommentReportActionById.has(normalizedTargetId)) continue;
-      latestCommentReportActionById.set(
-        normalizedTargetId,
-        action.type === 'comment_reports_ignored' ? 'ignored' : 'unignored'
-      );
-    }
-  }
-  const ignoredReportCommentIds = new Set(
-    Array.from(latestCommentReportActionById.entries())
-      .filter(([, state]) => state === 'ignored')
-      .map(([commentId]) => commentId)
+  const reportIgnoreState = getReportIgnoreState(
+    incident,
+    postSnapshot.postState
   );
-  const latestPostReportAction = [...incident.actions]
-    .sort((left, right) => right.createdAt - left.createdAt)
-    .find(
-      (action) =>
-        actionCompleted(action) &&
-        (action.type === 'post_reports_ignored' ||
-          action.type === 'post_reports_unignored')
-    );
-  const postReportsIgnored =
-    latestPostReportAction?.type === 'post_reports_ignored' ||
-    (latestPostReportAction
-      ? false
-      : postSnapshot.postState?.ignoringReports === true);
-  const isIgnoredReportSignal = (signal: ScoredSignal) => {
-    if (signal.type === 'post_report') return postReportsIgnored;
-    if (signal.type !== 'comment_report' || !signal.commentId) return false;
-    return ignoredReportCommentIds.has(normalizeCommentId(signal.commentId));
-  };
   const contentSignals = uniqueContentSignals(scoreSignals);
   const visibleSignals = recentSignals.filter(
     (signal) => signal.source !== 'firewatch_notice'
@@ -212,22 +173,22 @@ export const calculateIncident = (
   const recentComments = activeUserSignals.filter(
     (signal) => signal.type === 'comment_create'
   );
-  const currentReportSignals = scoreSignals.filter(
+  const activeReportSignals = scoreSignals.filter(
     (signal) =>
       (signal.type === 'comment_report' || signal.type === 'post_report') &&
-      !isIgnoredReportSignal(signal)
+      !isReportSignalIgnored(signal, reportIgnoreState)
   );
-  const reports = currentReportSignals.filter(
+  const reports = activeReportSignals.filter(
     (signal) =>
       signal.type === 'comment_report' || signal.type === 'post_report'
   );
-  const commentReports = currentReportSignals.filter(
+  const commentReports = activeReportSignals.filter(
     (signal) => signal.type === 'comment_report'
   );
-  const postReportSignals = currentReportSignals.filter(
+  const postReportSignals = activeReportSignals.filter(
     (signal) => signal.type === 'post_report'
   );
-  const postReportCount = postReportsIgnored
+  const postReportCount = reportIgnoreState.postReportsIgnored
     ? 0
     : Math.max(postSnapshot.numberOfReports, postReportSignals.length);
   const totalReportCount = commentReports.length + postReportCount;
@@ -489,7 +450,7 @@ export const calculateIncident = (
   for (const signal of normalizedSignals) {
     if (signal.commentId && removedCommentIds.has(signal.commentId)) continue;
     if (signal.commentId && reviewedCommentIds.has(signal.commentId)) continue;
-    if (isIgnoredReportSignal(signal)) continue;
+    if (isReportSignalIgnored(signal, reportIgnoreState)) continue;
     const flagged = scoreComment(signal, config);
     if (!flagged) continue;
 
@@ -625,10 +586,7 @@ export const calculateIncident = (
     ...makeEmptyStats(),
     signalCount: visibleSignals.length,
     commentSignals: recentComments.length,
-    reportSignals: Math.max(totalReportCount, incident.stats.reportSignals),
-    currentReportSignals: totalReportCount,
-    currentCommentReports: commentReports.length,
-    currentPostReports: postReportCount,
+    reportSignals: totalReportCount,
     manualEscalations: manualEscalations.length,
     keywordHits,
     suspiciousLinkHits: suspiciousHits,

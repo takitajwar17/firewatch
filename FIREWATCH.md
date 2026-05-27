@@ -1,7 +1,9 @@
 # Firewatch Product Spec
 
 Firewatch is a Devvit-native moderation queue for posts that need attention.
-It is built for the Reddit Mod Tools and Migrated Apps Hackathon.
+It is built for Reddit moderator teams that need a shared workflow for posts
+with reports, fast comment growth, watched terms, suspicious links, or repeated
+wording.
 
 ## Current Product
 

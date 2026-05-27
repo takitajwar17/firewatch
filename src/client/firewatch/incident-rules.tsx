@@ -46,8 +46,8 @@ export const MatchedRulesCard = ({
             rule={rule}
             onDismiss={() =>
               onAction(
-                `rule-dismiss:${rule.ruleId}:${rule.targetId}`,
-                `/api/incidents/${incident.postId}/rules/${rule.ruleId}/dismiss`,
+                `rule-hide:${rule.ruleId}:${rule.targetId}`,
+                `/api/incidents/${incident.postId}/rules/${rule.ruleId}/hide`,
                 {
                   ruleUpdatedAt: rule.ruleUpdatedAt,
                   targetId: rule.targetId,
@@ -207,7 +207,7 @@ const MatchedRuleItem = ({
         <PlaybookButton
           disabled={Boolean(busyAction) || actionLocked}
           label="Hide for now"
-          loading={busyAction === `rule-dismiss:${rule.ruleId}:${rule.targetId}`}
+          loading={busyAction === `rule-hide:${rule.ruleId}:${rule.targetId}`}
           title={actionLocked ? actionLockReason : undefined}
           variant="ghost"
           onClick={() => {

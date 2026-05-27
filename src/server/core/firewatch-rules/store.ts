@@ -25,12 +25,21 @@ const templateRules = (subredditName: string) =>
     subredditId: subredditName,
   });
 
-const legacyResolvedRuleAction = ['mark_', 'han', 'dled'].join('');
+const LEGACY_MARK_RESOLVED_RULE_ACTION = 'mark_handled';
+type LegacyMarkResolvedRuleAction = {
+  type: typeof LEGACY_MARK_RESOLVED_RULE_ACTION;
+};
+type StoredRuleAction = RuleAction | LegacyMarkResolvedRuleAction;
+type StoredFirewatchRule = Omit<FirewatchRule, 'actions'> & {
+  actions: StoredRuleAction[];
+};
 
-const normalizeRuleAction = (action: RuleAction): RuleAction =>
-  action.type === legacyResolvedRuleAction ? { type: 'mark_resolved' } : action;
+const normalizeRuleAction = (action: StoredRuleAction): RuleAction =>
+  action.type === LEGACY_MARK_RESOLVED_RULE_ACTION
+    ? { type: 'mark_resolved' }
+    : action;
 
-const normalizeRule = (rule: FirewatchRule): FirewatchRule => ({
+const normalizeRule = (rule: StoredFirewatchRule): FirewatchRule => ({
   ...rule,
   actions: rule.actions.map(normalizeRuleAction),
 });
@@ -38,7 +47,7 @@ const normalizeRule = (rule: FirewatchRule): FirewatchRule => ({
 export const getAutomations = async (
   subredditName = context.subredditName
 ) => {
-  const stored = parseJsonList<FirewatchRule>(
+  const stored = parseJsonList<StoredFirewatchRule>(
     await redis.get(responseRulesKey(subredditName))
   );
 

@@ -17,7 +17,7 @@ import {
 import type { QueueFilter, QueueFilterCounts } from '../types';
 import type { Incident } from '../../../shared/api';
 import { firewatchRatingInfo } from '../../../shared/firewatch-rating.js';
-import { currentReportCount, openCommentCount } from '../../../shared/incidents';
+import { openCommentCount } from '../../../shared/incidents';
 
 const QUEUE_FILTER_OPTIONS: {
   label: string;
@@ -257,7 +257,7 @@ export const IncidentQueueItem = ({
   surface: 'dark' | 'light';
 }) => {
   const unresolvedComments = openCommentCount(incident);
-  const currentReports = currentReportCount(incident);
+  const activeReports = incident.stats.reportSignals;
   const postState = incident.postState;
   const needsSafetyReview =
     Boolean(incident.safetyReview) &&
@@ -284,8 +284,8 @@ export const IncidentQueueItem = ({
     unresolvedComments > 0
       ? pluralize(unresolvedComments, 'comment')
       : undefined,
-    currentReports > 0
-      ? pluralize(currentReports, 'report')
+    activeReports > 0
+      ? pluralize(activeReports, 'report')
       : undefined,
     incident.stats.suspiciousLinkHits > 0
       ? pluralize(incident.stats.suspiciousLinkHits, 'watched domain')

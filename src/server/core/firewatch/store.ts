@@ -39,8 +39,14 @@ import {
 import { deleteRedditPostIfExists } from './reddit-runtime';
 import { logFirewatchError } from './logging';
 
-const legacyUsersResolvedImpactKey = ['users', 'Han', 'dled'].join('');
+const LEGACY_USERS_RESOLVED_IMPACT_KEY = 'usersHandled';
 type IncidentClaim = NonNullable<Incident['claim']>;
+type StoredIncidentStats = Partial<IncidentStats> & {
+  currentReportSignals?: number;
+};
+type StoredIncident = Incident & {
+  dismissedRuleKeys?: string[];
+};
 
 const finiteNumberOrZero = (value: number | undefined) =>
   typeof value === 'number' && Number.isFinite(value) ? value : 0;
@@ -50,7 +56,7 @@ const legacyUsersResolved = (
 ) => {
   if (!impact) return undefined;
 
-  const value = Reflect.get(impact, legacyUsersResolvedImpactKey);
+  const value = Reflect.get(impact, LEGACY_USERS_RESOLVED_IMPACT_KEY);
   return typeof value === 'number' && Number.isFinite(value)
     ? value
     : undefined;
@@ -77,30 +83,30 @@ const normalizeIncidentImpact = (
 });
 
 const normalizeIncidentStats = (
-  stats: Partial<IncidentStats> | undefined
-): IncidentStats => ({
-  signalCount: finiteNumberOrZero(stats?.signalCount),
-  commentSignals: finiteNumberOrZero(stats?.commentSignals),
-  reportSignals: finiteNumberOrZero(stats?.reportSignals),
-  currentReportSignals: finiteNumberOrZero(
-    stats?.currentReportSignals ?? stats?.reportSignals
-  ),
-  currentCommentReports: finiteNumberOrZero(stats?.currentCommentReports),
-  currentPostReports: finiteNumberOrZero(stats?.currentPostReports),
-  manualEscalations: finiteNumberOrZero(stats?.manualEscalations),
-  keywordHits: finiteNumberOrZero(stats?.keywordHits),
-  suspiciousLinkHits: finiteNumberOrZero(stats?.suspiciousLinkHits),
-  branchPileOns: finiteNumberOrZero(stats?.branchPileOns),
-  repeatedPhraseHits: finiteNumberOrZero(stats?.repeatedPhraseHits),
-  removals: finiteNumberOrZero(stats?.removals),
-  flaggedCount: finiteNumberOrZero(stats?.flaggedCount),
-  uniqueParticipants: finiteNumberOrZero(stats?.uniqueParticipants),
-  commentsLastHour: finiteNumberOrZero(stats?.commentsLastHour),
-  flaggedCommentsOmitted: finiteNumberOrZero(stats?.flaggedCommentsOmitted),
-  flaggedCommentsStored: finiteNumberOrZero(stats?.flaggedCommentsStored),
-  signalsOmitted: finiteNumberOrZero(stats?.signalsOmitted),
-  signalsStored: finiteNumberOrZero(stats?.signalsStored),
-});
+  stats: StoredIncidentStats | undefined
+): IncidentStats => {
+  const reportSignals =
+    stats?.currentReportSignals ?? stats?.reportSignals;
+
+  return {
+    signalCount: finiteNumberOrZero(stats?.signalCount),
+    commentSignals: finiteNumberOrZero(stats?.commentSignals),
+    reportSignals: finiteNumberOrZero(reportSignals),
+    manualEscalations: finiteNumberOrZero(stats?.manualEscalations),
+    keywordHits: finiteNumberOrZero(stats?.keywordHits),
+    suspiciousLinkHits: finiteNumberOrZero(stats?.suspiciousLinkHits),
+    branchPileOns: finiteNumberOrZero(stats?.branchPileOns),
+    repeatedPhraseHits: finiteNumberOrZero(stats?.repeatedPhraseHits),
+    removals: finiteNumberOrZero(stats?.removals),
+    flaggedCount: finiteNumberOrZero(stats?.flaggedCount),
+    uniqueParticipants: finiteNumberOrZero(stats?.uniqueParticipants),
+    commentsLastHour: finiteNumberOrZero(stats?.commentsLastHour),
+    flaggedCommentsOmitted: finiteNumberOrZero(stats?.flaggedCommentsOmitted),
+    flaggedCommentsStored: finiteNumberOrZero(stats?.flaggedCommentsStored),
+    signalsOmitted: finiteNumberOrZero(stats?.signalsOmitted),
+    signalsStored: finiteNumberOrZero(stats?.signalsStored),
+  };
+};
 
 const normalizeIncidentActions = (
   actions: IncidentAction[] | undefined
@@ -357,15 +363,17 @@ export const getIncident = async (
   if (!stored) return undefined;
 
   try {
-    const parsed: Incident = JSON.parse(stored);
+    const parsed: StoredIncident = JSON.parse(stored);
+    const { dismissedRuleKeys, ...incident } = parsed;
     const claim = await hydrateStoredClaim(parsed);
     return {
-      ...parsed,
-      actions: normalizeIncidentActions(parsed.actions),
+      ...incident,
+      actions: normalizeIncidentActions(incident.actions),
       claim,
-      status: normalizeStatus(parsed.status),
-      stats: normalizeIncidentStats(parsed.stats),
-      impact: normalizeIncidentImpact(parsed.impact),
+      hiddenRuleMatchKeys: incident.hiddenRuleMatchKeys ?? dismissedRuleKeys,
+      status: normalizeStatus(incident.status),
+      stats: normalizeIncidentStats(incident.stats),
+      impact: normalizeIncidentImpact(incident.impact),
     };
   } catch (error) {
     logFirewatchError('store.parse_incident_failed', {
@@ -490,6 +498,10 @@ const deleteRedisKeys = async (keys: string[]) => {
   return uniqueKeys.length;
 };
 
+/**
+ * Deletes Firewatch-owned Redis state for the current subreddit and attempts to
+ * remove the review board post. Reddit-side mod logs and native actions remain.
+ */
 export const resetAppData = async () => {
   const subredditName = context.subredditName;
   const boardPostId = await redis.get(boardPostKey(subredditName));

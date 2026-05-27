@@ -1,4 +1,10 @@
-import type { FlaggedComment, Incident } from './api';
+import type {
+  FlaggedComment,
+  Incident,
+  IncidentPostState,
+  IncidentSignal,
+} from './api';
+import { actionCompleted } from './reddit-actions.js';
 
 export type RedditCommentId = `t1_${string}`;
 export type RedditPostId = `t3_${string}`;
@@ -55,13 +61,79 @@ export const openCommentsForReview = (incident: Incident) =>
 export const openCommentCount = (incident: Incident) =>
   openCommentsForReview(incident).length;
 
-export const currentReportCount = (incident: Incident) =>
-  incident.stats.currentReportSignals ?? incident.stats.reportSignals;
+export type ReportIgnoreState = {
+  ignoredCommentIds: Set<string>;
+  postReportsIgnored: boolean;
+};
+
+export const getReportIgnoreState = (
+  incident: Incident,
+  postState: IncidentPostState | undefined = incident.postState
+): ReportIgnoreState => {
+  const latestCommentReportActionById = new Map<
+    string,
+    'ignored' | 'unignored'
+  >();
+
+  for (const action of [...incident.actions].sort(
+    (left, right) => right.createdAt - left.createdAt
+  )) {
+    if (
+      action.type !== 'comment_reports_ignored' &&
+      action.type !== 'comment_reports_unignored'
+    ) {
+      continue;
+    }
+    if (!actionCompleted(action)) continue;
+
+    for (const targetId of action.targetIds ?? []) {
+      const normalizedTargetId = normalizeCommentId(targetId);
+      if (latestCommentReportActionById.has(normalizedTargetId)) continue;
+      latestCommentReportActionById.set(
+        normalizedTargetId,
+        action.type === 'comment_reports_ignored' ? 'ignored' : 'unignored'
+      );
+    }
+  }
+
+  const latestPostReportAction = [...incident.actions]
+    .sort((left, right) => right.createdAt - left.createdAt)
+    .find(
+      (action) =>
+        actionCompleted(action) &&
+        (action.type === 'post_reports_ignored' ||
+          action.type === 'post_reports_unignored')
+    );
+
+  return {
+    ignoredCommentIds: new Set(
+      Array.from(latestCommentReportActionById.entries())
+        .filter(([, state]) => state === 'ignored')
+        .map(([commentId]) => commentId)
+    ),
+    postReportsIgnored:
+      latestPostReportAction?.type === 'post_reports_ignored' ||
+      (latestPostReportAction ? false : postState?.ignoringReports === true),
+  };
+};
+
+export const isReportSignalIgnored = (
+  signal: IncidentSignal,
+  reportIgnoreState: ReportIgnoreState
+) => {
+  if (signal.type === 'post_report') {
+    return reportIgnoreState.postReportsIgnored;
+  }
+  if (signal.type !== 'comment_report' || !signal.commentId) return false;
+  return reportIgnoreState.ignoredCommentIds.has(
+    normalizeCommentId(signal.commentId)
+  );
+};
 
 const reviewWorkScore = (incident: Incident) =>
   openCommentCount(incident) * 100 +
   (incident.safetyReview ? 160 : 0) +
-  currentReportCount(incident) * 12 +
+  incident.stats.reportSignals * 12 +
   incident.stats.suspiciousLinkHits * 8 +
   incident.stats.keywordHits * 4 +
   incident.score;

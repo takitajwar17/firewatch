@@ -18,7 +18,7 @@ import {
   formatUsername,
   ratingStarsColorClass,
 } from '../format';
-import { openRedditUrlInNewTab } from '../navigation';
+import { openRedditUrl } from '../navigation';
 import {
   RedditApproveIcon,
   RedditBanIcon,
@@ -481,7 +481,7 @@ export const FlaggedCommentsCard = ({
                             className="max-w-full"
                             size="sm"
                             variant="ghost"
-                            onClick={() => openRedditUrlInNewTab(permalink)}
+                            onClick={() => openRedditUrl(permalink)}
                           >
                             <RedditLinkIcon data-icon="inline-start" />
                             Open context
@@ -966,7 +966,7 @@ export const FlaggedCommentsCard = ({
                             className="shrink-0"
                             size="sm"
                             variant="ghost"
-                            onClick={() => openRedditUrlInNewTab(permalink)}
+                            onClick={() => openRedditUrl(permalink)}
                           >
                             <RedditLinkIcon data-icon="inline-start" />
                             Open context

@@ -752,7 +752,7 @@ export const lockIncident = async (postId: string) => {
   );
 };
 
-export const dismissMatchedRule = async (
+export const hideMatchedRule = async (
   postId: string,
   input: Pick<
     NonNullable<Incident['matchedRules']>[number],
@@ -764,8 +764,8 @@ export const dismissMatchedRule = async (
   const key = ruleMatchKey(input);
   const nextIncident: Incident = {
     ...incident,
-    dismissedRuleKeys: Array.from(
-      new Set([...(incident.dismissedRuleKeys ?? []), key])
+    hiddenRuleMatchKeys: Array.from(
+      new Set([...(incident.hiddenRuleMatchKeys ?? []), key])
     ).slice(-100),
     updatedAt: now(),
   };

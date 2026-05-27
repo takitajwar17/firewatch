@@ -43,12 +43,12 @@ import {
   coolDownIncident,
   createDemoIncidents,
   createDemoIncidentBatch,
-  dismissMatchedRule,
   escalateIncident,
   getConfig,
   getIncidentById,
   getIncidents,
   getRememberedIncidentPostId,
+  hideMatchedRule,
   lockIncident,
   removeFlaggedComment,
   resetAppData,
@@ -81,6 +81,10 @@ import {
   requireModeratorPermissions,
 } from './auth';
 
+/**
+ * Client-facing API for the Firewatch web view. Every response shape is typed
+ * in src/shared/api.ts so the iframe and server stay in lockstep.
+ */
 export const api = new Hono();
 
 const currentModeratorName = async () =>
@@ -593,7 +597,7 @@ api.post('/incidents/:postId/rules/:ruleId/run', async (c) => {
   });
 });
 
-api.post('/incidents/:postId/rules/:ruleId/dismiss', async (c) => {
+api.post('/incidents/:postId/rules/:ruleId/hide', async (c) => {
   return claimedIncidentAction(c, async () => {
     const body = await c.req.json<{
       ruleUpdatedAt?: string;
@@ -610,7 +614,7 @@ api.post('/incidents/:postId/rules/:ruleId/dismiss', async (c) => {
       throw new Error('Automation match target was missing');
     }
 
-    return dismissMatchedRule(c.req.param('postId'), {
+    return hideMatchedRule(c.req.param('postId'), {
       ruleId: c.req.param('ruleId'),
       ruleUpdatedAt: body.ruleUpdatedAt,
       targetId: body.targetId,

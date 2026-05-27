@@ -5,7 +5,7 @@ Effective date: May 23, 2026
 This Privacy Policy explains how Firewatch handles data when installed in a
 Reddit community. Firewatch is a Devvit moderation app that helps moderators
 detect escalating posts, review public signals, coordinate response work, run
-configurable Response Rules, take Reddit-native moderation actions, and save
+configurable Automations, take Reddit-native moderation actions, and save
 handoff notes.
 
 This policy covers Firewatch's app-specific data practices. Reddit's own
@@ -25,7 +25,7 @@ Firewatch may store the following data in Devvit Redis:
 - Community data: subreddit name, subreddit identifier, Firewatch queue post
   identifier, and app configuration.
 - Configuration: watched words, watched domains, review thresholds, reminder
-  text, signal weights, enabled mod action controls, and Response Rules.
+  text, signal weights, enabled mod action controls, and Automations.
 - Incident data: post IDs, comment IDs, post titles, permalinks, report counts,
   timestamps, incident status, score, level, top reasons, trend points, matched
   rules, and impact metrics.
@@ -72,8 +72,8 @@ Firewatch uses stored data to:
   moderation impact.
 - Remember configuration selected by the moderator team.
 - Coordinate ownership and handoff between moderators.
-- Run dry tests for Response Rules.
-- Prepare, execute, and log Response Rule actions.
+- Run dry tests for Automations.
+- Prepare, execute, and log Automation actions.
 - Record which comments or users have already been reviewed, approved, removed,
   muted, banned, or otherwise actioned through the app.
 - Clean stored incident state when Reddit delete events are received.
@@ -142,7 +142,7 @@ Firewatch uses the following retention periods:
 
 - Incident records expire after 30 days.
 - Incident claim records expire after 30 days.
-- Response Rules saved in Redis expire after 30 days unless a moderator saves,
+- Automations saved in Redis expire after 30 days unless a moderator saves,
   imports, or disables rules again before expiry.
 - Rule execution logs expire after 30 days and are capped to recent entries.
 - Firewatch user strike records expire after 30 days unless refreshed by later
@@ -168,7 +168,7 @@ Moderators can reduce or control Firewatch processing by:
 
 - Editing watched words, watched domains, thresholds, signal weights, reminder
   text, and enabled mod action controls in Firewatch settings.
-- Disabling Response Rules or keeping rules in suggest-only or
+- Disabling Automations or keeping rules in suggest-only or
   prepare-for-approval mode.
 - Resetting demo incidents.
 - Removing the app from the subreddit to stop new collection.

@@ -2,7 +2,7 @@
   "private": true,
   "name": "firewatch17",
   "version": "0.0.0",
-  "license": "BSD-3-Clause",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "build": "vite build",
@@ -23,13 +23,11 @@
     "node": ">=22.2.0"
   },
   "dependencies": {
-    "@devvit/start": "0.12.24",
-    "@devvit/web": "0.12.24",
-    "@hono/node-server": "2.0.3",
+    "@devvit/web": "0.13.0",
+    "@hono/node-server": "2.0.4",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "devvit": "0.12.24",
-    "hono": "4.12.21",
+    "hono": "4.12.23",
     "radix-ui": "^1.4.3",
     "react": "19.2.6",
     "react-dom": "19.2.6",
@@ -39,16 +37,18 @@
   },
   "overrides": {
     "protobufjs": "7.5.9",
-    "tmp": "0.2.5",
+    "tmp": "0.2.6",
     "ws": "8.20.1"
   },
   "devDependencies": {
+    "@devvit/start": "0.13.0",
     "@eslint/js": "10.0.1",
     "@tailwindcss/vite": "4.3.0",
     "@types/node": "^22.19.19",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.2",
+    "devvit": "0.13.0",
     "eslint": "10.4.0",
     "eslint-plugin-react-hooks": "7.1.1",
     "eslint-plugin-react-refresh": "0.5.2",

@@ -15,6 +15,10 @@ import {
 } from './auth';
 import { uiErrorResponse } from './responses';
 
+/**
+ * Devvit menu action endpoints registered in devvit.json. These routes return
+ * UiResponse payloads instead of normal iframe API responses.
+ */
 export const menu = new Hono();
 
 menu.post('/open-board', async (c) => {

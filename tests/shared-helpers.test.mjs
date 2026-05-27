@@ -66,6 +66,8 @@ const configFormDefaults = {
   signalWeights: DEFAULT_CONFIG.signalWeights,
 };
 
+const TEST_SUBREDDIT_ID = 'example_test_subreddit';
+
 const ruleActionTypesFromApi = () => {
   const source = readFileSync('src/shared/api.ts', 'utf8');
   const start = source.indexOf('export type RuleAction =');
@@ -463,7 +465,7 @@ test('automation templates default to approval-first incident workflow', () => {
   const rules = defaultRuleTemplates({
     createdAt: '2026-05-23T00:00:00.000Z',
     createdBy: 'firewatch',
-    subredditId: 'firewatch17_dev',
+    subredditId: TEST_SUBREDDIT_ID,
   });
   const scamRule = rules.find((rule) => rule.id === 'rule_scam_link_response');
   const repeatRule = rules.find(
@@ -490,7 +492,7 @@ test('automation labels describe moderator-facing prepared actions', () => {
   const rules = defaultRuleTemplates({
     createdAt: '2026-05-23T00:00:00.000Z',
     createdBy: 'firewatch',
-    subredditId: 'firewatch17_dev',
+    subredditId: TEST_SUBREDDIT_ID,
   });
   const scamRule = rules.find((rule) => rule.id === 'rule_scam_link_response');
   assert.ok(scamRule);
@@ -515,7 +517,7 @@ test('automation templates keep risky actions approval-first', () => {
   const rules = defaultRuleTemplates({
     createdAt: '2026-05-23T00:00:00.000Z',
     createdBy: 'firewatch',
-    subredditId: 'firewatch17_dev',
+    subredditId: TEST_SUBREDDIT_ID,
   });
 
   for (const rule of rules) {
@@ -1135,15 +1137,16 @@ test('scoring keeps open review comments durable and report counts stable', () =
 
   assert.match(source, /previousOpenComments/);
   assert.match(source, /isCommentOpenForReview\(comment\)/);
-  assert.match(source, /ignoredReportCommentIds/);
-  assert.match(source, /postReportsIgnored/);
-  assert.match(source, /if \(isIgnoredReportSignal\(signal\)\) continue/);
+  assert.match(source, /getReportIgnoreState/);
+  assert.match(source, /reportIgnoreState\.postReportsIgnored/);
+  assert.match(source, /if \(isReportSignalIgnored\(signal, reportIgnoreState\)\) continue/);
   assert.match(source, /MAX_FLAGGED_COMMENTS - openFlaggedComments\.length/);
   assert.match(source, /const impactFlaggedComments = \[/);
   assert.match(source, /flaggedComments: impactFlaggedComments/);
   assert.match(source, /score: Math\.max\(existing\.score, point\.score\)/);
   assert.match(source, /commentSignals: Math\.max\(/);
-  assert.match(source, /reportSignals: Math\.max\(totalReportCount, incident\.stats\.reportSignals\)/);
+  assert.match(source, /reportSignals: totalReportCount/);
+  assert.doesNotMatch(source, /currentReportSignals/);
   assert.match(source, /action\.type === 'user_banned' \? 0 : 1/);
   assert.doesNotMatch(removalSetSource, /comment_locked/);
   assert.doesNotMatch(removalSetSource, /comment_reports_ignored/);
@@ -1535,13 +1538,14 @@ test('automation matching filters by trigger and source scope', () => {
     readFileSync('src/server/core/firewatch/automation.ts', 'utf8'),
     readFileSync('src/server/core/firewatch-rules/scope.ts', 'utf8'),
     readFileSync('src/server/core/firewatch-rules/metrics.ts', 'utf8'),
+    readFileSync('src/shared/incidents.ts', 'utf8'),
   ].join('\n');
 
   assert.match(source, /ruleUpdatedAt\?: string/);
-  assert.match(source, /dismissedRuleKeys\?: string\[\]/);
+  assert.match(source, /hiddenRuleMatchKeys\?: string\[\]/);
   assert.match(source, /ruleUpdatedAt: rule\.updatedAt/);
   assert.match(source, /export const ruleMatchKey/);
-  assert.match(source, /dismissedRuleKeys\.has\(ruleMatchKey\(match\)\)/);
+  assert.match(source, /hiddenRuleMatchKeys\.has\(ruleMatchKey\(match\)\)/);
   assert.match(source, /log\.ruleUpdatedAt === match\.ruleUpdatedAt/);
   assert.match(source, /\$\{match\.ruleId\}:\$\{match\.ruleUpdatedAt \?\? ''\}/);
   assert.match(source, /recordRuleExecutionLog\(\s*\{[\s\S]*?currentIncident\.subredditName\s*\)/);
@@ -1570,11 +1574,11 @@ test('automation runner can execute the selected matched target', () => {
   assert.match(serverSource, /targetId\?: string/);
   assert.match(serverSource, /rule\.targetId === targetId/);
   assert.match(apiSource, /targetId\?: string/);
-  assert.match(apiSource, /\/incidents\/:postId\/rules\/:ruleId\/dismiss/);
+  assert.match(apiSource, /\/incidents\/:postId\/rules\/:ruleId\/hide/);
   assert.match(apiSource, /Automation match target was missing/);
   assert.match(clientSource, /targetId: rule\.targetId/);
-  assert.match(clientSource, /rule-dismiss:\$\{rule\.ruleId\}:\$\{rule\.targetId\}/);
-  assert.doesNotMatch(clientSource, /dismissedRuleIds/);
+  assert.match(clientSource, /rule-hide:\$\{rule\.ruleId\}:\$\{rule\.targetId\}/);
+  assert.doesNotMatch(clientSource, /dismissedRuleIds|dismissedRuleKeys/);
 });
 
 test('client refreshes dashboard state after settings, automations, and actions', () => {
@@ -1614,7 +1618,7 @@ test('incident mutations require the current moderator claim', () => {
     '/incidents/:postId/users/:username/ban',
     '/incidents/:postId/users/:username/native-action',
     '/incidents/:postId/rules/:ruleId/run',
-    '/incidents/:postId/rules/:ruleId/dismiss',
+    '/incidents/:postId/rules/:ruleId/hide',
     '/incidents/:postId/users/:username/strikes/clear',
   ];
 
@@ -1750,8 +1754,7 @@ test('moderator permissions guard mod-only data and actions', () => {
 
 test('runtime docs and logs describe reliability-sensitive behavior honestly', () => {
   const readmeSource = readFileSync('README.md', 'utf8');
-  const checklistSource = readFileSync('docs/release-checklist.md', 'utf8');
-  const hackathonSource = readFileSync('docs/hackathon-submission.md', 'utf8');
+  const architectureSource = readFileSync('docs/architecture.md', 'utf8');
   const loggingSource = readFileSync(
     'src/server/core/firewatch/logging.ts',
     'utf8'
@@ -1768,11 +1771,11 @@ test('runtime docs and logs describe reliability-sensitive behavior honestly', (
 
   assert.match(readmeSource, /sample reports\s+and comments into Firewatch's review pipeline/);
   assert.match(readmeSource, /deterministic signal queue, not a complete abuse detector/);
-  assert.match(readmeSource, /automations, user strike\s+summaries/);
+  assert.match(readmeSource, /automation, and strike data in Devvit Redis/);
   assert.doesNotMatch(readmeSource, /automation, and user strike records expire after 30 days/);
-  assert.match(checklistSource, /multiple demo drills can be created/);
-  assert.match(checklistSource, /Demo comments are described as sample review signals/);
-  assert.match(hackathonSource, /without posting harmful comments on Reddit/);
+  assert.match(architectureSource, /All client\/server payloads flow through types in `src\/shared\/api\.ts`/);
+  assert.match(architectureSource, /Delete Handling/);
+  assert.match(architectureSource, /Playtests run against a real subreddit/i);
   assert.match(loggingSource, /logFirewatchError/);
   assert.match(loggingSource, /safeErrorMessage/);
   assert.match(triggerSource, /logFirewatchError\('trigger\.failed'/);

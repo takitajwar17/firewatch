@@ -7,7 +7,7 @@ import {
   isIncidentClaimedByCurrentUser,
   isTerminalStatus,
 } from '../format';
-import { openRedditUrlInNewTab } from '../navigation';
+import { openRedditUrl } from '../navigation';
 import {
   RedditApproveIcon,
   RedditCommentIcon,
@@ -88,7 +88,7 @@ export const IncidentHero = ({
           {permalink ? (
             <Button
               variant="secondary"
-              onClick={() => openRedditUrlInNewTab(permalink)}
+              onClick={() => openRedditUrl(permalink)}
             >
               <RedditLinkIcon data-icon="inline-start" />
               Open on Reddit

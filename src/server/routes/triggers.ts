@@ -34,6 +34,11 @@ import {
 } from '../core/mod-actions';
 import { logFirewatchError } from '../core/firewatch/logging';
 
+/**
+ * Devvit lifecycle and Reddit event trigger endpoints. Each handler returns
+ * success to Reddit after logging failures so transient trigger errors do not
+ * cause repeated platform retries for the same event.
+ */
 export const triggers = new Hono();
 
 const getPostBody = (post: {

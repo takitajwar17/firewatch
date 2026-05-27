@@ -174,7 +174,6 @@ export const useDashboard = () => {
       await refresh({ preserveOnError: true });
       return payload.incident;
     } catch (error) {
-      console.error(`Firewatch action failed: ${action}`, error);
       setNotice({
         type: 'error',
         message:
@@ -221,7 +220,6 @@ export const useDashboard = () => {
         failedCount = payload.failures.length;
         payload.createdIncidents.forEach(updateIncident);
       } catch (error) {
-        console.error('Firewatch demo batch failed:', error);
         createdIncidents = [];
         failedCount = selectedScenarioIds.length;
       }

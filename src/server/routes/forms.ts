@@ -7,6 +7,10 @@ import { saveConfig } from '../core/firewatch';
 import { CONFIG_PERMISSIONS, requireModeratorPermissions } from './auth';
 import { uiErrorResponse, uiSuccessToastResponse } from './responses';
 
+/**
+ * Devvit form callbacks registered in devvit.json. Form submissions are
+ * permission checked because they can change subreddit-wide Firewatch config.
+ */
 export const forms = new Hono();
 
 forms.post('/config-submit', async (c) => {

@@ -42,8 +42,8 @@ import {
   now,
 } from '../firewatch-utils';
 
-
-// Automation action runner
+// Automation action runner. Reddit-native actions still pass through the same
+// claim and permission gates as manual moderator actions.
 const AUTO_RUN_ALL_QUEUED = 'Auto-run all selected actions queued';
 
 const requireAutomationClaim = (incident: Incident, actor: string) => {
@@ -225,6 +225,10 @@ const runAutoSafeRuleActions = async (
   );
 };
 
+/**
+ * Runs prepared automation actions after a moderator claims the incident.
+ * This path is used by the client when a moderator approves an automation.
+ */
 export const runPreparedRuleActions = async (
   postId: string,
   ruleId: string,

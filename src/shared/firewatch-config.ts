@@ -148,7 +148,7 @@ export const normalizeThresholds = (
   };
 };
 
-const legacyResolveControlKey = ['mark', 'Han', 'dled'].join('');
+const LEGACY_MARK_RESOLVED_CONTROL_KEY = 'markHandled';
 
 type LegacyActionControls = Partial<FirewatchConfig['actionControls']> &
   Record<string, boolean | undefined>;
@@ -279,7 +279,7 @@ export const normalizeConfig = (
       ),
       markResolved: normalizeBoolean(
         actionControls?.markResolved ??
-          actionControls?.[legacyResolveControlKey],
+          actionControls?.[LEGACY_MARK_RESOLVED_CONTROL_KEY],
         DEFAULT_CONFIG.actionControls.markResolved
       ),
     },

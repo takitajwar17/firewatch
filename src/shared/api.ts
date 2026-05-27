@@ -551,9 +551,6 @@ export type IncidentStats = {
   signalCount: number;
   commentSignals: number;
   reportSignals: number;
-  currentReportSignals?: number;
-  currentCommentReports?: number;
-  currentPostReports?: number;
   manualEscalations: number;
   keywordHits: number;
   suspiciousLinkHits: number;
@@ -632,7 +629,7 @@ export type Incident = {
   involvedUsers: IncidentParticipant[];
   repeatedPhrases: RepeatedPhrase[];
   matchedRules?: MatchedAutomationRule[];
-  dismissedRuleKeys?: string[];
+  hiddenRuleMatchKeys?: string[];
   userStrikeSummaries?: UserStrikeSummary[];
   stats: IncidentStats;
   impact: IncidentImpactSnapshot;
