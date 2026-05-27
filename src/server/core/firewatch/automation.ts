@@ -59,6 +59,64 @@ const requireAutomationClaim = (incident: Incident, actor: string) => {
   }
 };
 
+const addFirewatchStrikeWithAction = async ({
+  actor,
+  detail,
+  postId,
+  reason,
+  relatedCommentId,
+  subredditName,
+  username,
+  weight,
+}: {
+  actor: string;
+  detail: string;
+  postId: string;
+  reason: string;
+  relatedCommentId?: string | undefined;
+  subredditName: string;
+  username: string;
+  weight: number;
+}) => {
+  const normalizedPostId = normalizePostId(postId);
+  const targetIds = [username];
+  const { actionId } = await startIncidentAction(normalizedPostId, {
+    type: 'firewatch_strike_added',
+    actor,
+    detail,
+    targetIds,
+  });
+
+  try {
+    await addUserStrike({
+      createdBy: actor,
+      reason,
+      relatedCommentId,
+      relatedPostId: normalizedPostId,
+      source: 'rule_match',
+      subredditName,
+      username,
+      weight,
+    });
+  } catch (error) {
+    await failIncidentAction(
+      normalizedPostId,
+      actionId,
+      error,
+      `Automation Firewatch strike failed to record failure state for ${normalizedPostId}`,
+      { detail, targetIds }
+    );
+    throw error;
+  }
+
+  return completeIncidentAction(
+    normalizedPostId,
+    actionId,
+    { status: 'succeeded' },
+    `Automation Firewatch strike succeeded but failed to refresh incident ${normalizedPostId}`
+  );
+};
+
 const runPreparedPostOrCommentAction = async ({
   commentAction,
   postAction,
@@ -113,22 +171,16 @@ const runAutoSafeRuleActions = async (
       const action = prepared.action;
       if (action.type === 'add_firewatch_strike') {
         if (!prepared.username) continue;
-        await addUserStrike({
-          createdBy: 'firewatch',
+        currentIncident = await addFirewatchStrikeWithAction({
+          actor: 'firewatch',
+          detail: `Auto-ran ${match.ruleName}: added Firewatch strike to ${formatUserHandle(prepared.username)}: ${action.reason}`,
+          postId: currentIncident.postId,
           reason: action.reason,
           relatedCommentId:
             prepared.targetType === 'comment' ? prepared.targetId : undefined,
-          relatedPostId: normalizePostId(currentIncident.postId),
-          source: 'rule_match',
           subredditName: currentIncident.subredditName,
           username: prepared.username,
           weight: action.weight ?? 1,
-        });
-        currentIncident = await appendAction(currentIncident.postId, {
-          type: 'firewatch_strike_added',
-          actor: 'firewatch',
-          detail: `Auto-ran ${match.ruleName}: added Firewatch strike to ${formatUserHandle(prepared.username)}: ${action.reason}`,
-          targetIds: [prepared.username],
         });
         continue;
       }
@@ -187,7 +239,7 @@ export const runPreparedRuleActions = async (
     (rule) =>
       rule.ruleId === ruleId && (!targetId || rule.targetId === targetId)
   );
-  if (!match) throw new Error('Response rule no longer matches this incident');
+  if (!match) throw new Error('Automation no longer matches this post');
 
   const actor = actorOverride ?? (await actorName());
   requireAutomationClaim(incident, actor);
@@ -203,6 +255,7 @@ export const runPreparedRuleActions = async (
       .filter(
         (log) =>
           log.ruleId === match.ruleId &&
+          log.ruleUpdatedAt === match.ruleUpdatedAt &&
           log.targetId === match.targetId &&
           log.matchedConditions.join('|') === match.why.join('|') &&
           log.preparedActions.join('|') ===
@@ -211,7 +264,7 @@ export const runPreparedRuleActions = async (
       .flatMap((log) => log.executedActions)
   );
 
-  for (const prepared of match.preparedActions) {
+  for (const [preparedIndex, prepared] of match.preparedActions.entries()) {
     const action = prepared.action;
 
     try {
@@ -392,22 +445,16 @@ export const runPreparedRuleActions = async (
         skippedActions.push(`${prepared.label}: no user target`);
         continue;
       }
-      await addUserStrike({
-        createdBy: actor,
+      currentIncident = await addFirewatchStrikeWithAction({
+        actor,
+        detail: `Added Firewatch strike to ${formatUserHandle(prepared.username)}: ${action.reason}`,
+        postId: normalizedPostId,
         reason: action.reason,
         relatedCommentId:
           prepared.targetType === 'comment' ? prepared.targetId : undefined,
-        relatedPostId: normalizedPostId,
-        source: 'rule_match',
         subredditName: currentIncident.subredditName,
         username: prepared.username,
         weight: action.weight ?? 1,
-      });
-      currentIncident = await appendAction(normalizedPostId, {
-        type: 'firewatch_strike_added',
-        actor,
-        detail: `Added Firewatch strike to ${formatUserHandle(prepared.username)}: ${action.reason}`,
-        targetIds: [prepared.username],
       });
       executedActions.push(prepared.label);
       continue;
@@ -495,23 +542,32 @@ export const runPreparedRuleActions = async (
       skippedActions.push(
         `${prepared.label}: ${ruleAutomationErrorMessage(error)}`
       );
+      for (const remaining of match.preparedActions.slice(preparedIndex + 1)) {
+        skippedActions.push(
+          `${remaining.label}: skipped after earlier action failed`
+        );
+      }
       break;
     }
   }
 
-  await recordRuleExecutionLog({
-    ruleId: match.ruleId,
-    ruleName: match.ruleName,
-    triggerType: 'prepared_actions_run',
-    targetType: match.targetType,
-    targetId: match.targetId,
-    matchedConditions: match.why,
-    preparedActions: match.preparedActions.map((action) => action.label),
-    executedActions,
-    skippedActions,
-    mode: match.mode,
-    actor,
-  });
+  await recordRuleExecutionLog(
+    {
+      ruleId: match.ruleId,
+      ruleName: match.ruleName,
+      ruleUpdatedAt: match.ruleUpdatedAt,
+      triggerType: 'prepared_actions_run',
+      targetType: match.targetType,
+      targetId: match.targetId,
+      matchedConditions: match.why,
+      preparedActions: match.preparedActions.map((action) => action.label),
+      executedActions,
+      skippedActions,
+      mode: match.mode,
+      actor,
+    },
+    currentIncident.subredditName
+  );
   const config = await getConfig(currentIncident.subredditName);
   const refreshedIncident = await saveAndRefreshIncident(
     currentIncident,
@@ -552,19 +608,23 @@ const runAutoAllRuleActions = async (
         log.targetId
       );
     } catch (error) {
-      await recordRuleExecutionLog({
-        ruleId: log.ruleId,
-        ruleName: log.ruleName,
-        triggerType: 'auto_run_all_failed',
-        targetType: log.targetType,
-        targetId: log.targetId,
-        matchedConditions: log.matchedConditions,
-        preparedActions: log.preparedActions,
-        executedActions: [],
-        skippedActions: [ruleAutomationErrorMessage(error)],
-        mode: log.mode,
-        actor: actor ?? 'firewatch',
-      });
+      await recordRuleExecutionLog(
+        {
+          ruleId: log.ruleId,
+          ruleName: log.ruleName,
+          ruleUpdatedAt: log.ruleUpdatedAt,
+          triggerType: 'auto_run_all_failed',
+          targetType: log.targetType,
+          targetId: log.targetId,
+          matchedConditions: log.matchedConditions,
+          preparedActions: log.preparedActions,
+          executedActions: [],
+          skippedActions: [ruleAutomationErrorMessage(error)],
+          mode: log.mode,
+          actor: actor ?? 'firewatch',
+        },
+        currentIncident.subredditName
+      );
     }
   }
 

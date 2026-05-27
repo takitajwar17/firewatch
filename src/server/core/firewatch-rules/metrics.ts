@@ -1,4 +1,5 @@
 import type { Incident } from '../../../shared/api';
+import { actionCompleted } from '../../../shared/reddit-actions';
 import {
   watchedDomainMatches,
   watchedWordMatches,
@@ -69,12 +70,59 @@ export const removedCommentCountForUser = (
 export const reportCountInWindow = (
   incident: Incident,
   windowMinutes?: number
-) =>
-  incident.recentSignals.filter(
-    (signal) =>
-      (signal.type === 'comment_report' || signal.type === 'post_report') &&
-      inWindow(signal.createdAt, windowMinutes)
-  ).length;
+) => {
+  const latestCommentReportActionById = new Map<
+    string,
+    'ignored' | 'unignored'
+  >();
+
+  for (const action of [...incident.actions].sort(
+    (left, right) => right.createdAt - left.createdAt
+  )) {
+    if (
+      action.type !== 'comment_reports_ignored' &&
+      action.type !== 'comment_reports_unignored'
+    ) {
+      continue;
+    }
+    if (!actionCompleted(action)) continue;
+
+    for (const targetId of action.targetIds ?? []) {
+      const normalizedTargetId = normalizeCommentId(targetId);
+      if (latestCommentReportActionById.has(normalizedTargetId)) continue;
+      latestCommentReportActionById.set(
+        normalizedTargetId,
+        action.type === 'comment_reports_ignored' ? 'ignored' : 'unignored'
+      );
+    }
+  }
+
+  const ignoredCommentIds = new Set(
+    Array.from(latestCommentReportActionById.entries())
+      .filter(([, state]) => state === 'ignored')
+      .map(([commentId]) => commentId)
+  );
+  const latestPostReportAction = [...incident.actions]
+    .sort((left, right) => right.createdAt - left.createdAt)
+    .find(
+      (action) =>
+        actionCompleted(action) &&
+        (action.type === 'post_reports_ignored' ||
+          action.type === 'post_reports_unignored')
+    );
+  const postReportsIgnored =
+    latestPostReportAction?.type === 'post_reports_ignored' ||
+    (latestPostReportAction
+      ? false
+      : incident.postState?.ignoringReports === true);
+
+  return incident.recentSignals.filter((signal) => {
+    if (!inWindow(signal.createdAt, windowMinutes)) return false;
+    if (signal.type === 'post_report') return !postReportsIgnored;
+    if (signal.type !== 'comment_report' || !signal.commentId) return false;
+    return !ignoredCommentIds.has(normalizeCommentId(signal.commentId));
+  }).length;
+};
 
 export const compareConditionValue = ({
   actual,

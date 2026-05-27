@@ -108,7 +108,7 @@ const normalizeWeight = (value: unknown, fallback: number, max = 50) => {
   return clamp(Math.round(numericValue), 0, max);
 };
 
-const normalizeList = (
+export const normalizeConfigList = (
   value: FirewatchConfig['keywords'] | undefined,
   fallback: string[]
 ) => {
@@ -170,8 +170,8 @@ export const normalizeConfig = (
   const reminderText = value?.reminderText?.trim();
 
   return {
-    keywords: normalizeList(value?.keywords, DEFAULT_CONFIG.keywords),
-    suspiciousDomains: normalizeList(
+    keywords: normalizeConfigList(value?.keywords, DEFAULT_CONFIG.keywords),
+    suspiciousDomains: normalizeConfigList(
       value?.suspiciousDomains,
       DEFAULT_CONFIG.suspiciousDomains
     ),

@@ -3,7 +3,7 @@ import type { Incident, IncidentAction } from '../../../shared/api';
 import { firewatchRatingSummary } from '../../../shared/firewatch-rating.js';
 import { openCommentsForReview } from '../../../shared/incidents';
 import { MAX_ACTIONS } from '../firewatch-constants';
-import { attachRuleContext } from '../firewatch-rules/matching';
+import { attachRuleContext, ruleMatchKey } from '../firewatch-rules/matching';
 import { clearUserStrikes } from '../firewatch-rules/strikes';
 import { calculateIncident } from '../firewatch-scoring';
 import type { PostSnapshot } from '../firewatch-scoring/helpers';
@@ -78,8 +78,7 @@ export const getPostSnapshot = async (postId: string) => {
 const fallbackPostSnapshot = (incident: Incident): PostSnapshot => ({
   authorName: incident.postAuthor,
   score: incident.postScore ?? 0,
-  numberOfComments:
-    incident.postCommentCount ?? incident.flaggedComments.length,
+  numberOfComments: incident.postCommentCount ?? 0,
   title: incident.title || 'Untitled post',
   permalink: incident.permalink,
   subredditName: incident.subredditName,
@@ -90,7 +89,15 @@ const fallbackPostSnapshot = (incident: Incident): PostSnapshot => ({
 
 const getRefreshPostSnapshot = async (incident: Incident) => {
   try {
-    return await getPostSnapshot(incident.postId);
+    const snapshot = await getPostSnapshot(incident.postId);
+    if (incident.demo?.commentModel === 'sample_review_signals') {
+      return {
+        ...snapshot,
+        numberOfComments:
+          incident.postCommentCount ?? incident.flaggedComments.length,
+      };
+    }
+    return snapshot;
   } catch (error) {
     if (
       !isTransientRedditRuntimeError(error) &&
@@ -111,7 +118,9 @@ export const isDemoCommentSnapshot = (incident: Incident, commentId: string) =>
   normalizeCommentId(commentId).startsWith('t1_fw_demo_') ||
   incident.recentSignals.some(
     (signal) =>
-      signal.commentId === normalizeCommentId(commentId) && signal.isDemo
+      signal.commentId &&
+      normalizeCommentId(signal.commentId) === normalizeCommentId(commentId) &&
+      signal.isDemo
   );
 
 const applyNativeCommentState = async (
@@ -121,7 +130,8 @@ const applyNativeCommentState = async (
   if (isDemoCommentSnapshot(incident, comment.id)) return comment;
 
   try {
-    const redditComment = await readRedditComment(comment.id);
+    const normalizedCommentId = normalizeCommentId(comment.id);
+    const redditComment = await readRedditComment(normalizedCommentId);
     const removed =
       comment.removed || redditComment.removed || redditComment.spam;
     const reviewed = comment.reviewed || redditComment.approved;
@@ -137,11 +147,12 @@ const applyNativeCommentState = async (
       spam: redditComment.spam,
     };
   } catch (error) {
-    if (!warnedCommentStateFallbacks.has(comment.id)) {
-      warnedCommentStateFallbacks.add(comment.id);
+    const normalizedCommentId = normalizeCommentId(comment.id);
+    if (!warnedCommentStateFallbacks.has(normalizedCommentId)) {
+      warnedCommentStateFallbacks.add(normalizedCommentId);
       logFirewatchWarn('incident.comment_state_fallback', {
         postId: incident.postId,
-        commentId: comment.id,
+        commentId: normalizedCommentId,
         error,
       });
     }
@@ -168,7 +179,17 @@ export const reviewStateKey = (incident: Incident) =>
   incident.flaggedComments
     .map(
       (comment) =>
-        `${comment.id}:${Boolean(comment.removed)}:${Boolean(comment.reviewed)}`
+        [
+          normalizeCommentId(comment.id),
+          Boolean(comment.approved),
+          Boolean(comment.ignoringReports),
+          Boolean(comment.locked),
+          comment.numReports ?? '',
+          Boolean(comment.removed),
+          Boolean(comment.reviewed),
+          Boolean(comment.shown),
+          Boolean(comment.spam),
+        ].join(':')
     )
     .join('|');
 
@@ -299,7 +320,7 @@ export const buildEscalationSummary = (incident: Incident) => {
     `Mod handoff note: ${incident.title}`,
     `Firewatch rating: ${firewatchRatingSummary(incident.score)} (${formatLevel(incident.level)}); peak ${firewatchRatingSummary(incident.peakScore)}; next mod move: ${incident.responseSuggestion.label}`,
     `Post: ${incident.permalink ?? incident.postId}`,
-    `Resolved by: ${handler ? formatUserHandle(handler) : 'unclaimed'}`,
+    `Claimed by: ${handler ? formatUserHandle(handler) : 'unclaimed'}`,
     safetySummary ? `Safety review: ${safetySummary}` : undefined,
     `Impact so far: ${incident.impact.reportsGrouped} reports grouped, ${incident.impact.commentsReviewed} comments reviewed, ${incident.impact.commentsAwaitingReview} comments still waiting`,
     'Why this is here:',
@@ -368,6 +389,7 @@ export const appendAction = async (
         ...action,
         id: makeId('act'),
         createdAt: now(),
+        status: action.status ?? 'succeeded',
       },
       ...incident.actions,
     ].slice(0, MAX_ACTIONS),
@@ -535,7 +557,16 @@ export const claimIncident = async (postId: string) => {
       );
     }
 
-    return incident;
+    const refreshedClaim: Incident = {
+      ...incident,
+      claim: {
+        username: incident.claim.username,
+        claimedAt,
+      },
+      updatedAt: claimedAt,
+    };
+    await saveIncident(refreshedClaim);
+    return refreshedClaim;
   }
 
   const existingClaim = incident.claim ?? {
@@ -721,6 +752,29 @@ export const lockIncident = async (postId: string) => {
   );
 };
 
+export const dismissMatchedRule = async (
+  postId: string,
+  input: Pick<
+    NonNullable<Incident['matchedRules']>[number],
+    'ruleId' | 'ruleUpdatedAt' | 'targetId' | 'targetType'
+  >
+) => {
+  const normalizedPostId = normalizePostId(postId);
+  const incident = await getIncidentOrThrow(normalizedPostId);
+  const key = ruleMatchKey(input);
+  const nextIncident: Incident = {
+    ...incident,
+    dismissedRuleKeys: Array.from(
+      new Set([...(incident.dismissedRuleKeys ?? []), key])
+    ).slice(-100),
+    updatedAt: now(),
+  };
+
+  return saveAndRefreshIncident(
+    nextIncident,
+    `Dismissed automation match but failed to refresh incident ${normalizedPostId}`
+  );
+};
 
 export const clearIncidentUserStrikes = async (
   postId: string,
@@ -774,9 +828,7 @@ export const escalateIncident = async (postId: string) => {
 };
 
 export const resolveIncident = async (postId: string) => {
-  const { incident, normalizedPostId } = await getRefreshedIncidentOrThrow(
-    postId
-  );
+  const { incident } = await getRefreshedIncidentOrThrow(postId);
   const config = await getConfig(incident.subredditName);
   if (!config.actionControls.markResolved) {
     throw new Error('Mark resolved is disabled in Settings');
@@ -802,17 +854,11 @@ export const resolveIncident = async (postId: string) => {
     updatedAt: resolvedAt,
     actions: [resolvedAction, ...incident.actions].slice(0, MAX_ACTIONS),
   };
-  const refreshedResolved = await saveAndRefreshIncident(
-    resolved,
-    `Marked incident ${normalizedPostId} resolved but failed to refresh`
-  );
   const summarized: Incident = {
-    ...refreshedResolved,
-    summary: buildSummary(refreshedResolved),
+    ...resolved,
+    summary: buildSummary(resolved),
   };
 
-  return saveAndRefreshIncident(
-    summarized,
-    `Saved resolved summary for ${normalizedPostId} but failed to refresh`
-  );
+  await saveIncident(summarized);
+  return summarized;
 };

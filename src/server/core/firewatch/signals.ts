@@ -39,6 +39,7 @@ import {
   inferSignalSource,
   makeId,
   normalizeCommentId,
+  normalizeParentId,
   normalizePostId,
   normalizeStatus,
   normalizeUsername,
@@ -58,9 +59,45 @@ const DEDUPED_SIGNAL_TYPES = new Set<IncidentSignal['type']>([
   'post_create',
   'post_update',
   'comment_create',
+  'comment_report',
+  'post_report',
   'mod_action',
   'automod_filter',
 ]);
+
+const COMMENT_TARGET_ACTION_TYPES = new Set<Incident['actions'][number]['type']>(
+  [
+    'comment_approved',
+    'comment_locked',
+    'comment_removed',
+    'comment_reports_ignored',
+    'comment_reports_unignored',
+    'comment_shown',
+    'comment_spammed',
+    'comment_thread_removed',
+    'comment_unlocked',
+    'user_content_removed',
+  ]
+);
+
+const actionTargetsComment = (
+  action: Incident['actions'][number],
+  normalizedCommentId: string
+) =>
+  COMMENT_TARGET_ACTION_TYPES.has(action.type) &&
+  (action.targetIds ?? []).some(
+    (targetId) => normalizeCommentId(targetId) === normalizedCommentId
+  );
+
+const filterDeletedCommentTarget = (
+  action: Incident['actions'][number],
+  normalizedCommentId: string
+) => {
+  if (!COMMENT_TARGET_ACTION_TYPES.has(action.type)) return action.targetIds;
+  return action.targetIds?.filter(
+    (targetId) => normalizeCommentId(targetId) !== normalizedCommentId
+  );
+};
 
 const signalMetadataSignature = (signal: IncidentSignal) => {
   if (!signal.metadata) return '';
@@ -139,12 +176,7 @@ export const recordIncidentSignal = async (input: SignalInput) => {
   const commentId = input.commentId
     ? normalizeCommentId(input.commentId)
     : undefined;
-  const parentId =
-    input.parentId && input.parentId.startsWith('t1_')
-      ? normalizeCommentId(input.parentId)
-      : input.parentId
-        ? normalizePostId(input.parentId)
-        : undefined;
+  const parentId = normalizeParentId(input.parentId, postId);
   const existing = await getIncident(postId);
   const postSnapshot =
     providedPostSnapshot ?? (await getPostSnapshot(postId));
@@ -187,6 +219,7 @@ export const recordIncidentSignal = async (input: SignalInput) => {
   };
   const shouldReopen =
     signal.type === 'manual_escalation' ||
+    signal.type === 'automod_filter' ||
     signal.source === 'user' ||
     signal.source === 'report';
   const nextStatus =
@@ -251,15 +284,20 @@ const refreshIncidentForRead = async (incident: Incident) => {
 
 export const deleteStoredPostContent = async (postId: string) => {
   const normalizedPostId = normalizePostId(postId);
-  const index = await getIndex();
+  const incident = await getIncident(normalizedPostId);
+  const subredditName = incident?.subredditName ?? context.subredditName;
+  const index = await getIndex(subredditName);
   await redis.del(incidentKey(normalizedPostId), claimKey(normalizedPostId));
-  await saveIndex(index.filter((id) => id !== normalizedPostId));
-  await removeFromIncidentRegistry(context.subredditName, normalizedPostId);
+  await saveIndex(
+    index.filter((id) => id !== normalizedPostId),
+    subredditName
+  );
+  await removeFromIncidentRegistry(subredditName, normalizedPostId);
 
-  if (context.subredditName) {
-    const boardPostId = await redis.get(boardPostKey(context.subredditName));
+  if (subredditName) {
+    const boardPostId = await redis.get(boardPostKey(subredditName));
     if (boardPostId === normalizedPostId) {
-      await redis.del(boardPostKey(context.subredditName));
+      await redis.del(boardPostKey(subredditName));
     }
   }
 };
@@ -274,11 +312,13 @@ export const deleteStoredCommentContent = async (
   if (!incident) return;
 
   const sanitizedSignals = incident.recentSignals.filter(
-    (signal) => signal.commentId !== normalizedCommentId
+    (signal) =>
+      !signal.commentId ||
+      normalizeCommentId(signal.commentId) !== normalizedCommentId
   );
   const sanitizedActions = incident.actions.map((action) => {
     if (
-      !action.targetIds?.includes(normalizedCommentId) &&
+      !actionTargetsComment(action, normalizedCommentId) &&
       !action.detail.includes(normalizedCommentId)
     ) {
       return action;
@@ -287,7 +327,7 @@ export const deleteStoredCommentContent = async (
     return {
       ...action,
       detail: 'Action referenced a comment that was later deleted on Reddit',
-      targetIds: action.targetIds?.filter((id) => id !== normalizedCommentId),
+      targetIds: filterDeletedCommentTarget(action, normalizedCommentId),
       summary: undefined,
     };
   });
@@ -296,14 +336,13 @@ export const deleteStoredCommentContent = async (
     actions: sanitizedActions,
     escalationSummary: undefined,
     flaggedComments: incident.flaggedComments.filter(
-      (comment) => comment.id !== normalizedCommentId
+      (comment) => normalizeCommentId(comment.id) !== normalizedCommentId
     ),
     involvedUsers: [],
     reasons: [],
     recentSignals: sanitizedSignals,
     repeatedPhrases: [],
     summary: undefined,
-    trend: [],
     updatedAt: now(),
   };
 
@@ -317,7 +356,19 @@ export const deleteStoredCommentContent = async (
       subredditName: incident.subredditName,
       error,
     });
-    await saveIncident(sanitizedIncident);
+    const config = await getConfig(incident.subredditName);
+    const recalculated = calculateIncident(sanitizedIncident, config, {
+      authorName: incident.postAuthor,
+      createdAt: incident.createdAt,
+      numberOfComments: incident.postCommentCount ?? 0,
+      numberOfReports: 0,
+      permalink: incident.permalink,
+      postState: incident.postState,
+      score: incident.postScore ?? 0,
+      subredditName: incident.subredditName,
+      title: incident.title,
+    });
+    await saveIncident(recalculated);
   }
 };
 
@@ -343,7 +394,9 @@ export const getIncidents = async () => {
         const incident = await getIncident(postId);
         if (!incident) return undefined;
 
-        return incident;
+        return shouldShowInQueue(incident)
+          ? refreshIncidentForRead(incident)
+          : incident;
       })
     )
   ).filter((incident): incident is Incident => Boolean(incident));

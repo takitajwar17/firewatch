@@ -4,7 +4,14 @@ import type {
   IncidentActionType,
   IncidentSignal,
 } from '../../../shared/api';
+import {
+  normalizeCommentId,
+  normalizeParentId,
+  normalizeOptionalCommentId,
+  sameCommentId,
+} from '../../../shared/incidents';
 import { actionCompleted } from '../../../shared/reddit-actions';
+import { usernameKey } from '../../../shared/usernames';
 
 export type CommentPrepKind =
   | 'remove'
@@ -84,10 +91,12 @@ export const parseBanDuration = (value: string) => {
 };
 
 export const commentAuthorKey = (author: string) =>
-  author.trim().toLowerCase();
+  usernameKey(author) ?? '';
 
 const contextSignalKey = (signal: IncidentSignal) =>
-  `${signal.author ?? ''}:${signal.body?.trim().toLowerCase()}`;
+  `${normalizeOptionalCommentId(signal.commentId) ?? signal.id}:${
+    signal.author ?? ''
+  }:${signal.body?.trim().toLowerCase()}`;
 
 const isBetterContextSignal = (
   current: IncidentSignal | undefined,
@@ -124,7 +133,7 @@ export const buildCommentActionSnapshots = (incident: Incident) => {
     if (!action.targetIds?.length) continue;
 
     for (const targetId of action.targetIds) {
-      const snapshot = getSnapshot(snapshots, targetId);
+      const snapshot = getSnapshot(snapshots, normalizeCommentId(targetId));
 
       if (
         (action.type === 'comment_locked' ||
@@ -191,7 +200,7 @@ export const getCommentActionState = (
         : Boolean(comment.ignoringReports) ||
           latestReportAction === 'comment_reports_ignored',
     reviewed: nativeReviewed || approvedByAction,
-    shown: Boolean(actionSnapshot?.shown),
+    shown: Boolean(comment.shown) || Boolean(actionSnapshot?.shown),
     spammed:
       Boolean(comment.spam) || latestResolutionAction === 'comment_spammed',
   };
@@ -207,10 +216,10 @@ export const buildCommentReviewState = (
 
   for (const comment of incident.flaggedComments) {
     const commentState = getCommentActionState(
-      actionSnapshots.get(comment.id),
+      actionSnapshots.get(normalizeCommentId(comment.id)),
       comment
     );
-    commentStateById.set(comment.id, commentState);
+    commentStateById.set(normalizeCommentId(comment.id), commentState);
 
     if (commentState.removed || commentState.reviewed) {
       alreadyActioned.push(comment);
@@ -246,17 +255,36 @@ export const buildCommentThreadContextById = (incident: Incident) => {
     .sort((a, b) => a.createdAt - b.createdAt);
 
   for (const signal of commentSignals) {
+    if (!signal.commentId) continue;
+    const normalizedParentId = normalizeParentId(signal.parentId, signal.postId);
+    const normalizedSignal: IncidentSignal = normalizedParentId
+      ? {
+          ...signal,
+          commentId: normalizeCommentId(signal.commentId),
+          parentId: normalizedParentId,
+        }
+      : {
+          ...signal,
+          commentId: normalizeCommentId(signal.commentId),
+        };
+
     if (
-      signal.commentId &&
-      isBetterContextSignal(signalsByCommentId.get(signal.commentId), signal)
+      isBetterContextSignal(
+        signalsByCommentId.get(normalizeCommentId(signal.commentId)),
+        normalizedSignal
+      )
     ) {
-      signalsByCommentId.set(signal.commentId, signal);
+      signalsByCommentId.set(
+        normalizeCommentId(signal.commentId),
+        normalizedSignal
+      );
     }
   }
 
   const context = new Map<string, CommentThreadContext>();
   for (const comment of incident.flaggedComments) {
-    const signal = signalsByCommentId.get(comment.id);
+    const normalizedCommentId = normalizeCommentId(comment.id);
+    const signal = signalsByCommentId.get(normalizedCommentId);
     if (!signal) continue;
 
     const lines: CommentThreadContext['lines'] = [];
@@ -265,7 +293,10 @@ export const buildCommentThreadContextById = (incident: Incident) => {
       label: CommentThreadContext['lines'][number]['label'],
       contextSignal: IncidentSignal | undefined
     ) => {
-      if (!contextSignal?.body || contextSignal.commentId === comment.id) {
+      if (
+        !contextSignal?.body ||
+        sameCommentId(contextSignal.commentId, normalizedCommentId)
+      ) {
         return;
       }
 
@@ -281,18 +312,28 @@ export const buildCommentThreadContextById = (incident: Incident) => {
     };
 
     if (signal.parentId?.startsWith('t1_')) {
-      addContextLine('Parent', signalsByCommentId.get(signal.parentId));
+      addContextLine(
+        'Parent',
+        signalsByCommentId.get(normalizeCommentId(signal.parentId))
+      );
     }
 
     for (const candidate of commentSignals) {
-      if (candidate.parentId === comment.id) {
+      if (sameCommentId(candidate.parentId, normalizedCommentId)) {
         addContextLine('Reply', candidate);
       }
     }
 
     if (lines.length < 2 && signal.parentId) {
+      const normalizedParentId = normalizeParentId(
+        signal.parentId,
+        signal.postId
+      );
       for (const candidate of commentSignals) {
-        if (candidate.parentId === signal.parentId) {
+        if (
+          normalizeParentId(candidate.parentId, candidate.postId) ===
+          normalizedParentId
+        ) {
           addContextLine('Nearby comment', candidate);
         }
         if (lines.length >= 2) break;
@@ -300,7 +341,7 @@ export const buildCommentThreadContextById = (incident: Incident) => {
     }
 
     if (lines.length > 0) {
-      context.set(comment.id, {
+      context.set(normalizedCommentId, {
         lines: lines.slice(0, 2),
       });
     }

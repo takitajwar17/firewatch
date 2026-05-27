@@ -3,11 +3,12 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { EmptyText } from '../common';
-import { formatTime, formatUsername, pluralize } from '../format';
+import { formatTime, formatUsername, pluralize, usernameKey } from '../format';
 import type { ActionRunner } from '../types';
 import { UsernameHistoryTrigger } from '../username-history';
 import type { FlaggedComment, Incident } from '../../../shared/api';
 import {
+  currentReportCount,
   isCommentOpenForReview,
   openCommentsForReview,
 } from '../../../shared/incidents';
@@ -31,12 +32,13 @@ const strongestOpenCommentFrom = (incident: Incident) =>
 const commentMeta = (comment: FlaggedComment) => formatUsername(comment.author);
 
 const signalSummary = (incident: Incident) => {
+  const currentReports = currentReportCount(incident);
   const parts = [
-    incident.impact.reportsGrouped > 0
-      ? pluralize(incident.impact.reportsGrouped, 'report')
+    currentReports > 0
+      ? pluralize(currentReports, 'current report')
       : undefined,
     incident.stats.suspiciousLinkHits > 0
-      ? pluralize(incident.stats.suspiciousLinkHits, 'watched link')
+      ? pluralize(incident.stats.suspiciousLinkHits, 'watched domain')
       : undefined,
     incident.stats.keywordHits > 0
       ? pluralize(incident.stats.keywordHits, 'keyword hit')
@@ -59,7 +61,9 @@ const signalSummary = (incident: Incident) => {
 const openWorkSummary = (incident: Incident) => {
   const openComments = openCommentsForReview(incident);
   const authorCount = new Set(
-    openComments.map((comment) => comment.author.toLowerCase())
+    openComments
+      .map((comment) => usernameKey(comment.author))
+      .filter((author): author is string => Boolean(author))
   ).size;
 
   if (openComments.length === 0) {
@@ -334,7 +338,7 @@ export const ParticipantsCard = ({
   const strikeSummaryByUsername = useMemo(() => {
     const summaries = new Map(
       (incident.userStrikeSummaries ?? []).map((summary) => [
-        summary.username.toLowerCase(),
+        usernameKey(summary.username),
         summary,
       ])
     );
@@ -354,7 +358,7 @@ export const ParticipantsCard = ({
           <div className="flex flex-col">
             {incident.involvedUsers.map((user, index) => {
               const strikeSummary = strikeSummaryByUsername.get(
-                user.username.toLowerCase()
+                usernameKey(user.username)
               );
 
               return (

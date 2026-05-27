@@ -609,11 +609,12 @@ export const createDemoIncident = async (
   const withAction = await appendAction(incident.postId, {
     type: 'demo_seeded',
     actor,
-    detail: `${postSeed.actionDetailPrefix} with ${comments.length} comments plus post and comment reports`,
+    detail: `${postSeed.actionDetailPrefix} with ${comments.length} sample review comments and report signals`,
   });
   const demoIncident: Incident = {
     ...withAction,
     demo: {
+      commentModel: 'sample_review_signals',
       scenario: scenario.label,
       scenarioId: scenario.id,
       seededAt: seed,

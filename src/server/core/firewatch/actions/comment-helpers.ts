@@ -1,5 +1,5 @@
 import { reddit } from '@devvit/web/server';
-import type { Incident } from '../../../../shared/api';
+import type { FlaggedComment, Incident } from '../../../../shared/api';
 import { normalizeCommentId, normalizePostId } from '../../firewatch-utils';
 import { isDemoCommentSnapshot } from '../incidents';
 import { readRedditComment } from '../reddit-runtime';
@@ -49,15 +49,52 @@ export const approveCommentIfReal = async (
 
 export const markFlaggedCommentsRemoved = (
   incident: Incident,
-  targetIds: string[]
-): Incident => ({
-  ...incident,
-  flaggedComments: incident.flaggedComments.map((flaggedComment) =>
-    targetIds.includes(flaggedComment.id)
-      ? { ...flaggedComment, removed: true, reviewed: false }
-      : flaggedComment
-  ),
-});
+  targetIds: string[],
+  options: { spam?: boolean } = {}
+): Incident => {
+  const normalizedTargets = new Set(targetIds.map(normalizeCommentId));
+  return {
+    ...incident,
+    flaggedComments: incident.flaggedComments.map((flaggedComment) =>
+      normalizedTargets.has(normalizeCommentId(flaggedComment.id))
+        ? {
+            ...flaggedComment,
+            approved: false,
+            removed: true,
+            reviewed: false,
+            spam: options.spam ?? flaggedComment.spam,
+          }
+        : flaggedComment
+    ),
+  };
+};
+
+export const patchFlaggedComments = (
+  incident: Incident,
+  targetIds: string[],
+  patch: Partial<
+    Pick<
+      FlaggedComment,
+      | 'approved'
+      | 'ignoringReports'
+      | 'locked'
+      | 'removed'
+      | 'reviewed'
+      | 'shown'
+      | 'spam'
+    >
+  >
+): Incident => {
+  const normalizedTargets = new Set(targetIds.map(normalizeCommentId));
+  return {
+    ...incident,
+    flaggedComments: incident.flaggedComments.map((flaggedComment) =>
+      normalizedTargets.has(normalizeCommentId(flaggedComment.id))
+        ? { ...flaggedComment, ...patch }
+        : flaggedComment
+    ),
+  };
+};
 
 export const collectThreadCommentIds = async (
   incident: Incident,

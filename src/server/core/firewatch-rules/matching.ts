@@ -16,8 +16,13 @@ import {
   preparedRuleAction,
   ruleTriggerTypeForSignal,
 } from '../../../shared/automation-rules';
+import { isCommentOpenForReview } from '../../../shared/incidents';
 import { linkCount, textContainsTerm } from '../firewatch-detection';
-import { usernameKey } from '../firewatch-utils';
+import {
+  normalizeCommentId,
+  normalizeParentId,
+  usernameKey,
+} from '../firewatch-utils';
 import { currentIso } from './common';
 import {
   compareConditionValue,
@@ -54,6 +59,14 @@ const triggerTypesForIncident = (incident: Incident) => {
 const AUTO_RUN_CLAIM_REQUIRED =
   'Waiting for a moderator claim before auto-running actions';
 
+export const ruleMatchKey = (
+  match: Pick<
+    MatchedAutomationRule,
+    'ruleId' | 'ruleUpdatedAt' | 'targetId' | 'targetType'
+  >
+) =>
+  `${match.ruleId}:${match.ruleUpdatedAt ?? ''}:${match.targetType}:${match.targetId}`;
+
 const shouldSkipRuleForUnverifiedModeratorScope = (
   rule: FirewatchRule,
   moderatorScopeVerified: boolean
@@ -75,15 +88,17 @@ const candidateUsers = (
   const users = new Map<string, Candidate>();
   const approvedUsers = approvedUsernames(incident);
   for (const user of incident.involvedUsers) {
+    const userKey = usernameKey(user.username);
+    if (!userKey) continue;
     if (isIgnoredAuthor(user.username, scope.ignoredAuthors)) continue;
-    if (scope.excludeModerators && moderatorUsers.has(user.username.toLowerCase())) {
+    if (scope.excludeModerators && moderatorUsers.has(userKey)) {
       continue;
     }
     if (scope.excludeAutoModerator && isAutoModerator(user.username)) continue;
-    if (scope.excludeApprovedUsers && approvedUsers.has(user.username.toLowerCase())) {
+    if (scope.excludeApprovedUsers && approvedUsers.has(userKey)) {
       continue;
     }
-    users.set(user.username.toLowerCase(), {
+    users.set(userKey, {
       targetId: user.username,
       targetType: 'user',
       text: signalText(
@@ -96,17 +111,19 @@ const candidateUsers = (
     });
   }
   for (const summary of strikeSummaries) {
+    const summaryKey = usernameKey(summary.username);
+    if (!summaryKey) continue;
     if (isIgnoredAuthor(summary.username, scope.ignoredAuthors)) continue;
-    if (scope.excludeModerators && moderatorUsers.has(summary.username.toLowerCase())) {
+    if (scope.excludeModerators && moderatorUsers.has(summaryKey)) {
       continue;
     }
     if (scope.excludeAutoModerator && isAutoModerator(summary.username)) {
       continue;
     }
-    if (scope.excludeApprovedUsers && approvedUsers.has(summary.username.toLowerCase())) {
+    if (scope.excludeApprovedUsers && approvedUsers.has(summaryKey)) {
       continue;
     }
-    users.set(summary.username.toLowerCase(), {
+    users.set(summaryKey, {
       targetId: summary.username,
       targetType: 'user',
       text: signalText(
@@ -135,7 +152,7 @@ const candidatesForRule = (
     return incident.flaggedComments
       .filter((comment) => {
         const commentAuthorKey = usernameKey(comment.author);
-        if (comment.removed || comment.reviewed) return false;
+        if (!isCommentOpenForReview(comment)) return false;
         if (isIgnoredAuthor(comment.author, rule.scope.ignoredAuthors)) {
           return false;
         }
@@ -167,14 +184,18 @@ const candidatesForRule = (
         return true;
       })
       .map((comment) => ({
-        targetId: comment.id,
+        targetId: normalizeCommentId(comment.id),
         targetType: 'comment',
         text:
           signalText(
             incident,
             rule.scope,
             moderatorUsers,
-            (signal) => signal.commentId === comment.id
+            (signal) =>
+              signal.commentId
+                ? normalizeCommentId(signal.commentId) ===
+                  normalizeCommentId(comment.id)
+                : false
           ) || comment.body,
         username: comment.author,
       }));
@@ -222,6 +243,47 @@ const textConditionReason = (
     : condition.match === 'exact'
       ? `text contains exact phrase "${condition.value}"`
       : `text contains "${condition.value}"`;
+};
+
+const replyClusterCount = ({
+  candidate,
+  condition,
+  incident,
+}: {
+  candidate: Candidate;
+  condition: Extract<RuleCondition, { type: 'reply_cluster' }>;
+  incident: Incident;
+}) => {
+  const openCommentIds = new Set(
+    incident.flaggedComments
+      .filter(isCommentOpenForReview)
+      .map((comment) => normalizeCommentId(comment.id))
+  );
+  const branchCounts = new Map<string, Set<string>>();
+
+  for (const signal of incident.recentSignals) {
+    if (
+      signal.type !== 'comment_create' ||
+      !signal.commentId ||
+      !signal.parentId ||
+      !openCommentIds.has(normalizeCommentId(signal.commentId)) ||
+      !inWindow(signal.createdAt, condition.windowMinutes)
+    ) {
+      continue;
+    }
+
+    const parentId = normalizeParentId(signal.parentId, incident.postId);
+    if (!parentId) continue;
+    const comments = branchCounts.get(parentId) ?? new Set<string>();
+    comments.add(normalizeCommentId(signal.commentId));
+    branchCounts.set(parentId, comments);
+  }
+
+  if (candidate.targetType === 'comment') {
+    return branchCounts.get(normalizeCommentId(candidate.targetId))?.size ?? 0;
+  }
+
+  return Math.max(0, ...Array.from(branchCounts.values()).map((ids) => ids.size));
 };
 
 const conditionReason = ({
@@ -315,9 +377,9 @@ const conditionReason = ({
       : undefined;
   }
 
-  return incident.stats.branchPileOns > 0 &&
-    incident.flaggedComments.length >= condition.minComments
-    ? `${incident.flaggedComments.length} flagged comments in clustered replies`
+  const clusteredComments = replyClusterCount({ candidate, condition, incident });
+  return clusteredComments >= condition.minComments
+    ? `${clusteredComments} open comments in one reply cluster`
     : undefined;
 };
 
@@ -328,7 +390,7 @@ const strikeSummaryForCandidate = (
   candidate.username
     ? summaries.find(
         (summary) =>
-          summary.username.toLowerCase() === candidate.username?.toLowerCase()
+          usernameKey(summary.username) === usernameKey(candidate.username)
       )
     : undefined;
 
@@ -358,10 +420,15 @@ const counterReason = ({
         ? windowedSignals.filter((signal) => signal.postId === incident.postId)
             .length
         : counter.countBy === 'thread'
-          ? windowedSignals.filter(
-              (signal) =>
-                signal.parentId && signal.parentId === candidate.targetId
-            ).length
+          ? candidate.targetType === 'comment'
+            ? windowedSignals.filter(
+                (signal) =>
+                  normalizeParentId(signal.parentId, incident.postId) ===
+                  candidate.targetId
+              ).length
+            : windowedSignals.filter(
+                (signal) => signal.postId === incident.postId
+              ).length
           : counter.countBy === 'domain'
             ? watchedDomainHits(candidate.text, config.suspiciousDomains)
             : Math.max(
@@ -434,6 +501,7 @@ const matchRule = ({
       id: `${rule.id}:${candidate.targetId}`,
       ruleId: rule.id,
       ruleName: rule.name,
+      ruleUpdatedAt: rule.updatedAt,
       mode: rule.mode,
       matchedAt: currentIso(),
       targetId: candidate.targetId,
@@ -509,10 +577,22 @@ export const attachRuleContext = async (
     config,
     incident,
   });
+  const previousMatchedAt = new Map(
+    (incident.matchedRules ?? []).map((match) => [
+      ruleMatchKey(match),
+      match.matchedAt,
+    ])
+  );
+  const dismissedRuleKeys = new Set(incident.dismissedRuleKeys ?? []);
 
   return {
     ...incident,
-    matchedRules: matches,
+    matchedRules: matches
+      .filter((match) => !dismissedRuleKeys.has(ruleMatchKey(match)))
+      .map((match) => ({
+        ...match,
+        matchedAt: previousMatchedAt.get(ruleMatchKey(match)) ?? match.matchedAt,
+      })),
     userStrikeSummaries: strikeSummaries,
   };
 };
@@ -530,7 +610,13 @@ export const recordRuleMatches = async ({
   modeOverride?: RuleMode;
   triggerType: RuleTrigger['type'];
 }) => {
-  if (incident.recentSignals[0]?.source === 'firewatch_notice') return [];
+  const latestSignal = incident.recentSignals[0];
+  if (
+    latestSignal?.source === 'firewatch_notice' &&
+    ruleTriggerTypeForSignal(latestSignal) === triggerType
+  ) {
+    return [];
+  }
 
   const { matches } = await matchIncidentAutomations({
     config,
@@ -546,6 +632,7 @@ export const recordRuleMatches = async ({
     const alreadyLogged = existingLogs.some((log) => {
       const sameMatch =
         log.ruleId === match.ruleId &&
+        log.ruleUpdatedAt === match.ruleUpdatedAt &&
         log.targetId === match.targetId &&
         log.triggerType === triggerType &&
         log.mode === mode &&
@@ -583,19 +670,23 @@ export const recordRuleMatches = async ({
     }
 
     newLogs.push(
-      await recordRuleExecutionLog({
-        ruleId: match.ruleId,
-        ruleName: match.ruleName,
-        triggerType,
-        targetType: match.targetType,
-        targetId: match.targetId,
-        matchedConditions: match.why,
-        preparedActions: match.preparedActions.map((action) => action.label),
-        executedActions,
-        skippedActions,
-        mode,
-        actor,
-      })
+      await recordRuleExecutionLog(
+        {
+          ruleId: match.ruleId,
+          ruleName: match.ruleName,
+          ruleUpdatedAt: match.ruleUpdatedAt,
+          triggerType,
+          targetType: match.targetType,
+          targetId: match.targetId,
+          matchedConditions: match.why,
+          preparedActions: match.preparedActions.map((action) => action.label),
+          executedActions,
+          skippedActions,
+          mode,
+          actor,
+        },
+        incident.subredditName
+      )
     );
   }
 

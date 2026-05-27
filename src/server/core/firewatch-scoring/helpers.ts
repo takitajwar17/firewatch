@@ -13,13 +13,13 @@ import type {
   ResponseSuggestion,
 } from '../../../shared/api';
 import { firewatchRatingSummary } from '../../../shared/firewatch-rating.js';
+import { isCommentOpenForReview } from '../../../shared/incidents';
 import { actionCompleted } from '../../../shared/reddit-actions';
 import {
   MAX_INVOLVED_USERS,
   MAX_REPEATED_PHRASES,
   MAX_TREND_POINTS,
   STOP_WORDS,
-  TREND_BUCKET_MS,
 } from '../firewatch-constants';
 import {
   detectionTokens,
@@ -28,7 +28,6 @@ import {
 } from '../firewatch-detection';
 import { detectSafetyMatchesInText } from '../firewatch-safety';
 import {
-  clamp,
   isAppUsername,
   normalizeCommentId,
   normalizeUsername,
@@ -141,6 +140,9 @@ export const makeEmptyStats = (): IncidentStats => ({
   signalCount: 0,
   commentSignals: 0,
   reportSignals: 0,
+  currentReportSignals: 0,
+  currentCommentReports: 0,
+  currentPostReports: 0,
   manualEscalations: 0,
   keywordHits: 0,
   suspiciousLinkHits: 0,
@@ -353,11 +355,9 @@ export const buildParticipants = (
     const author = normalizeUsername(signal.author);
     if (!author || isAppUsername(author)) continue;
 
-    const current = participants.get(author) ?? {
-      signals: 0,
-      lastSeenAt: 0,
-      branches: new Set<string>(),
-    };
+    const current = participants.get(author);
+    if (!current) continue;
+
     current.signals += 1;
     current.lastSeenAt = Math.max(current.lastSeenAt, signal.createdAt);
     if (signal.parentId) current.branches.add(signal.parentId);
@@ -381,52 +381,6 @@ export const buildParticipants = (
     .slice(0, MAX_INVOLVED_USERS);
 };
 
-export const buildTrend = (
-  signals: Incident['recentSignals'],
-  config: FirewatchConfig
-): IncidentTrendPoint[] => {
-  const buckets = new Map<
-    number,
-    {
-      commentSignals: number;
-      reportSignals: number;
-      keywordHits: number;
-    }
-  >();
-
-  for (const signal of signals) {
-    const timestamp =
-      Math.floor(signal.createdAt / TREND_BUCKET_MS) * TREND_BUCKET_MS;
-    const current = buckets.get(timestamp) ?? {
-      commentSignals: 0,
-      reportSignals: 0,
-      keywordHits: 0,
-    };
-
-    if (signal.type === 'comment_create') current.commentSignals += 1;
-    if (signal.type === 'comment_report' || signal.type === 'post_report') {
-      current.reportSignals += 1;
-    }
-    current.keywordHits += countKeywordHits(signal.body ?? '', config.keywords);
-    buckets.set(timestamp, current);
-  }
-
-  return Array.from(buckets.entries())
-    .sort(([timestampA], [timestampB]) => timestampA - timestampB)
-    .slice(-MAX_TREND_POINTS)
-    .map(([timestamp, value]) => ({
-      timestamp,
-      ...value,
-      score: clamp(
-        value.commentSignals * 3 +
-          value.reportSignals * 15 +
-          value.keywordHits * 8,
-        0,
-        100
-      ),
-    }));
-};
-
 export const mergeTrend = (
   previous: IncidentTrendPoint[],
   current: IncidentTrendPoint[]
@@ -434,7 +388,27 @@ export const mergeTrend = (
   const byTimestamp = new Map<number, IncidentTrendPoint>();
 
   for (const point of previous) byTimestamp.set(point.timestamp, point);
-  for (const point of current) byTimestamp.set(point.timestamp, point);
+  for (const point of current) {
+    const existing = byTimestamp.get(point.timestamp);
+    byTimestamp.set(
+      point.timestamp,
+      existing
+        ? {
+            timestamp: point.timestamp,
+            score: Math.max(existing.score, point.score),
+            commentSignals: Math.max(
+              existing.commentSignals,
+              point.commentSignals
+            ),
+            reportSignals: Math.max(
+              existing.reportSignals,
+              point.reportSignals
+            ),
+            keywordHits: Math.max(existing.keywordHits, point.keywordHits),
+          }
+        : point
+    );
+  }
 
   return Array.from(byTimestamp.values())
     .sort((a, b) => a.timestamp - b.timestamp)
@@ -473,6 +447,37 @@ export const REMOVAL_ACTION_TYPES = new Set<IncidentActionType>([
   'user_content_removed',
 ]);
 
+export const MODERATION_ACTION_TYPES = new Set<IncidentActionType>([
+  'cleanup',
+  'comment_approved',
+  'comment_locked',
+  'comment_removed',
+  'comment_reports_ignored',
+  'comment_reports_unignored',
+  'comment_shown',
+  'comment_spammed',
+  'comment_thread_removed',
+  'comment_unlocked',
+  'post_approved',
+  'post_removed',
+  'post_spammed',
+  'post_unlocked',
+  'post_marked_nsfw',
+  'post_unmarked_nsfw',
+  'post_marked_spoiler',
+  'post_unmarked_spoiler',
+  'post_crowd_control',
+  'post_flaired',
+  'post_flair_removed',
+  'locked',
+  'post_reports_ignored',
+  'post_reports_unignored',
+  'user_approved',
+  'user_banned',
+  'user_muted',
+  'user_content_removed',
+]);
+
 const normalizeActionCommentTarget = (targetId: string) => {
   if (!targetId.startsWith('t1_')) return undefined;
   return normalizeCommentId(targetId);
@@ -506,7 +511,7 @@ export const buildImpactSnapshot = ({
   reportsGrouped: number;
 }): IncidentImpactSnapshot => {
   const reviewedComments = flaggedComments.filter(
-    (comment) => comment.removed || comment.reviewed
+    (comment) => !isCommentOpenForReview(comment)
   );
   const usersInReview = new Set(
     activeFlaggedComments
@@ -522,7 +527,7 @@ export const buildImpactSnapshot = ({
     usersResolved.delete(username);
   }
   const moderationActions = incident.actions.filter(
-    (action) => action.type !== 'demo_seeded' && actionCompleted(action)
+    (action) => MODERATION_ACTION_TYPES.has(action.type) && actionCompleted(action)
   );
   const removals = incident.actions.reduce(
     (total, action) => total + countRemovalTargets(action),

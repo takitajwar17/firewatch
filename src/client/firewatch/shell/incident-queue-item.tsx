@@ -17,7 +17,7 @@ import {
 import type { QueueFilter, QueueFilterCounts } from '../types';
 import type { Incident } from '../../../shared/api';
 import { firewatchRatingInfo } from '../../../shared/firewatch-rating.js';
-import { openCommentCount } from '../../../shared/incidents';
+import { currentReportCount, openCommentCount } from '../../../shared/incidents';
 
 const QUEUE_FILTER_OPTIONS: {
   label: string;
@@ -257,32 +257,38 @@ export const IncidentQueueItem = ({
   surface: 'dark' | 'light';
 }) => {
   const unresolvedComments = openCommentCount(incident);
+  const currentReports = currentReportCount(incident);
   const postState = incident.postState;
   const needsSafetyReview =
     Boolean(incident.safetyReview) &&
     !isTerminalStatus(incident.status);
-  const stateLabel = postState?.spam
-    ? 'Spam'
-    : postState?.removed
-      ? 'Removed'
-      : postState?.approved
-        ? 'Approved'
-        : postState?.locked
-          ? 'Locked'
-          : needsSafetyReview
-            ? 'Safety'
-            : formatSidebarStatus(incident.status);
+  const stateLabel =
+    unresolvedComments > 0
+      ? 'Review'
+      : isTerminalStatus(incident.status)
+        ? 'Resolved'
+        : postState?.spam
+          ? 'Spam'
+          : postState?.removed
+            ? 'Removed'
+            : postState?.approved
+              ? 'Approved'
+              : postState?.locked
+                ? 'Locked'
+                : needsSafetyReview
+                  ? 'Safety'
+                  : formatSidebarStatus(incident.status);
   const firstReason = incident.reasons[0]?.label;
   const secondReason = incident.reasons[1]?.label;
   const signalParts = [
     unresolvedComments > 0
       ? pluralize(unresolvedComments, 'comment')
       : undefined,
-    incident.stats.reportSignals > 0
-      ? pluralize(incident.stats.reportSignals, 'report')
+    currentReports > 0
+      ? pluralize(currentReports, 'report')
       : undefined,
     incident.stats.suspiciousLinkHits > 0
-      ? pluralize(incident.stats.suspiciousLinkHits, 'watched link')
+      ? pluralize(incident.stats.suspiciousLinkHits, 'watched domain')
       : undefined,
     incident.stats.keywordHits > 0
       ? pluralize(incident.stats.keywordHits, 'keyword hit')
@@ -324,7 +330,9 @@ export const IncidentQueueItem = ({
         )}
       >
         <span className="inline-flex items-center gap-1">
-          {postState?.removed || postState?.spam ? (
+          {unresolvedComments > 0 ? (
+            <RedditCommentIcon className="size-3.5" />
+          ) : postState?.removed || postState?.spam ? (
             <RedditRemoveIcon className="size-3.5" />
           ) : postState?.locked ? (
             <RedditLockIcon className="size-3.5" />

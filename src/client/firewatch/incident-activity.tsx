@@ -25,6 +25,17 @@ import { actionCompleted, undoActionLabel } from '../../shared/reddit-actions';
 
 export const LatestSignalsCard = ({ incident }: { incident: Incident }) => {
   const visibleSignals = incident.recentSignals;
+  const shownSignals = visibleSignals.slice(0, 16);
+  const hiddenSignals = Math.max(0, visibleSignals.length - shownSignals.length);
+  const omittedSignals = incident.stats.signalsOmitted ?? 0;
+  const hiddenSignalParts = [
+    hiddenSignals > 0
+      ? `${hiddenSignals} older activity item${hiddenSignals === 1 ? '' : 's'} hidden in this view`
+      : undefined,
+    omittedSignals > 0
+      ? `${omittedSignals} older signal${omittedSignals === 1 ? '' : 's'} dropped from storage`
+      : undefined,
+  ].filter((part): part is string => Boolean(part));
 
   return (
     <Card size="sm">
@@ -37,7 +48,7 @@ export const LatestSignalsCard = ({ incident }: { incident: Incident }) => {
         ) : (
           <ScrollArea className="pr-0 sm:max-h-[460px] sm:pr-3">
             <div className="flex flex-col">
-              {visibleSignals.slice(0, 16).map((signal, index) => (
+              {shownSignals.map((signal, index) => (
                 <div key={signal.id} className="content-visibility-list-item">
                   {index > 0 ? <Separator /> : null}
                   <div className="flex flex-col gap-1 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
@@ -70,6 +81,14 @@ export const LatestSignalsCard = ({ incident }: { incident: Incident }) => {
                   </div>
                 </div>
               ))}
+              {hiddenSignalParts.length > 0 ? (
+                <>
+                  <Separator />
+                  <p className="py-3 text-xs leading-5 text-muted-foreground">
+                    {hiddenSignalParts.join('. ')}.
+                  </p>
+                </>
+              ) : null}
             </div>
           </ScrollArea>
         )}

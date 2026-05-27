@@ -8,6 +8,7 @@ import {
   commentActionDetail,
   nativeCommentActionType,
 } from '../../../../shared/reddit-actions';
+import { isCommentOpenForReview } from '../../../../shared/incidents';
 import { recordRuleMatches } from '../../firewatch-rules/matching';
 import { normalizeCommentId, normalizePostId } from '../../firewatch-utils';
 import {
@@ -26,12 +27,13 @@ import {
   saveAndRefreshIncident,
   startIncidentAction,
 } from '../incidents';
-import { actorName, getConfig, getIncident, saveIncident } from '../store';
+import { actorName, getConfig, saveIncident } from '../store';
 import {
   approveCommentIfReal,
   collectThreadCommentIds,
   isDemoComment,
   markFlaggedCommentsRemoved,
+  patchFlaggedComments,
   removeCommentIfReal,
 } from './comment-helpers';
 
@@ -86,12 +88,12 @@ export const approveFlaggedComment = async (
     `Approved comment ${normalizedCommentId} but failed to refresh incident ${normalizedPostId}`
   );
   const nextIncident: Incident = {
-    ...incident,
-    flaggedComments: incident.flaggedComments.map((flaggedComment) =>
-      flaggedComment.id === normalizedCommentId
-        ? { ...flaggedComment, reviewed: true }
-        : flaggedComment
-    ),
+    ...patchFlaggedComments(incident, [normalizedCommentId], {
+      approved: true,
+      removed: false,
+      reviewed: true,
+      spam: false,
+    }),
   };
   const refreshedIncident = await saveAndRefreshIncident(
     nextIncident,
@@ -107,8 +109,10 @@ export const removeFlaggedComment = async (
 ) => {
   const normalizedPostId = normalizePostId(postId);
   const normalizedCommentId = normalizeCommentId(commentId);
-  const sourceIncident = await getIncident(normalizedPostId);
-  if (!sourceIncident) throw new Error('Post is not in Firewatch yet');
+  const sourceIncident = await refreshIncident(
+    await getIncidentOrThrow(normalizedPostId)
+  );
+  await saveIncident(sourceIncident);
   const config = await getConfig(sourceIncident.subredditName);
   if (!config.actionControls.removeComments) {
     throw new Error('Comment removals are disabled in Settings');
@@ -151,12 +155,12 @@ export const removeFlaggedComment = async (
     `Removed comment ${normalizedCommentId} but failed to refresh incident ${normalizedPostId}`
   );
   const nextIncident: Incident = {
-    ...incident,
-    flaggedComments: incident.flaggedComments.map((flaggedComment) =>
-      flaggedComment.id === normalizedCommentId
-        ? { ...flaggedComment, removed: true, reviewed: false }
-        : flaggedComment
-    ),
+    ...patchFlaggedComments(incident, [normalizedCommentId], {
+      approved: false,
+      removed: true,
+      reviewed: false,
+      spam: false,
+    }),
   };
   const refreshedIncident = await saveAndRefreshIncident(
     nextIncident,
@@ -240,8 +244,7 @@ export const bulkReviewComments = async (
     .filter(
       (comment) =>
         selectedCommentIds.has(normalizeCommentId(comment.id)) &&
-        !comment.removed &&
-        !comment.reviewed
+        isCommentOpenForReview(comment)
     )
     .map((comment) => normalizeCommentId(comment.id));
 
@@ -313,15 +316,22 @@ export const bulkReviewComments = async (
     `Bulk comment review completed but failed to refresh incident ${normalizedPostId}`
   );
   const nextIncident: Incident = {
-    ...incident,
-    flaggedComments: incident.flaggedComments.map((flaggedComment) =>
-      actedTargetIds.includes(normalizeCommentId(flaggedComment.id))
+    ...patchFlaggedComments(
+      incident,
+      actedTargetIds,
+      input.action === 'approve'
         ? {
-            ...flaggedComment,
-            removed: input.action === 'remove',
-            reviewed: input.action === 'approve',
+            approved: true,
+            removed: false,
+            reviewed: true,
+            spam: false,
           }
-        : flaggedComment
+        : {
+            approved: false,
+            removed: true,
+            reviewed: false,
+            spam: false,
+          }
     ),
   };
   const refreshedIncident = await saveAndRefreshIncident(
@@ -424,12 +434,33 @@ export const applyNativeCommentAction = async (
     `Comment action ${values.action} completed but failed to refresh incident ${normalizedPostId}`
   );
 
-  if (values.action !== 'remove-thread' && values.action !== 'spam') {
-    return withAction;
-  }
+  const patchedIncident =
+    values.action === 'remove-thread'
+      ? markFlaggedCommentsRemoved(withAction, targetIds)
+      : values.action === 'spam'
+        ? markFlaggedCommentsRemoved(withAction, targetIds, { spam: true })
+        : values.action === 'lock'
+          ? patchFlaggedComments(withAction, targetIds, { locked: true })
+          : values.action === 'unlock'
+            ? patchFlaggedComments(withAction, targetIds, { locked: false })
+            : values.action === 'ignore-reports'
+              ? patchFlaggedComments(withAction, targetIds, {
+                  ignoringReports: true,
+                })
+              : values.action === 'unignore-reports'
+                ? patchFlaggedComments(withAction, targetIds, {
+                    ignoringReports: false,
+                  })
+                : values.action === 'show-comment'
+                  ? patchFlaggedComments(withAction, targetIds, {
+                      shown: true,
+                    })
+                : withAction;
+
+  if (patchedIncident === withAction) return withAction;
 
   return saveAndRefreshIncident(
-    markFlaggedCommentsRemoved(withAction, targetIds),
+    patchedIncident,
     `Comment action ${values.action} completed but failed to refresh incident ${normalizedPostId}`
   );
 };

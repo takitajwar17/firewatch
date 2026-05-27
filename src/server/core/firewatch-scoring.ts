@@ -3,8 +3,10 @@ import type {
   FlaggedComment,
   Incident,
   IncidentStats,
+  IncidentTrendPoint,
   RiskReason,
 } from '../../shared/api';
+import { isCommentOpenForReview } from '../../shared/incidents';
 import { actionCompleted } from '../../shared/reddit-actions';
 import {
   MAX_FLAGGED_COMMENTS,
@@ -27,7 +29,6 @@ import {
   actionCommentTargets,
   buildImpactSnapshot,
   buildParticipants,
-  buildTrend,
   countKeywordHits,
   countRemovalTargets,
   countSuspiciousDomainHits,
@@ -106,7 +107,7 @@ export const calculateIncident = (
   const removedCommentIds = new Set<string>(
     [
       ...incident.flaggedComments
-        .filter((comment) => comment.removed)
+        .filter((comment) => comment.removed || comment.spam)
         .map((comment) => comment.id),
       ...incident.actions.flatMap((action) =>
         COMMENT_REMOVAL_ACTION_TYPES.has(action.type)
@@ -130,7 +131,7 @@ export const calculateIncident = (
   const reviewedCommentIds = new Set<string>(
     [
       ...incident.flaggedComments
-        .filter((comment) => comment.reviewed)
+        .filter((comment) => comment.reviewed || comment.approved)
         .map((comment) => comment.id),
       ...incident.actions.flatMap((action) =>
         action.type === 'comment_approved' && actionCompleted(action)
@@ -157,6 +158,53 @@ export const calculateIncident = (
         (!removedCommentIds.has(signal.commentId) &&
           !reviewedCommentIds.has(signal.commentId)))
   );
+  const latestCommentReportActionById = new Map<
+    string,
+    'ignored' | 'unignored'
+  >();
+  for (const action of [...incident.actions].sort(
+    (left, right) => right.createdAt - left.createdAt
+  )) {
+    if (
+      action.type !== 'comment_reports_ignored' &&
+      action.type !== 'comment_reports_unignored'
+    ) {
+      continue;
+    }
+    if (!actionCompleted(action)) continue;
+
+    for (const targetId of action.targetIds ?? []) {
+      const normalizedTargetId = normalizeCommentId(targetId);
+      if (latestCommentReportActionById.has(normalizedTargetId)) continue;
+      latestCommentReportActionById.set(
+        normalizedTargetId,
+        action.type === 'comment_reports_ignored' ? 'ignored' : 'unignored'
+      );
+    }
+  }
+  const ignoredReportCommentIds = new Set(
+    Array.from(latestCommentReportActionById.entries())
+      .filter(([, state]) => state === 'ignored')
+      .map(([commentId]) => commentId)
+  );
+  const latestPostReportAction = [...incident.actions]
+    .sort((left, right) => right.createdAt - left.createdAt)
+    .find(
+      (action) =>
+        actionCompleted(action) &&
+        (action.type === 'post_reports_ignored' ||
+          action.type === 'post_reports_unignored')
+    );
+  const postReportsIgnored =
+    latestPostReportAction?.type === 'post_reports_ignored' ||
+    (latestPostReportAction
+      ? false
+      : postSnapshot.postState?.ignoringReports === true);
+  const isIgnoredReportSignal = (signal: ScoredSignal) => {
+    if (signal.type === 'post_report') return postReportsIgnored;
+    if (signal.type !== 'comment_report' || !signal.commentId) return false;
+    return ignoredReportCommentIds.has(normalizeCommentId(signal.commentId));
+  };
   const contentSignals = uniqueContentSignals(scoreSignals);
   const visibleSignals = recentSignals.filter(
     (signal) => signal.source !== 'firewatch_notice'
@@ -164,20 +212,24 @@ export const calculateIncident = (
   const recentComments = activeUserSignals.filter(
     (signal) => signal.type === 'comment_create'
   );
-  const reports = scoreSignals.filter(
+  const currentReportSignals = scoreSignals.filter(
+    (signal) =>
+      (signal.type === 'comment_report' || signal.type === 'post_report') &&
+      !isIgnoredReportSignal(signal)
+  );
+  const reports = currentReportSignals.filter(
     (signal) =>
       signal.type === 'comment_report' || signal.type === 'post_report'
   );
-  const commentReports = scoreSignals.filter(
+  const commentReports = currentReportSignals.filter(
     (signal) => signal.type === 'comment_report'
   );
-  const postReportSignals = scoreSignals.filter(
+  const postReportSignals = currentReportSignals.filter(
     (signal) => signal.type === 'post_report'
   );
-  const postReportCount = Math.max(
-    postSnapshot.numberOfReports,
-    postReportSignals.length
-  );
+  const postReportCount = postReportsIgnored
+    ? 0
+    : Math.max(postSnapshot.numberOfReports, postReportSignals.length);
   const totalReportCount = commentReports.length + postReportCount;
   const manualEscalations = recentSignals.filter(
     (signal) => signal.type === 'manual_escalation'
@@ -437,6 +489,7 @@ export const calculateIncident = (
   for (const signal of normalizedSignals) {
     if (signal.commentId && removedCommentIds.has(signal.commentId)) continue;
     if (signal.commentId && reviewedCommentIds.has(signal.commentId)) continue;
+    if (isIgnoredReportSignal(signal)) continue;
     const flagged = scoreComment(signal, config);
     if (!flagged) continue;
 
@@ -466,8 +519,7 @@ export const calculateIncident = (
     .filter((comment) => {
       const commentId = normalizeCommentId(comment.id);
       return (
-        !comment.removed &&
-        !comment.reviewed &&
+        isCommentOpenForReview(comment) &&
         !removedCommentIds.has(commentId) &&
         !reviewedCommentIds.has(commentId) &&
         !activeIds.has(commentId)
@@ -482,8 +534,7 @@ export const calculateIncident = (
   const alreadyActionedComments = incident.flaggedComments
     .filter(
       (comment) =>
-        comment.removed ||
-        comment.reviewed ||
+        !isCommentOpenForReview(comment) ||
         removedCommentIds.has(normalizeCommentId(comment.id)) ||
         reviewedCommentIds.has(normalizeCommentId(comment.id))
     )
@@ -507,16 +558,23 @@ export const calculateIncident = (
     ...activeFlaggedComments,
     ...previousOpenComments,
   ].sort((a, b) => b.score - a.score);
-  const openIds = new Set(openFlaggedComments.map((comment) => comment.id));
+  const openIds = new Set(
+    openFlaggedComments.map((comment) => normalizeCommentId(comment.id))
+  );
+  const nonOpenActionedComments = alreadyActionedComments.filter(
+    (comment) => !openIds.has(normalizeCommentId(comment.id))
+  );
+  const impactFlaggedComments = [
+    ...openFlaggedComments,
+    ...nonOpenActionedComments,
+  ];
   const actionedCommentLimit = Math.max(
     0,
     MAX_FLAGGED_COMMENTS - openFlaggedComments.length
   );
   const flaggedComments = [
     ...openFlaggedComments,
-    ...alreadyActionedComments
-      .filter((comment) => !openIds.has(comment.id))
-      .slice(0, actionedCommentLimit),
+    ...nonOpenActionedComments.slice(0, actionedCommentLimit),
   ];
   const level = getLevel(score, config);
   const peakScore = Math.max(incident.peakScore ?? 0, score);
@@ -568,6 +626,9 @@ export const calculateIncident = (
     signalCount: visibleSignals.length,
     commentSignals: recentComments.length,
     reportSignals: Math.max(totalReportCount, incident.stats.reportSignals),
+    currentReportSignals: totalReportCount,
+    currentCommentReports: commentReports.length,
+    currentPostReports: postReportCount,
     manualEscalations: manualEscalations.length,
     keywordHits,
     suspiciousLinkHits: suspiciousHits,
@@ -583,22 +644,27 @@ export const calculateIncident = (
     commentsLastHour: recentComments.length,
     flaggedCommentsOmitted: Math.max(
       0,
-      openFlaggedComments.length - MAX_FLAGGED_COMMENTS
+      impactFlaggedComments.length - flaggedComments.length
     ),
-    flaggedCommentsStored: Math.min(
-      openFlaggedComments.length,
-      MAX_FLAGGED_COMMENTS
-    ),
+    flaggedCommentsStored: flaggedComments.length,
     signalsOmitted: incident.stats.signalsOmitted ?? 0,
     signalsStored: Math.min(normalizedSignals.length, MAX_RECENT_SIGNALS),
   };
   const impact = buildImpactSnapshot({
     activeFlaggedComments: openFlaggedComments,
-    flaggedComments,
+    flaggedComments: impactFlaggedComments,
     incident,
     reportsGrouped: totalReportCount,
   });
-  const currentTrend = buildTrend(scoreSignals, config);
+  const currentTrend: IncidentTrendPoint[] = [
+    {
+      timestamp: Math.floor(updatedAt / (10 * 60 * 1000)) * (10 * 60 * 1000),
+      score,
+      commentSignals: recentComments.length,
+      reportSignals: totalReportCount,
+      keywordHits,
+    },
+  ];
   const lastSignalAt = maxTimestamp(
     ...normalizedSignals.map((signal) => signal.createdAt)
   );

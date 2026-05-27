@@ -23,9 +23,10 @@ const ratingPillClass =
   'inline-flex h-7 items-center rounded-full bg-secondary px-2.5 text-xs font-semibold text-secondary-foreground sm:h-8 sm:text-sm';
 
 export const IncidentIntro = ({ incident }: { incident: Incident }) => {
-  const postScore = incident.postScore ?? incident.score;
-  const postCommentCount =
-    incident.postCommentCount ?? incident.flaggedComments.length;
+  const postScore = incident.postScore;
+  const postCommentCount = incident.postCommentCount;
+  const demoCommentCount =
+    incident.demo?.commentModel === 'sample_review_signals';
 
   return (
     <section className="overflow-hidden border-b border-border bg-background text-card-foreground">
@@ -63,15 +64,35 @@ export const IncidentIntro = ({ incident }: { incident: Incident }) => {
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <PostMetricPill
-              ariaLabel={`Post score ${postScore}`}
+              ariaLabel={
+                postScore === undefined
+                  ? 'Reddit post score unavailable'
+                  : `Post score ${postScore}`
+              }
               icon={<RedditUpvoteIcon />}
               secondaryIcon={<RedditDownvoteIcon />}
-              value={String(postScore)}
+              value={postScore === undefined ? '—' : String(postScore)}
             />
             <PostMetricPill
-              ariaLabel={`${pluralize(postCommentCount, 'comment')} on Reddit`}
+              ariaLabel={
+                postCommentCount === undefined
+                  ? 'Reddit comment count unavailable'
+                  : demoCommentCount
+                    ? `${pluralize(postCommentCount, 'sample review comment')} in Firewatch`
+                    : `${pluralize(postCommentCount, 'comment')} on Reddit`
+              }
               icon={<RedditCommentIcon />}
-              value={String(postCommentCount)}
+              {...(demoCommentCount
+                ? {
+                    title:
+                      'Demo comments are sample review signals inside Firewatch.',
+                  }
+                : {})}
+              value={
+                postCommentCount === undefined
+                  ? '—'
+                  : String(postCommentCount)
+              }
             />
             <RatingPills score={incident.score} />
             <span className="px-1 text-xs font-semibold leading-6 text-muted-foreground">
@@ -223,17 +244,20 @@ const PostMetricPill = ({
   ariaLabel,
   icon,
   secondaryIcon,
+  title,
   value,
 }: {
   ariaLabel: string;
   icon: ReactNode;
   secondaryIcon?: ReactNode;
+  title?: string;
   value: string;
 }) => (
   <span
     aria-label={ariaLabel}
     className="inline-flex h-7 items-center gap-1.5 rounded-full bg-secondary px-2.5 text-xs font-semibold text-secondary-foreground sm:h-8 sm:text-sm [&_svg]:size-4"
     role="img"
+    title={title}
   >
     <span className="text-foreground">{icon}</span>
     <span className="tabular-nums">{value}</span>

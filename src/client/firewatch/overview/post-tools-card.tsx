@@ -33,6 +33,7 @@ import type {
 } from '../../../shared/api';
 import {
   CROWD_CONTROL_OPTIONS,
+  actionCompleted,
   parseCrowdControlLevel,
 } from '../../../shared/reddit-actions';
 
@@ -80,7 +81,7 @@ export const NativePostControlsCard = ({
   const postLocked = isPostLocked(incident);
   const canToggleLock = postLocked ? controls.unlockPost : controls.lockPost;
   const reminderAlreadyPosted = incident.actions.some(
-    (action) => action.type === 'cool_down'
+    (action) => action.type === 'cool_down' && actionCompleted(action)
   );
   const nsfwAction: NativePostAction = postNsfw ? 'unmark-nsfw' : 'mark-nsfw';
   const spoilerAction: NativePostAction = postSpoiler

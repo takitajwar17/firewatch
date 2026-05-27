@@ -1,5 +1,10 @@
 import { reddit } from '@devvit/web/server';
-import type { NativePostAction, PostFlairState } from '../../../../shared/api';
+import type {
+  Incident,
+  IncidentPostState,
+  NativePostAction,
+  PostFlairState,
+} from '../../../../shared/api';
 import {
   nativePostActionType,
   parseCrowdControlLevel,
@@ -11,6 +16,7 @@ import {
   completeIncidentAction,
   failIncidentAction,
   getIncidentOrThrow,
+  saveAndRefreshIncident,
   startIncidentAction,
 } from '../incidents';
 import { readRedditPost } from '../reddit-runtime';
@@ -37,6 +43,84 @@ const postFlairState = (
     textColor: flair.textColor,
   };
 };
+
+const postStateFromPost = (post: {
+  approved: boolean;
+  flair?: {
+    backgroundColor?: string | undefined;
+    templateId?: string | undefined;
+    text?: string | undefined;
+    textColor?: string | undefined;
+  } | undefined;
+  ignoringReports: boolean;
+  locked: boolean;
+  nsfw: boolean;
+  removed: boolean;
+  spam: boolean;
+  spoiler: boolean;
+}): IncidentPostState => {
+  const flair = postFlairState(post.flair);
+  const base = {
+    approved: post.approved,
+    ignoringReports: post.ignoringReports,
+    locked: post.locked,
+    nsfw: post.nsfw,
+    removed: post.removed,
+    spam: post.spam,
+    spoiler: post.spoiler,
+  };
+
+  return flair ? { ...base, flair } : base;
+};
+
+const fallbackPostStateAfterAction = ({
+  action,
+  flairAfter,
+  state,
+}: {
+  action: NativePostAction;
+  flairAfter: PostFlairState | undefined;
+  state: IncidentPostState | undefined;
+}): IncidentPostState | undefined => {
+  if (!state) return undefined;
+  const base = { ...state };
+
+  if (action === 'approve') {
+    return { ...base, approved: true, removed: false, spam: false };
+  }
+  if (action === 'remove') {
+    return { ...base, approved: false, removed: true, spam: false };
+  }
+  if (action === 'spam') {
+    return { ...base, approved: false, removed: true, spam: true };
+  }
+  if (action === 'unlock') return { ...base, locked: false };
+  if (action === 'mark-nsfw') return { ...base, nsfw: true };
+  if (action === 'unmark-nsfw') return { ...base, nsfw: false };
+  if (action === 'mark-spoiler') return { ...base, spoiler: true };
+  if (action === 'unmark-spoiler') return { ...base, spoiler: false };
+  if (action === 'ignore-reports') return { ...base, ignoringReports: true };
+  if (action === 'unignore-reports') return { ...base, ignoringReports: false };
+  if (action === 'set-flair' && flairAfter) return { ...base, flair: flairAfter };
+  if (action === 'clear-flair') {
+    return {
+      approved: base.approved,
+      ignoringReports: base.ignoringReports,
+      locked: base.locked,
+      nsfw: base.nsfw,
+      removed: base.removed,
+      spam: base.spam,
+      spoiler: base.spoiler,
+    };
+  }
+
+  return state;
+};
+
+const withPostState = (
+  incident: Incident,
+  postState: IncidentPostState | undefined
+) => (postState ? { ...incident, postState } : incident);
 
 export const applyNativePostAction = async (
   postId: string,
@@ -78,13 +162,14 @@ export const applyNativePostAction = async (
     flairText,
     reason,
   });
-  const flairAfter =
-    values.action === 'set-flair' && (flairText || flairTemplateId)
+  let flairAfter: PostFlairState | undefined =
+    values.action === 'set-flair' && flairText
       ? {
-          text: flairText ?? flairBefore?.text ?? '',
+          text: flairText,
           templateId: flairTemplateId,
         }
       : undefined;
+  let postStateAfter: IncidentPostState | undefined;
 
   const { actionId } = await startIncidentAction(normalizedPostId, {
     type: nativePostActionType(values.action),
@@ -151,6 +236,19 @@ export const applyNativePostAction = async (
         await reddit.removePostFlair(incident.subredditName, normalizedPostId);
         break;
     }
+    try {
+      const postAfter = await readRedditPost(normalizedPostId);
+      postStateAfter = postStateFromPost(postAfter);
+      if (values.action === 'set-flair' || values.action === 'clear-flair') {
+        flairAfter = postFlairState(postAfter.flair);
+      }
+    } catch {
+      postStateAfter = fallbackPostStateAfterAction({
+        action: values.action,
+        flairAfter,
+        state: incident.postState,
+      });
+    }
   } catch (error) {
     await failIncidentAction(
       normalizedPostId,
@@ -169,12 +267,21 @@ export const applyNativePostAction = async (
     throw error;
   }
 
-  return completeIncidentAction(
+  const withAction = await completeIncidentAction(
     normalizedPostId,
     actionId,
     {
+      postFlairAfter: flairAfter,
       status: 'succeeded',
     },
     `Post action ${values.action} succeeded but failed to refresh incident ${normalizedPostId}`
+  );
+
+  const patchedIncident = withPostState(withAction, postStateAfter);
+  if (patchedIncident === withAction) return withAction;
+
+  return saveAndRefreshIncident(
+    patchedIncident,
+    `Post action ${values.action} updated local post state but failed to refresh incident ${normalizedPostId}`
   );
 };

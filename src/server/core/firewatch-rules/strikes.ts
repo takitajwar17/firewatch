@@ -140,11 +140,27 @@ export const getUserStrikes = async (
   );
   const nowMs = now();
 
-  return strikes.filter((strike) => {
+  const activeStrikes = strikes.filter((strike) => {
     if (!strike.expiresAt) return true;
     const expiresAt = Date.parse(strike.expiresAt);
     return Number.isFinite(expiresAt) ? expiresAt > nowMs : true;
   });
+  if (activeStrikes.length !== strikes.length) {
+    const key = userStrikesKey(subredditName, normalizedUsername);
+    if (activeStrikes.length === 0) {
+      await redis.del(key);
+      await untrackUserStrikeKey(subredditName, key);
+    } else {
+      await redis.set(key, JSON.stringify(activeStrikes));
+    }
+  }
+
+  return activeStrikes;
+};
+
+const targetUsername = (targetId: string) => {
+  if (targetId.startsWith('t1_') || targetId.startsWith('t3_')) return undefined;
+  return normalizeUsername(targetId);
 };
 
 export const clearUserStrikes = async (
@@ -191,6 +207,9 @@ export const getUserStrikeSummaries = async (
       [
         ...incident.involvedUsers.map((user) => user.username),
         ...incident.flaggedComments.map((comment) => comment.author),
+        ...incident.actions
+          .flatMap((action) => action.targetIds ?? [])
+          .map(targetUsername),
       ]
         .map(normalizeUsername)
         .filter((username): username is string => Boolean(username))

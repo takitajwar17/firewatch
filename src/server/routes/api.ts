@@ -38,10 +38,12 @@ import {
   banUserAndRemoveComments,
   bulkReviewComments,
   claimIncident,
+  clearRememberedIncident,
   clearIncidentUserStrikes,
   coolDownIncident,
   createDemoIncidents,
   createDemoIncidentBatch,
+  dismissMatchedRule,
   escalateIncident,
   getConfig,
   getIncidentById,
@@ -133,6 +135,9 @@ const loadDashboardData = async (
   const selectedIncident = requestedSelectedPostId
     ? await getIncidentById(requestedSelectedPostId)
     : undefined;
+  if (requestedSelectedPostId && !contextSelectedPostId && !selectedIncident) {
+    await clearRememberedIncident();
+  }
   const selectedPostId = selectedIncident?.postId;
   const mergedIncidents =
     selectedIncident &&
@@ -585,6 +590,32 @@ api.post('/incidents/:postId/rules/:ruleId/run', async (c) => {
       undefined,
       body.targetId
     );
+  });
+});
+
+api.post('/incidents/:postId/rules/:ruleId/dismiss', async (c) => {
+  return claimedIncidentAction(c, async () => {
+    const body = await c.req.json<{
+      ruleUpdatedAt?: string;
+      targetId?: string;
+      targetType?: string;
+    }>();
+    if (
+      !body.targetId ||
+      (body.targetType !== 'post' &&
+        body.targetType !== 'comment' &&
+        body.targetType !== 'user' &&
+        body.targetType !== 'incident')
+    ) {
+      throw new Error('Automation match target was missing');
+    }
+
+    return dismissMatchedRule(c.req.param('postId'), {
+      ruleId: c.req.param('ruleId'),
+      ruleUpdatedAt: body.ruleUpdatedAt,
+      targetId: body.targetId,
+      targetType: body.targetType,
+    });
   });
 });
 

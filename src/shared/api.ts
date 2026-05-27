@@ -343,6 +343,7 @@ export type MatchedAutomationRule = {
   id: string;
   ruleId: string;
   ruleName: string;
+  ruleUpdatedAt?: string;
   mode: RuleMode;
   matchedAt: string;
   targetId: string;
@@ -356,6 +357,7 @@ export type RuleExecutionLog = {
   id: string;
   ruleId: string;
   ruleName: string;
+  ruleUpdatedAt?: string;
   triggeredAt: string;
   triggerType: string;
   targetType: 'post' | 'comment' | 'user' | 'incident';
@@ -496,6 +498,7 @@ export type FlaggedComment = {
   numReports?: number;
   removed?: boolean;
   reviewed?: boolean;
+  shown?: boolean;
   spam?: boolean;
 };
 
@@ -548,6 +551,9 @@ export type IncidentStats = {
   signalCount: number;
   commentSignals: number;
   reportSignals: number;
+  currentReportSignals?: number;
+  currentCommentReports?: number;
+  currentPostReports?: number;
   manualEscalations: number;
   keywordHits: number;
   suspiciousLinkHits: number;
@@ -626,6 +632,7 @@ export type Incident = {
   involvedUsers: IncidentParticipant[];
   repeatedPhrases: RepeatedPhrase[];
   matchedRules?: MatchedAutomationRule[];
+  dismissedRuleKeys?: string[];
   userStrikeSummaries?: UserStrikeSummary[];
   stats: IncidentStats;
   impact: IncidentImpactSnapshot;
@@ -635,6 +642,7 @@ export type Incident = {
   summary?: string;
   escalationSummary?: string;
   demo?: {
+    commentModel?: 'sample_review_signals';
     scenario: string;
     scenarioId?: FirewatchDemoScenarioId;
     seededAt: number;

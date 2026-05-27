@@ -26,7 +26,7 @@
 ## Reddit Developer App Listing
 
 - Display name: `Firewatch: Hot Thread Queue`
-- Description: `Find threads heating up. Firewatch groups reports, risky comments, and watched links into one mod queue with clear reasons, mod ownership, Reddit actions, and handoff notes.`
+- Description: `Find threads heating up. Firewatch groups reports, risky comments, and watched domains into one mod queue with clear reasons, mod ownership, Reddit actions, and handoff notes.`
 - Privacy policy: `https://raw.githubusercontent.com/takitajwar17/firewatch/main/PRIVACY.md`
 - Terms: `https://raw.githubusercontent.com/takitajwar17/firewatch/main/TERMS.md`
 - NSFW: off

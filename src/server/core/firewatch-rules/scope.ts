@@ -94,14 +94,14 @@ export const signalAllowedByScope = ({
   if (
     scope.excludeModerators &&
     (normalizedSignal.source === 'mod_action' ||
-      Boolean(author && moderatorUsers.has(author.toLowerCase())))
+      Boolean(author && moderatorUsers.has(usernameKey(author) ?? '')))
   ) {
     return false;
   }
   if (
     scope.excludeApprovedUsers &&
     author &&
-    approvedUsers.has(author.toLowerCase())
+    approvedUsers.has(usernameKey(author) ?? '')
   ) {
     return false;
   }

@@ -2,7 +2,9 @@ import { context, redis, reddit } from '@devvit/web/server';
 import type {
   FirewatchConfig,
   Incident,
+  IncidentAction,
   IncidentImpactSnapshot,
+  IncidentStats,
 } from '../../../shared/api';
 import type {
   FirewatchConfigFormDefaults,
@@ -73,6 +75,40 @@ const normalizeIncidentImpact = (
   timeOpenMinutes: finiteNumberOrZero(impact?.timeOpenMinutes),
   peakAttention: finiteNumberOrZero(impact?.peakAttention),
 });
+
+const normalizeIncidentStats = (
+  stats: Partial<IncidentStats> | undefined
+): IncidentStats => ({
+  signalCount: finiteNumberOrZero(stats?.signalCount),
+  commentSignals: finiteNumberOrZero(stats?.commentSignals),
+  reportSignals: finiteNumberOrZero(stats?.reportSignals),
+  currentReportSignals: finiteNumberOrZero(
+    stats?.currentReportSignals ?? stats?.reportSignals
+  ),
+  currentCommentReports: finiteNumberOrZero(stats?.currentCommentReports),
+  currentPostReports: finiteNumberOrZero(stats?.currentPostReports),
+  manualEscalations: finiteNumberOrZero(stats?.manualEscalations),
+  keywordHits: finiteNumberOrZero(stats?.keywordHits),
+  suspiciousLinkHits: finiteNumberOrZero(stats?.suspiciousLinkHits),
+  branchPileOns: finiteNumberOrZero(stats?.branchPileOns),
+  repeatedPhraseHits: finiteNumberOrZero(stats?.repeatedPhraseHits),
+  removals: finiteNumberOrZero(stats?.removals),
+  flaggedCount: finiteNumberOrZero(stats?.flaggedCount),
+  uniqueParticipants: finiteNumberOrZero(stats?.uniqueParticipants),
+  commentsLastHour: finiteNumberOrZero(stats?.commentsLastHour),
+  flaggedCommentsOmitted: finiteNumberOrZero(stats?.flaggedCommentsOmitted),
+  flaggedCommentsStored: finiteNumberOrZero(stats?.flaggedCommentsStored),
+  signalsOmitted: finiteNumberOrZero(stats?.signalsOmitted),
+  signalsStored: finiteNumberOrZero(stats?.signalsStored),
+});
+
+const normalizeIncidentActions = (
+  actions: IncidentAction[] | undefined
+): IncidentAction[] =>
+  (actions ?? []).map((action) => ({
+    ...action,
+    status: action.status ?? 'succeeded',
+  }));
 
 const parseStoredClaim = (
   stored: string | undefined,
@@ -325,8 +361,10 @@ export const getIncident = async (
     const claim = await hydrateStoredClaim(parsed);
     return {
       ...parsed,
+      actions: normalizeIncidentActions(parsed.actions),
       claim,
       status: normalizeStatus(parsed.status),
+      stats: normalizeIncidentStats(parsed.stats),
       impact: normalizeIncidentImpact(parsed.impact),
     };
   } catch (error) {

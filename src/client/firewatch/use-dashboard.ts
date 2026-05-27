@@ -5,6 +5,7 @@ import type {
   ConfigResponse,
   DashboardInitResponse,
   DashboardResponse,
+  DemoCreateResponse,
   DemoResetResponse,
   FirewatchDemoScenarioId,
   FirewatchRuleInput,
@@ -206,29 +207,24 @@ export const useDashboard = () => {
       setBusyAction('demo');
       setNotice(undefined);
 
-      const createdIncidents: Incident[] = [];
-      const failedCount = await selectedScenarioIds.reduce(
-        async (failedCountPromise, scenarioId) => {
-          const failedCount = await failedCountPromise;
-
-          try {
-            const payload = await requestJson<{ incident: Incident }>(
-              '/api/demo/incident',
-              {
-                body: { scenarioId },
-                method: 'POST',
-              }
-            );
-            updateIncident(payload.incident);
-            createdIncidents.push(payload.incident);
-            return failedCount;
-          } catch (error) {
-            console.error(`Firewatch demo failed: ${scenarioId}`, error);
-            return failedCount + 1;
+      let createdIncidents: Incident[];
+      let failedCount: number;
+      try {
+        const payload = await requestJson<DemoCreateResponse>(
+          '/api/demo/incident',
+          {
+            body: { scenarioIds: selectedScenarioIds },
+            method: 'POST',
           }
-        },
-        Promise.resolve(0)
-      );
+        );
+        createdIncidents = payload.createdIncidents;
+        failedCount = payload.failures.length;
+        payload.createdIncidents.forEach(updateIncident);
+      } catch (error) {
+        console.error('Firewatch demo batch failed:', error);
+        createdIncidents = [];
+        failedCount = selectedScenarioIds.length;
+      }
 
       try {
         await refresh({ preserveOnError: true });
