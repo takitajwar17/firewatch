@@ -1,7 +1,8 @@
 import type { Context as HonoContext } from 'hono';
 import type { UiResponse } from '@devvit/web/shared';
-import type { ErrorResponse } from '../../shared/api';
+import type { ErrorResponse, ErrorResponseCode } from '../../shared/api';
 import { isModeratorPermissionError } from './auth';
+import { isRouteError } from './errors';
 import { logFirewatchError } from '../core/firewatch/logging';
 import { isTransientRedditRuntimeError } from '../core/firewatch/reddit-runtime';
 
@@ -15,6 +16,7 @@ const errorMessage = (error: unknown, fallbackMessage: string) =>
   error instanceof Error ? error.message : fallbackMessage;
 
 const responseCodeFor = (error: unknown, message: string) => {
+  if (isRouteError(error)) return error.code;
   if (isModeratorPermissionError(error)) return 'permission_denied';
   if (isTransientRedditRuntimeError(error)) return 'reddit_unavailable';
   if (/claimed by|claim this post|only that mod/i.test(message)) {
@@ -31,7 +33,7 @@ const responseCodeFor = (error: unknown, message: string) => {
 };
 
 const statusForCode = (
-  code: ReturnType<typeof responseCodeFor>
+  code: ErrorResponseCode
 ): 400 | 403 | 404 | 409 | 503 => {
   if (code === 'permission_denied') return 403;
   if (code === 'not_found') return 404;
@@ -62,7 +64,11 @@ export const errorResponse = (
       code,
       status: 'error',
       message: `${messagePrefix}${message}`,
-      retryable: code === 'reddit_unavailable' ? true : undefined,
+      retryable: isRouteError(error)
+        ? error.retryable
+        : code === 'reddit_unavailable'
+          ? true
+          : undefined,
     },
     status
   );

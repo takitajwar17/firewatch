@@ -629,7 +629,7 @@ export type Incident = {
   involvedUsers: IncidentParticipant[];
   repeatedPhrases: RepeatedPhrase[];
   matchedRules?: MatchedAutomationRule[];
-  hiddenRuleMatchKeys?: string[];
+  dismissedRuleMatchKeys?: string[];
   userStrikeSummaries?: UserStrikeSummary[];
   stats: IncidentStats;
   impact: IncidentImpactSnapshot;
@@ -721,14 +721,16 @@ export type RuleTestResponse = {
   preparedActions: string[];
 };
 
+export type ErrorResponseCode =
+  | 'action_failed'
+  | 'conflict'
+  | 'not_found'
+  | 'permission_denied'
+  | 'reddit_unavailable'
+  | 'validation_error';
+
 export type ErrorResponse = {
-  code:
-    | 'action_failed'
-    | 'conflict'
-    | 'not_found'
-    | 'permission_denied'
-    | 'reddit_unavailable'
-    | 'validation_error';
+  code: ErrorResponseCode;
   status: 'error';
   message: string;
   retryable?: boolean;

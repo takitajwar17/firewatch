@@ -8,7 +8,10 @@
     "dir": "dist/client",
     "entrypoints": {
       "default": {
-        "inline": false,
+        "inline": true,
+        "entry": "splash.html"
+      },
+      "dashboard": {
         "entry": "game.html"
       }
     }

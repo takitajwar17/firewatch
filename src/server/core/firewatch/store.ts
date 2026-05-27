@@ -12,7 +12,7 @@ import type {
 } from '../../../shared/firewatch-config';
 import { openCommentCount } from '../../../shared/incidents';
 import { DEFAULT_CONFIG, INDEX_KEY } from '../firewatch-constants';
-import { responseRulesKey, ruleLogsKey } from '../firewatch-rules/store';
+import { automationRulesKey, ruleLogsKey } from '../firewatch-rules/store';
 import {
   getTrackedUserStrikeKeys,
   userStrikesKey,
@@ -36,15 +36,17 @@ import {
   userRegistryKey,
   userStrikeKeyRegistryKey,
 } from '../firewatch-utils';
+import { parseBoardPostReference } from './board-post-state';
+import { parseStoredIncidentClaim } from './claims';
 import { deleteRedditPostIfExists } from './reddit-runtime';
 import { logFirewatchError } from './logging';
 
 const LEGACY_USERS_RESOLVED_IMPACT_KEY = 'usersHandled';
-type IncidentClaim = NonNullable<Incident['claim']>;
 type StoredIncidentStats = Partial<IncidentStats> & {
   currentReportSignals?: number;
 };
 type StoredIncident = Incident & {
+  hiddenRuleMatchKeys?: string[];
   dismissedRuleKeys?: string[];
 };
 
@@ -116,41 +118,18 @@ const normalizeIncidentActions = (
     status: action.status ?? 'succeeded',
   }));
 
-const parseStoredClaim = (
-  stored: string | undefined,
-  postId: string,
-  fallback?: IncidentClaim | undefined
-) => {
-  if (!stored) return fallback;
-
-  try {
-    const parsed: Partial<IncidentClaim> = JSON.parse(stored);
-    if (
-      typeof parsed.username === 'string' &&
-      typeof parsed.claimedAt === 'number'
-    ) {
-      return {
-        username: parsed.username,
-        claimedAt: parsed.claimedAt,
-      };
-    }
-  } catch (error) {
-    logFirewatchError('store.parse_claim_failed', {
-      postId,
-      error,
-    });
-  }
-
-  return fallback;
-};
-
 const hydrateStoredClaim = async (incident: Incident) => {
   const key = claimKey(incident.postId);
-  const storedClaim = parseStoredClaim(
-    await redis.get(key),
-    incident.postId,
-    incident.claim
-  );
+  const storedClaim = parseStoredIncidentClaim({
+    fallback: incident.claim,
+    value: await redis.get(key),
+    onError: (error) => {
+      logFirewatchError('store.parse_claim_failed', {
+        postId: incident.postId,
+        error,
+      });
+    },
+  });
   if (storedClaim && !incident.claim) {
     await redis.set(key, JSON.stringify(storedClaim), {
       expiration: retentionExpiration(),
@@ -364,13 +343,16 @@ export const getIncident = async (
 
   try {
     const parsed: StoredIncident = JSON.parse(stored);
-    const { dismissedRuleKeys, ...incident } = parsed;
+    const { dismissedRuleKeys, hiddenRuleMatchKeys, ...incident } = parsed;
     const claim = await hydrateStoredClaim(parsed);
     return {
       ...incident,
       actions: normalizeIncidentActions(incident.actions),
       claim,
-      hiddenRuleMatchKeys: incident.hiddenRuleMatchKeys ?? dismissedRuleKeys,
+      dismissedRuleMatchKeys:
+        incident.dismissedRuleMatchKeys ??
+        hiddenRuleMatchKeys ??
+        dismissedRuleKeys,
       status: normalizeStatus(incident.status),
       stats: normalizeIncidentStats(incident.stats),
       impact: normalizeIncidentImpact(incident.impact),
@@ -504,7 +486,10 @@ const deleteRedisKeys = async (keys: string[]) => {
  */
 export const resetAppData = async () => {
   const subredditName = context.subredditName;
-  const boardPostId = await redis.get(boardPostKey(subredditName));
+  const boardPostId = parseBoardPostReference(
+    await redis.get(boardPostKey(subredditName)),
+    { allowLegacyPlainString: true }
+  );
   const [
     indexPostIds,
     registeredPostIds,
@@ -566,7 +551,7 @@ export const resetAppData = async () => {
     boardPostKey(subredditName),
     configKey(subredditName),
     incidentRegistryKey(subredditName),
-    responseRulesKey(subredditName),
+    automationRulesKey(subredditName),
     ruleLogsKey(subredditName),
     userRegistryKey(subredditName),
     userStrikeKeyRegistryKey(subredditName),

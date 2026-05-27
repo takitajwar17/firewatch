@@ -55,6 +55,20 @@ export {
 
 type ScoredSignal = ReturnType<typeof normalizeSignal>;
 
+const SCORING_WINDOW_MS = 60 * 60 * 1000;
+const TREND_BUCKET_MS = 10 * 60 * 1000;
+const MAX_VELOCITY_POINTS = 30;
+const MAX_REPORT_POINTS = 35;
+const MAX_KEYWORD_POINTS = 25;
+const MAX_SUSPICIOUS_DOMAIN_POINTS = 20;
+const MAX_PILE_ON_POINTS = 20;
+const MAX_REPEATED_PHRASE_POINTS = 20;
+const MAX_REMOVAL_POINTS = 20;
+const SAFETY_REVIEW_POINTS = 35;
+const EVIDENCE_PREVIEW_LIMIT = 3;
+const MATCHED_TERM_PREVIEW_LIMIT = 5;
+const PILE_ON_AUTHOR_THRESHOLD = 3;
+
 const contentKeyForSignal = (signal: ScoredSignal) => {
   if (!signal.body) return undefined;
   if (signal.commentId) return `comment:${normalizeCommentId(signal.commentId)}`;
@@ -103,7 +117,7 @@ export const calculateIncident = (
   config: FirewatchConfig,
   postSnapshot: PostSnapshot
 ): Incident => {
-  const oneHourAgo = now() - 60 * 60 * 1000;
+  const oneHourAgo = now() - SCORING_WINDOW_MS;
   const normalizedSignals = incident.recentSignals.map(normalizeSignal);
   const recentSignals = normalizedSignals.filter(
     (signal) => signal.createdAt >= oneHourAgo
@@ -257,7 +271,7 @@ export const calculateIncident = (
     {}
   );
   const branchPileOnCount = Object.values(parentAuthors).filter(
-    (authors) => authors.size >= 3
+    (authors) => authors.size >= PILE_ON_AUTHOR_THRESHOLD
   ).length;
   const removalsLastHour = incident.actions.reduce((total, action) => {
     if (action.createdAt < oneHourAgo) return total;
@@ -271,44 +285,44 @@ export const calculateIncident = (
   const velocityPoints = clamp(
     velocityOverflow * config.signalWeights.commentVelocity,
     0,
-    30
+    MAX_VELOCITY_POINTS
   );
   const reportPoints = clamp(
     totalReportCount * config.signalWeights.reports,
     0,
-    35
+    MAX_REPORT_POINTS
   );
   const keywordPoints = clamp(
     keywordHits * config.signalWeights.watchedWords,
     0,
-    25
+    MAX_KEYWORD_POINTS
   );
   const suspiciousPoints = clamp(
     suspiciousHits * config.signalWeights.watchedDomains,
     0,
-    20
+    MAX_SUSPICIOUS_DOMAIN_POINTS
   );
   const pileOnPoints = clamp(
     branchPileOnCount * config.signalWeights.replyPileOns,
     0,
-    20
+    MAX_PILE_ON_POINTS
   );
   const phrasePoints = clamp(
     repeatedPhraseHits * config.signalWeights.repeatedWording,
     0,
-    20
+    MAX_REPEATED_PHRASE_POINTS
   );
   const removalSignalCount =
     removalsLastHour + unrecordedExternalRemovalActions.length;
   const removalPoints = clamp(
     removalSignalCount * config.signalWeights.recentRemovals,
     0,
-    20
+    MAX_REMOVAL_POINTS
   );
   const manualPoints =
     manualEscalations.length > 0 ? config.signalWeights.manualSend : 0;
   const safetyReview = detectSafetyReview(contentSignals);
-  const safetyPoints = safetyReview ? 35 : 0;
+  const safetyPoints = safetyReview ? SAFETY_REVIEW_POINTS : 0;
 
   if (velocityPoints > 0) {
     reasons.push({
@@ -317,7 +331,7 @@ export const calculateIncident = (
       detail: `${recentComments.length} new comments in the last hour`,
       points: velocityPoints,
       evidence: recentComments
-        .slice(0, 3)
+        .slice(0, EVIDENCE_PREVIEW_LIMIT)
         .map((signal) => normalizeUsername(signal.author))
         .filter((author): author is string => Boolean(author)),
     });
@@ -329,7 +343,9 @@ export const calculateIncident = (
       label: 'Reports',
       detail: `${commentReports.length} comment reports plus ${postReportCount} post reports`,
       points: reportPoints,
-      evidence: reports.slice(0, 3).map((signal) => signal.reason ?? 'Report'),
+      evidence: reports
+        .slice(0, EVIDENCE_PREVIEW_LIMIT)
+        .map((signal) => signal.reason ?? 'Report'),
     });
   }
 
@@ -346,7 +362,7 @@ export const calculateIncident = (
       label: 'Watched words',
       detail: `${keywordHits} watched word match${keywordHits > 1 ? 'es' : ''}`,
       points: keywordPoints,
-      evidence: Array.from(matchedWords).slice(0, 5),
+      evidence: Array.from(matchedWords).slice(0, MATCHED_TERM_PREVIEW_LIMIT),
     });
   }
 
@@ -364,7 +380,10 @@ export const calculateIncident = (
       label: 'Watched domains',
       detail: `${suspiciousHits} watched domain match${suspiciousHits > 1 ? 'es' : ''}`,
       points: suspiciousPoints,
-      evidence: Array.from(matchedDomains).slice(0, 5),
+      evidence: Array.from(matchedDomains).slice(
+        0,
+        MATCHED_TERM_PREVIEW_LIMIT
+      ),
     });
   }
 
@@ -377,8 +396,8 @@ export const calculateIncident = (
       }`,
       points: pileOnPoints,
       evidence: Object.entries(parentAuthors)
-        .filter(([, authors]) => authors.size >= 3)
-        .slice(0, 3)
+        .filter(([, authors]) => authors.size >= PILE_ON_AUTHOR_THRESHOLD)
+        .slice(0, EVIDENCE_PREVIEW_LIMIT)
         .map(([, authors]) => `${authors.size} users in one branch`),
     });
   }
@@ -423,7 +442,7 @@ export const calculateIncident = (
       detail: safetyReview.summary,
       points: safetyPoints,
       evidence: safetyReview.matches
-        .slice(0, 3)
+        .slice(0, EVIDENCE_PREVIEW_LIMIT)
         .map((match) =>
           match.author
             ? `${match.label}: ${match.matchedText} (${normalizeUsername(match.author)})`
@@ -616,7 +635,7 @@ export const calculateIncident = (
   });
   const currentTrend: IncidentTrendPoint[] = [
     {
-      timestamp: Math.floor(updatedAt / (10 * 60 * 1000)) * (10 * 60 * 1000),
+      timestamp: Math.floor(updatedAt / TREND_BUCKET_MS) * TREND_BUCKET_MS,
       score,
       commentSignals: recentComments.length,
       reportSignals: totalReportCount,

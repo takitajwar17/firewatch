@@ -6,6 +6,9 @@ Firewatch is split into a Devvit Web client, a Devvit server, and shared TypeScr
 
 - `src/client` contains the React 19 web view shown inside reddit.com.
 - `src/server` contains Hono route modules executed by the Devvit serverless runtime.
+  Client API registration stays in `src/server/routes/api.ts`, while dashboard
+  assembly, request parsing, route errors, and moderation permission derivation
+  live in focused route helpers.
 - `src/shared` contains typed API contracts, configuration models, incident helpers, and automation labels shared by client and server.
 - `devvit.json` declares the web view entrypoint, server bundle, menu actions, forms, triggers, scripts, and permissions.
 
@@ -36,6 +39,24 @@ Firewatch does not use Devvit scheduler, realtime, payments, media upload, blob 
 
 All client/server payloads flow through types in `src/shared/api.ts`.
 
+## Server Boundaries
+
+The server code is intentionally split into route orchestration and Firewatch
+domain modules:
+
+- `src/server/routes/api.ts` owns public `/api/*` path registration and keeps
+  route handlers thin.
+- `src/server/routes/dashboard.ts` assembles the dashboard payload and hides
+  mod-only configuration from moderators without config access.
+- `src/server/routes/moderation-permissions.ts` maps post, user, rule, and undo
+  actions to Reddit moderator permissions.
+- `src/server/routes/errors.ts` carries typed route errors so expected
+  validation, conflict, and not-found paths do not rely on message parsing.
+- `src/server/core/firewatch/moderators.ts` resolves the current moderator once
+  for server routes and claim workflows.
+- `src/server/core/firewatch/claims.ts` parses stored claim records shared by
+  incident storage and claim acquisition.
+
 ## Redis State
 
 Redis keys are scoped by subreddit name. Important state includes:
@@ -52,6 +73,9 @@ Redis keys are scoped by subreddit name. Important state includes:
 
 Incident records, claims, automation logs, and strike records have app-managed expiry windows. Community configuration and the board post reference remain until changed, reset by app logic, or removed by platform storage behavior.
 
+The automation rules key string is kept stable for existing installations even
+though the code now names it `automationRulesKey`.
+
 ## Permissions
 
 `src/server/routes/auth.ts` maps workflows to Reddit moderator permissions. The UI also hides unavailable actions, but the server is the source of truth.
@@ -62,6 +86,10 @@ Incident records, claims, automation logs, and strike records have app-managed e
 - Flair actions require both post and flair permissions.
 
 Moderators without enough access receive an access-denied payload instead of private moderation data.
+
+Expected route failures use typed response codes where possible:
+`permission_denied`, `validation_error`, `conflict`, `not_found`,
+`reddit_unavailable`, or `action_failed`.
 
 ## Automations
 
@@ -94,3 +122,7 @@ behavior should also be playtested in a small subreddit with:
 ```bash
 DEVVIT_SUBREDDIT=<test-subreddit-name> npm run dev
 ```
+
+The Devvit/Vite build currently emits upstream toolchain warnings about output
+options and large chunks. The project keeps those warnings visible instead of
+raising chunk limits or suppressing Vite output.

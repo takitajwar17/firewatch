@@ -20,6 +20,7 @@ import {
 } from '../firewatch-scoring';
 import type { PostSnapshot } from '../firewatch-scoring/helpers';
 import { runRuleAutomationActions } from './automation';
+import { parseBoardPostReference } from './board-post-state';
 import { appendAction, getPostSnapshot, refreshIncident } from './incidents';
 import { logFirewatchError } from './logging';
 import {
@@ -298,7 +299,10 @@ export const deleteStoredPostContent = async (postId: string) => {
   await removeFromIncidentRegistry(subredditName, normalizedPostId);
 
   if (subredditName) {
-    const boardPostId = await redis.get(boardPostKey(subredditName));
+    const boardPostId = parseBoardPostReference(
+      await redis.get(boardPostKey(subredditName)),
+      { allowLegacyPlainString: true }
+    );
     if (boardPostId === normalizedPostId) {
       await redis.del(boardPostKey(subredditName));
     }

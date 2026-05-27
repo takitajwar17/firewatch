@@ -1,9 +1,12 @@
-import { context, redis, reddit } from '@devvit/web/server';
+import { context, redis } from '@devvit/web/server';
 import type { Incident, IncidentAction } from '../../../shared/api';
 import { firewatchRatingSummary } from '../../../shared/firewatch-rating.js';
 import { openCommentsForReview } from '../../../shared/incidents';
 import { MAX_ACTIONS } from '../firewatch-constants';
-import { attachRuleContext, ruleMatchKey } from '../firewatch-rules/matching';
+import {
+  attachRuleContext,
+  ruleDismissalKey,
+} from '../firewatch-rules/matching';
 import { clearUserStrikes } from '../firewatch-rules/strikes';
 import { calculateIncident } from '../firewatch-scoring';
 import type { PostSnapshot } from '../firewatch-scoring/helpers';
@@ -15,6 +18,8 @@ import {
 } from './reddit-runtime';
 import { upsertIncidentSignal } from './signals';
 import { actorName, getConfig, getIncident, saveIncident } from './store';
+import { parseStoredIncidentClaim } from './claims';
+import { currentModeratorName } from './moderators';
 import { logFirewatchError, logFirewatchWarn } from './logging';
 import {
   claimKey,
@@ -504,47 +509,12 @@ export const getIncidentOrThrow = async (postId: string) => {
   return incident;
 };
 
-
-
-// Incident-level actions
-type IncidentClaim = NonNullable<Incident['claim']>;
-
-const claimActorName = async () =>
-  normalizeUsername(
-    context.username ?? (await reddit.getCurrentUsername()) ?? undefined
-  );
-
-const parseStoredClaim = (
-  value: string,
-  fallback: IncidentClaim
-): IncidentClaim => {
-  try {
-    const parsed: Partial<IncidentClaim> = JSON.parse(value);
-    if (
-      typeof parsed.username === 'string' &&
-      typeof parsed.claimedAt === 'number'
-    ) {
-      return {
-        username: parsed.username,
-        claimedAt: parsed.claimedAt,
-      };
-    }
-  } catch (error) {
-    logFirewatchError('incident.parse_claim_failed', {
-      fallbackOwner: fallback.username,
-      error,
-    });
-  }
-
-  return fallback;
-};
-
 export const claimIncident = async (postId: string) => {
   const normalizedPostId = normalizePostId(postId);
   const incident = await getIncident(normalizedPostId);
   if (!incident) throw new Error('Post is not in Firewatch yet');
 
-  const actor = await claimActorName();
+  const actor = await currentModeratorName();
   if (!actor) throw new Error('Could not identify the current moderator');
 
   const actorKey = usernameKey(actor);
@@ -581,10 +551,16 @@ export const claimIncident = async (postId: string) => {
   });
   const storedClaim = createdClaim
     ? existingClaim
-    : parseStoredClaim(
-        (await redis.get(claimKey(normalizedPostId))) ?? claimValue,
-        existingClaim
-      );
+    : parseStoredIncidentClaim({
+        fallback: existingClaim,
+        value: (await redis.get(claimKey(normalizedPostId))) ?? claimValue,
+        onError: (error) => {
+          logFirewatchError('incident.parse_claim_failed', {
+            fallbackOwner: existingClaim.username,
+            error,
+          });
+        },
+      }) ?? existingClaim;
   const claimed: Incident = {
     ...incident,
     claim: storedClaim,
@@ -611,7 +587,7 @@ export const unclaimIncident = async (postId: string) => {
   if (!incident) throw new Error('Post is not in Firewatch yet');
   if (!incident.claim) throw new Error('Post is not claimed');
 
-  const actor = await claimActorName();
+  const actor = await currentModeratorName();
   if (!actor) throw new Error('Could not identify the current moderator');
 
   if (usernameKey(incident.claim.username) !== usernameKey(actor)) {
@@ -752,7 +728,7 @@ export const lockIncident = async (postId: string) => {
   );
 };
 
-export const hideMatchedRule = async (
+export const dismissMatchedRule = async (
   postId: string,
   input: Pick<
     NonNullable<Incident['matchedRules']>[number],
@@ -761,12 +737,16 @@ export const hideMatchedRule = async (
 ) => {
   const normalizedPostId = normalizePostId(postId);
   const incident = await getIncidentOrThrow(normalizedPostId);
-  const key = ruleMatchKey(input);
+  const key = ruleDismissalKey(input);
+  const dismissedRuleMatchKeys = Array.from(
+    new Set([...(incident.dismissedRuleMatchKeys ?? []), key])
+  ).slice(-100);
   const nextIncident: Incident = {
     ...incident,
-    hiddenRuleMatchKeys: Array.from(
-      new Set([...(incident.hiddenRuleMatchKeys ?? []), key])
-    ).slice(-100),
+    dismissedRuleMatchKeys,
+    matchedRules: (incident.matchedRules ?? []).filter(
+      (match) => ruleDismissalKey(match) !== key
+    ),
     updatedAt: now(),
   };
 

@@ -5,7 +5,6 @@ import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import {
   EmptyText,
-  Input,
   PanelLabel,
   RedditActionButton,
   RedditMenuItem,
@@ -35,6 +34,7 @@ import { UsernameHistoryTrigger } from '../username-history';
 import type { FirewatchConfig, Incident } from '../../../shared/api';
 import { firewatchRatingInfo } from '../../../shared/firewatch-rating.js';
 import { normalizeCommentId } from '../../../shared/incidents';
+import { BulkCommentReviewToolbar } from './bulk-comment-review-toolbar';
 import { CommentActionPrepPanel } from './comment-action-prep';
 import { CommentContextBlock } from './comment-context';
 import {
@@ -231,89 +231,24 @@ export const FlaggedCommentsCard = ({
         ) : (
           <div className="flex flex-col">
             {selectionEnabled ? (
-              <div className="border-b border-border bg-muted/25 px-3 py-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={toggleAllSelectedComments}
-                  >
-                    {allSelected ? 'Clear selection' : 'Select all'}
-                  </Button>
-                  <span className="text-xs font-semibold leading-5 text-muted-foreground">
-                    {selectedCount > 0
-                      ? `${selectedCount} selected`
-                      : 'Select comments to review together'}
-                  </span>
-                  <div className="ml-auto flex flex-wrap items-center gap-2">
-                    {selectedCount > 0 && !allSelected ? (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={clearBulkSelection}
-                      >
-                        Clear
-                      </Button>
-                    ) : null}
-                    {controls.approveComments ? (
-                      <RedditActionButton
-                        action={bulkApproveAction}
-                        busyAction={busyAction}
-                        disabled={actionLocked || selectedCount === 0}
-                        icon={<RedditApproveIcon data-icon="inline-start" />}
-                        label="Approve selected"
-                        title={actionLocked ? actionLockReason : undefined}
-                        variant="secondary"
-                        onClick={() => runBulkReview('approve')}
-                      />
-                    ) : null}
-                    {controls.removeComments ? (
-                      <Button
-                        disabled={
-                          Boolean(busyAction) ||
-                          actionLocked ||
-                          selectedCount === 0
-                        }
-                        size="sm"
-                        title={actionLocked ? actionLockReason : undefined}
-                        variant={bulkRemoveOpen ? 'destructive' : 'secondary'}
-                        onClick={() => updateBulkRemoveOpen(true)}
-                      >
-                        <RedditRemoveIcon data-icon="inline-start" />
-                        Remove selected
-                      </Button>
-                    ) : null}
-                  </div>
-                </div>
-                {bulkRemoveOpen && selectedCount > 0 ? (
-                  <div className="mt-2 flex flex-col gap-2 rounded-md border border-border bg-background p-2 sm:flex-row sm:items-center">
-                    <Input
-                      aria-label="Removal reason for selected comments"
-                      className="sm:flex-1"
-                      disabled={actionLocked}
-                      value={reason}
-                      onChange={(event) => setReason(event.target.value)}
-                    />
-                    <RedditActionButton
-                      action={bulkRemoveAction}
-                      busyAction={busyAction}
-                      disabled={actionLocked || selectedCount === 0}
-                      icon={<RedditRemoveIcon data-icon="inline-start" />}
-                      label={`Confirm remove ${selectedCount}`}
-                      title={actionLocked ? actionLockReason : undefined}
-                      variant="destructive"
-                      onClick={() => runBulkReview('remove')}
-                    />
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => updateBulkRemoveOpen(false)}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                ) : null}
-              </div>
+              <BulkCommentReviewToolbar
+                actionLocked={actionLocked}
+                actionLockReason={actionLockReason}
+                allSelected={allSelected}
+                approveAction={bulkApproveAction}
+                bulkRemoveOpen={bulkRemoveOpen}
+                busyAction={busyAction}
+                canApproveComments={controls.approveComments}
+                canRemoveComments={controls.removeComments}
+                reason={reason}
+                removeAction={bulkRemoveAction}
+                selectedCount={selectedCount}
+                onClearSelection={clearBulkSelection}
+                onReasonChange={setReason}
+                onRunReview={runBulkReview}
+                onToggleAll={toggleAllSelectedComments}
+                onUpdateBulkRemoveOpen={updateBulkRemoveOpen}
+              />
             ) : null}
             {needsReview.map((comment) => {
               const normalizedCommentId = normalizeCommentId(comment.id);

@@ -35,7 +35,7 @@ export {
   claimIncident,
   clearIncidentUserStrikes,
   coolDownIncident,
-  hideMatchedRule,
+  dismissMatchedRule,
   lockIncident,
   unclaimIncident,
 } from './firewatch/incidents';

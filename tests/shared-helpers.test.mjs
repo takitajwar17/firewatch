@@ -847,10 +847,16 @@ test('bulk comment review is a single typed server action with queue selection U
     'src/server/core/firewatch/actions/comment-actions.ts',
     'utf8'
   );
-  const clientSource = readFileSync(
-    'src/client/firewatch/comments/flagged-comments-card.tsx',
-    'utf8'
-  );
+  const clientSource = [
+    readFileSync(
+      'src/client/firewatch/comments/flagged-comments-card.tsx',
+      'utf8'
+    ),
+    readFileSync(
+      'src/client/firewatch/comments/bulk-comment-review-toolbar.tsx',
+      'utf8'
+    ),
+  ].join('\n');
 
   assert.match(apiTypesSource, /export type BulkCommentReviewInput/);
   assert.match(routeSource, /comments\/bulk-review/);
@@ -1003,7 +1009,8 @@ test('safety lane is typed, scored, queued, and displayed as advisory', () => {
   assert.match(safetySource, /category: 'personal_info'/);
   assert.match(safetySource, /category: 'threat'/);
   assert.match(safetySource, /category: 'minor_safety'/);
-  assert.match(scoringSource, /const safetyPoints = safetyReview \? 35 : 0/);
+  assert.match(scoringSource, /const SAFETY_REVIEW_POINTS = 35/);
+  assert.match(scoringSource, /const safetyPoints = safetyReview \? SAFETY_REVIEW_POINTS : 0/);
   assert.match(scoringSource, /label: 'Safety review'/);
   assert.match(
     commentScoringSource,
@@ -1385,7 +1392,7 @@ test('app reset deletes Firewatch-owned storage', () => {
   assert.match(resetSource, /boardPostKey\(subredditName\)/);
   assert.match(resetSource, /configKey\(subredditName\)/);
   assert.match(resetSource, /incidentRegistryKey\(subredditName\)/);
-  assert.match(resetSource, /responseRulesKey\(subredditName\)/);
+  assert.match(resetSource, /automationRulesKey\(subredditName\)/);
   assert.match(resetSource, /ruleLogsKey\(subredditName\)/);
   assert.match(resetSource, /userRegistryKey\(subredditName\)/);
   assert.match(resetSource, /userStrikeKeyRegistryKey\(subredditName\)/);
@@ -1396,6 +1403,33 @@ test('app reset deletes Firewatch-owned storage', () => {
   assert.match(resetSource, /userStrikesKey\(subredditName, username\)/);
   assert.match(resetSource, /redditPostDeleteCount/);
   assert.match(storeSource, /await redis\.del\(\.\.\.uniqueKeys\.slice/);
+});
+
+test('board post storage rejects legacy entries without inline splash metadata', () => {
+  const boardSource = readFileSync(
+    'src/server/core/firewatch/board.ts',
+    'utf8'
+  );
+  const boardStateSource = readFileSync(
+    'src/server/core/firewatch/board-post-state.ts',
+    'utf8'
+  );
+  const storeSource = readFileSync('src/server/core/firewatch/store.ts', 'utf8');
+  const signalsSource = readFileSync(
+    'src/server/core/firewatch/signals.ts',
+    'utf8'
+  );
+
+  assert.match(boardStateSource, /BOARD_POST_FORMAT_VERSION = 'inline-splash-v1'/);
+  assert.match(boardStateSource, /serializeBoardPostReference/);
+  assert.match(boardStateSource, /parseBoardPostReference/);
+  assert.match(boardStateSource, /allowLegacyPlainString/);
+  assert.match(boardStateSource, /options\?\.allowLegacyPlainString \? value : undefined/);
+  assert.match(boardSource, /serializeBoardPostReference\(post\.id\)/);
+  assert.match(boardSource, /parseBoardPostReference\(storedPostValue\)/);
+  assert.match(boardSource, /else if \(storedPostValue\)/);
+  assert.match(storeSource, /allowLegacyPlainString: true/);
+  assert.match(signalsSource, /allowLegacyPlainString: true/);
 });
 
 test('automations and strike registries persist until explicit deletion', () => {
@@ -1469,7 +1503,10 @@ test('dashboard queue list refreshes stale visible incidents without refreshing 
     'src/server/core/firewatch/signals.ts',
     'utf8'
   );
-  const apiSource = readFileSync('src/server/routes/api.ts', 'utf8');
+  const dashboardSource = readFileSync(
+    'src/server/routes/dashboard.ts',
+    'utf8'
+  );
   const getIncidentsStart = signalsSource.indexOf('export const getIncidents');
   const getIncidentsEnd = signalsSource.indexOf(
     'export const getIncidentById',
@@ -1484,10 +1521,10 @@ test('dashboard queue list refreshes stale visible incidents without refreshing 
   assert.match(getIncidentsSource, /shouldShowInQueue\(incident\)\s*\n\s*\? refreshIncidentForRead\(incident\)\s*\n\s*: incident/);
   assert.match(getIncidentsSource, /resolvedIncidents/);
   assert.match(getIncidentByIdSource, /return refreshIncidentForRead\(incident\)/);
-  assert.match(apiSource, /getIncidents\(\)/);
-  assert.match(apiSource, /getIncidentById\(requestedSelectedPostId\)/);
-  assert.match(apiSource, /requestedSelectedPostId && !contextSelectedPostId && !selectedIncident/);
-  assert.match(apiSource, /await clearRememberedIncident\(\)/);
+  assert.match(dashboardSource, /getIncidents\(\)/);
+  assert.match(dashboardSource, /getIncidentById\(requestedSelectedPostId\)/);
+  assert.match(dashboardSource, /requestedSelectedPostId && !contextSelectedPostId && !selectedIncident/);
+  assert.match(dashboardSource, /await clearRememberedIncident\(\)/);
 });
 
 test('trigger routes sanitize timestamps and share one error wrapper', () => {
@@ -1517,14 +1554,16 @@ test('trigger routes sanitize timestamps and share one error wrapper', () => {
   assert.match(signalSource, /DASHBOARD_READ_REFRESH_INTERVAL_MS/);
   assert.match(signalSource, /refreshIncidentForRead/);
   assert.match(incidentSource, /incident\.comment_state_fallback/);
-  assert.match(apiSource, /code:\n\s+\| 'action_failed'/);
+  assert.match(apiSource, /export type ErrorResponseCode =\n\s+\| 'action_failed'/);
+  assert.match(apiSource, /code: ErrorResponseCode/);
   assert.match(apiSource, /\| 'reddit_unavailable'/);
   assert.match(apiSource, /retryable\?: boolean/);
   assert.match(responseSource, /responseCodeFor/);
+  assert.match(responseSource, /isRouteError/);
   assert.match(responseSource, /isTransientRedditRuntimeError/);
   assert.match(responseSource, /return 'reddit_unavailable'/);
   assert.match(responseSource, /return 503/);
-  assert.match(responseSource, /retryable: code === 'reddit_unavailable'/);
+  assert.match(responseSource, /code === 'reddit_unavailable'/);
   assert.match(responseSource, /statusForCode/);
   assert.match(clientApiSource, /class FirewatchApiError extends Error/);
   assert.match(clientApiSource, /readonly code\?: ErrorResponse\['code'\]/);
@@ -1542,10 +1581,11 @@ test('automation matching filters by trigger and source scope', () => {
   ].join('\n');
 
   assert.match(source, /ruleUpdatedAt\?: string/);
-  assert.match(source, /hiddenRuleMatchKeys\?: string\[\]/);
+  assert.match(source, /dismissedRuleMatchKeys\?: string\[\]/);
   assert.match(source, /ruleUpdatedAt: rule\.updatedAt/);
   assert.match(source, /export const ruleMatchKey/);
-  assert.match(source, /hiddenRuleMatchKeys\.has\(ruleMatchKey\(match\)\)/);
+  assert.match(source, /export const ruleDismissalKey/);
+  assert.match(source, /dismissedRuleMatchKeys\.has\(ruleDismissalKey\(match\)\)/);
   assert.match(source, /log\.ruleUpdatedAt === match\.ruleUpdatedAt/);
   assert.match(source, /\$\{match\.ruleId\}:\$\{match\.ruleUpdatedAt \?\? ''\}/);
   assert.match(source, /recordRuleExecutionLog\(\s*\{[\s\S]*?currentIncident\.subredditName\s*\)/);
@@ -1570,14 +1610,21 @@ test('automation runner can execute the selected matched target', () => {
   );
   const apiSource = readFileSync('src/server/routes/api.ts', 'utf8');
   const clientSource = readFileSync('src/client/firewatch/incident-rules.tsx', 'utf8');
+  const incidentsSource = readFileSync(
+    'src/server/core/firewatch/incidents.ts',
+    'utf8'
+  );
 
   assert.match(serverSource, /targetId\?: string/);
   assert.match(serverSource, /rule\.targetId === targetId/);
   assert.match(apiSource, /targetId\?: string/);
-  assert.match(apiSource, /\/incidents\/:postId\/rules\/:ruleId\/hide/);
+  assert.match(apiSource, /\/incidents\/:postId\/rules\/:ruleId\/dismiss/);
   assert.match(apiSource, /Automation match target was missing/);
   assert.match(clientSource, /targetId: rule\.targetId/);
-  assert.match(clientSource, /rule-hide:\$\{rule\.ruleId\}:\$\{rule\.targetId\}/);
+  assert.match(clientSource, /rule-dismiss:\$\{rule\.ruleId\}:\$\{rule\.targetId\}/);
+  assert.match(incidentsSource, /const key = ruleDismissalKey\(input\)/);
+  assert.match(incidentsSource, /matchedRules: \(incident\.matchedRules \?\? \[\]\)\.filter/);
+  assert.match(incidentsSource, /ruleDismissalKey\(match\) !== key/);
   assert.doesNotMatch(clientSource, /dismissedRuleIds|dismissedRuleKeys/);
 });
 
@@ -1603,6 +1650,10 @@ test('automation editor preserves existing scope counters and extra actions', ()
 
 test('incident mutations require the current moderator claim', () => {
   const apiSource = readFileSync('src/server/routes/api.ts', 'utf8');
+  const moderatorsSource = readFileSync(
+    'src/server/core/firewatch/moderators.ts',
+    'utf8'
+  );
   const protectedRoutes = [
     '/incidents/:postId/unclaim',
     '/incidents/:postId/cool-down',
@@ -1618,7 +1669,7 @@ test('incident mutations require the current moderator claim', () => {
     '/incidents/:postId/users/:username/ban',
     '/incidents/:postId/users/:username/native-action',
     '/incidents/:postId/rules/:ruleId/run',
-    '/incidents/:postId/rules/:ruleId/hide',
+    '/incidents/:postId/rules/:ruleId/dismiss',
     '/incidents/:postId/users/:username/strikes/clear',
   ];
 
@@ -1635,7 +1686,7 @@ test('incident mutations require the current moderator claim', () => {
     );
   }
   assert.match(apiSource, /const requireIncidentClaim = async/);
-  assert.match(apiSource, /const currentModeratorName = async/);
+  assert.match(moderatorsSource, /export const currentModeratorName = async/);
   assert.match(apiSource, /currentModeratorName\(\)/);
   assert.match(apiSource, /Claim this post before taking mod actions/);
   assert.match(apiSource, /Only that mod can take actions/);
@@ -1649,7 +1700,8 @@ test('claim ownership rejects duplicate ownership and release by another mod', (
   );
 
   assert.match(source, /usernameKey\(incident\.claim\.username\)/);
-  assert.match(source, /const claimActorName = async/);
+  assert.match(source, /currentModeratorName\(\)/);
+  assert.match(source, /parseStoredIncidentClaim/);
   assert.match(source, /Could not identify the current moderator/);
   assert.match(source, /Ask them to unclaim before acting/);
   assert.match(source, /Only that mod can release claim/);
@@ -1704,6 +1756,14 @@ test('moderator access labels are plain language for mod teams', () => {
 test('moderator permissions guard mod-only data and actions', () => {
   const apiSource = readFileSync('src/server/routes/api.ts', 'utf8');
   const authSource = readFileSync('src/server/routes/auth.ts', 'utf8');
+  const dashboardSource = readFileSync(
+    'src/server/routes/dashboard.ts',
+    'utf8'
+  );
+  const moderationPermissionsSource = readFileSync(
+    'src/server/routes/moderation-permissions.ts',
+    'utf8'
+  );
   const menuSource = readFileSync('src/server/routes/menu.ts', 'utf8');
   const formsSource = readFileSync('src/server/routes/forms.ts', 'utf8');
   const appSource = readFileSync('src/client/firewatch/app.tsx', 'utf8');
@@ -1727,18 +1787,18 @@ test('moderator permissions guard mod-only data and actions', () => {
   assert.match(authSource, /export class ModeratorPermissionError/);
   assert.match(authSource, /formatModeratorPermissionList/);
   assert.match(apiSource, /accessDeniedPayload\(access, 'view moderation review data'\)/);
-  assert.match(apiSource, /type ModeratorAccess = Awaited<ReturnType<typeof getModeratorAccess>>/);
+  assert.match(dashboardSource, /type ModeratorAccess = Awaited<ReturnType<typeof getModeratorAccess>>/);
   assert.match(apiSource, /loadDashboardData\(access\)/);
-  assert.match(apiSource, /initialAccess \?\? getModeratorAccess\(DASHBOARD_PERMISSIONS\)/);
-  assert.match(apiSource, /const selectedPostId = selectedIncident\?\.postId/);
-  assert.match(apiSource, /reviewVisibleConfig\(config, canConfigure\)/);
-  assert.match(apiSource, /canUseFlair \? getPostFlairOptions/);
-  assert.match(apiSource, /canConfigure \? getAutomations/);
-  assert.match(apiSource, /canConfigure \? getRuleExecutionLogs/);
+  assert.match(dashboardSource, /initialAccess \?\? getModeratorAccess\(DASHBOARD_PERMISSIONS\)/);
+  assert.match(dashboardSource, /const selectedPostId = selectedIncident\?\.postId/);
+  assert.match(dashboardSource, /reviewVisibleConfig\(config, canConfigure\)/);
+  assert.match(dashboardSource, /canUseFlair \? getPostFlairOptions/);
+  assert.match(dashboardSource, /canConfigure \? getAutomations/);
+  assert.match(dashboardSource, /canConfigure \? getRuleExecutionLogs/);
   assert.match(apiSource, /postActionPermissions\(body\.action\)/);
   assert.match(apiSource, /userActionPermissions\(body\.action\)/);
   assert.match(apiSource, /ruleActionPermissions\(rule\.actions\)/);
-  assert.match(apiSource, /action\.type === 'add_firewatch_strike'/);
+  assert.match(moderationPermissionsSource, /action\.type === 'add_firewatch_strike'/);
   assert.match(apiSource, /undoActionPermissions\(action\.type\)/);
   assert.match(apiSource, /requireModeratorPermissions\(\s*CONFIG_PERMISSIONS/);
   assert.match(menuSource, /requireModeratorPermissions/);

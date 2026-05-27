@@ -6,6 +6,10 @@ import {
   readRedditPost,
 } from './reddit-runtime';
 import { logFirewatchWarn } from './logging';
+import {
+  parseBoardPostReference,
+  serializeBoardPostReference,
+} from './board-post-state';
 
 /**
  * Creates the Firewatch custom post that hosts the web view. A board post is
@@ -43,14 +47,19 @@ export const createFirewatchPost = async (options?: {
   });
 
   if (!options?.incidentPostId) {
-    await redis.set(boardPostKey(context.subredditName), post.id);
+    await redis.set(
+      boardPostKey(context.subredditName),
+      serializeBoardPostReference(post.id)
+    );
   }
 
   return post;
 };
 
 export const getOrCreateFirewatchBoardPost = async () => {
-  const storedPostId = await redis.get(boardPostKey(context.subredditName));
+  const boardKey = boardPostKey(context.subredditName);
+  const storedPostValue = await redis.get(boardKey);
+  const storedPostId = parseBoardPostReference(storedPostValue);
 
   if (storedPostId) {
     try {
@@ -65,8 +74,10 @@ export const getOrCreateFirewatchBoardPost = async () => {
         subredditName: context.subredditName,
         error,
       });
-      await redis.del(boardPostKey(context.subredditName));
+      await redis.del(boardKey);
     }
+  } else if (storedPostValue) {
+    await redis.del(boardKey);
   }
 
   return await createFirewatchPost();

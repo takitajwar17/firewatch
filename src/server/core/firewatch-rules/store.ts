@@ -13,8 +13,9 @@ import {
 import { makeId, retentionExpiration } from '../firewatch-utils';
 import { currentIso, MAX_RULE_LOGS, parseJsonList } from './common';
 
-export const responseRulesKey = (subredditName: string) =>
+export const automationRulesKey = (subredditName: string) =>
   `fw:subreddit:${subredditName}:rules`;
+export const responseRulesKey = automationRulesKey;
 export const ruleLogsKey = (subredditName: string) =>
   `fw:subreddit:${subredditName}:rule_logs`;
 
@@ -48,7 +49,7 @@ export const getAutomations = async (
   subredditName = context.subredditName
 ) => {
   const stored = parseJsonList<StoredFirewatchRule>(
-    await redis.get(responseRulesKey(subredditName))
+    await redis.get(automationRulesKey(subredditName))
   );
 
   return stored.length > 0
@@ -60,7 +61,7 @@ const saveAutomations = async (
   subredditName: string,
   rules: FirewatchRule[]
 ) => {
-  await redis.set(responseRulesKey(subredditName), JSON.stringify(rules));
+  await redis.set(automationRulesKey(subredditName), JSON.stringify(rules));
 };
 
 const normalizeRuleScope = (

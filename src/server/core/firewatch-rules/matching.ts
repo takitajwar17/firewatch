@@ -67,6 +67,10 @@ export const ruleMatchKey = (
 ) =>
   `${match.ruleId}:${match.ruleUpdatedAt ?? ''}:${match.targetType}:${match.targetId}`;
 
+export const ruleDismissalKey = (
+  match: Pick<MatchedAutomationRule, 'ruleId' | 'targetId' | 'targetType'>
+) => `${match.ruleId}:${match.targetType}:${match.targetId}`;
+
 const shouldSkipRuleForUnverifiedModeratorScope = (
   rule: FirewatchRule,
   moderatorScopeVerified: boolean
@@ -583,12 +587,14 @@ export const attachRuleContext = async (
       match.matchedAt,
     ])
   );
-  const hiddenRuleMatchKeys = new Set(incident.hiddenRuleMatchKeys ?? []);
+  const dismissedRuleMatchKeys = new Set(
+    incident.dismissedRuleMatchKeys ?? []
+  );
 
   return {
     ...incident,
     matchedRules: matches
-      .filter((match) => !hiddenRuleMatchKeys.has(ruleMatchKey(match)))
+      .filter((match) => !dismissedRuleMatchKeys.has(ruleDismissalKey(match)))
       .map((match) => ({
         ...match,
         matchedAt: previousMatchedAt.get(ruleMatchKey(match)) ?? match.matchedAt,
