@@ -4,7 +4,7 @@
 
 Do not report security vulnerabilities in public GitHub issues.
 
-Email [SECURITY CONTACT EMAIL] with:
+Email anian@klynelabs.com with:
 
 - A clear description of the vulnerability.
 - Steps to reproduce, proof of concept, or affected code paths.
