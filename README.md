@@ -9,6 +9,9 @@ scam domains, heated arguments, support-safety cleanup, repeated wording, report
 spikes, AutoModerator filters, and threads where the mod team needs shared
 context before acting.
 
+Firewatch is an **open source** project released under the **MIT License**.
+Repository: [github.com/takitajwar17/firewatch](https://github.com/takitajwar17/firewatch).
+
 ## What Firewatch Does
 
 - Creates a subreddit-level queue post for moderators.
