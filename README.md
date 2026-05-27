@@ -1,8 +1,9 @@
 # Firewatch: Thread Incident Room
 
 One Reddit post can turn into 420 comments, 69 reports, and three mods opening
-the same thread. Firewatch puts that post in one queue, shows why it needs
-review, lets one mod claim it, and keeps the cleanup trail in one place.
+the same thread. Firewatch turns that into a shared **incident room**: one queue
+item, clear reasons it needs attention, one mod claiming ownership, and a
+visible action log.
 
 Firewatch is built for posts that need more than a single approve/remove click:
 scam domains, heated arguments, support-safety cleanup, repeated wording, report
@@ -15,29 +16,18 @@ Repository: [github.com/takitajwar17/firewatch](https://github.com/takitajwar17/
 
 ## What Firewatch Does
 
-- Creates a subreddit-level queue post for moderators.
-- Sends a post to Firewatch from the post menu, or queues it from reports,
-  watched words, watched domains, comment bursts, repeated user wording,
-  AutoModerator filters, and mod actions.
-- Shows a simple 0-5 Firewatch rating and the reasons in plain Reddit terms:
-  reports, comments waiting for a mod
-  decision, users in review, reply clusters, watched words, watched domains,
-  repeated phrases, and recent activity.
-- Lets one moderator claim the post so the team can see who is handling it.
-- Keeps Reddit-native controls close to the evidence: approve comments, remove
-  comments with a removal note, ban a user after cleanup, lock or unlock posts,
-  set flair, mark NSFW or spoiler, ignore reports, add mod notes, mute users,
-  approve users, and remove recent user content.
-- Runs Automations as visible prepared actions for scam cleanup, repeated offenders,
-  crowded thread cooldowns, and lock recommendations.
-- Saves handoff notes and final notes with the reasons, users, actions, and
-  remaining review work.
-- Excludes moderator comments, AutoModerator, and Firewatch notices from user
-  wording scores so the app does not score its own cleanup comments.
-- Includes demo drills that create a real source post, then seed sample reports
-  and comments into Firewatch's review pipeline so moderators can test the
-  workflow without posting harmful comments on Reddit.
-- Deletes stored post or comment content when Reddit delete triggers arrive.
+- Creates a **subreddit-level Firewatch board post** that acts as the shared mod queue.
+- Adds posts to the queue when they’re **sent manually** from a post menu item, or when
+  triggers detect signals like **reports**, **AutoModerator filters**, **watched words**,
+  **watched domains**, **comment activity**, and **mod actions**.
+- Shows a simple **0–5 attention rating** and plain-English reasons (so a mod can triage fast).
+- Uses a **claim workflow** so the team can see who’s handling an incident (and avoid duplicate work).
+- Keeps **Reddit-native moderation actions** close to the evidence (approve/remove/spam, lock/unlock,
+  ignore reports, crowd control, flair, user actions like mute/ban, and more—permission gated).
+- Supports configurable **Automations / Response Rules** that can suggest actions, prepare them for
+  approval, or run selected actions when explicitly enabled.
+- Includes **demo drills** to seed realistic incidents for playtesting in a sandbox subreddit.
+- Removes stored post/comment content when Reddit sends delete triggers.
 
 ## How Moderators Use It
 
@@ -125,4 +115,5 @@ handles common watched-word, watched-domain, report, repeated wording, and
 reply-cluster patterns, including simple domain obfuscation, but moderators
 should still review context and tune community-specific rules.
 
-See [Privacy Policy](https://raw.githubusercontent.com/takitajwar17/firewatch/main/PRIVACY.md) and [Terms of Service](https://raw.githubusercontent.com/takitajwar17/firewatch/main/TERMS.md) for the full policy text.
+See [Privacy Policy](PRIVACY.md) and [Terms of Service](TERMS.md) for the full
+policy text.
