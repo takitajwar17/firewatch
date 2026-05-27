@@ -36,7 +36,7 @@ export const IncidentIntro = ({ incident }: { incident: Incident }) => {
             <img
               alt=""
               className="size-8 shrink-0 rounded-full"
-              src="/avatar_default_2.png"
+              src="/avatar-default.webp"
             />
             {incident.postAuthor ? (
               <UsernameHistoryTrigger
