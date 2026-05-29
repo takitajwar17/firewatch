@@ -23,7 +23,7 @@ import {
   saveAndRefreshIncident,
   startIncidentAction,
 } from '../incidents';
-import { actorName, getConfig, getIncident } from '../store';
+import { actorName, getConfig } from '../store';
 import {
   isDemoComment,
   markFlaggedCommentsRemoved,
@@ -40,8 +40,7 @@ export const banUserAndRemoveComments = async (
   const normalizedUsername = normalizeUsername(username);
   if (!normalizedUsername) throw new Error('Cannot ban an unknown user');
 
-  const sourceIncident = await getIncident(normalizedPostId);
-  if (!sourceIncident) throw new Error('Post is not in Firewatch yet');
+  const sourceIncident = await getIncidentOrThrow(normalizedPostId);
   const config = await getConfig(sourceIncident.subredditName);
   if (!config.actionControls.banUsers) {
     throw new Error('User bans are disabled in Settings');

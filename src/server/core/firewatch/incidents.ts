@@ -240,12 +240,24 @@ const matchedRuleSummaryLines = (incident: Incident) =>
     )
     .join('\n');
 
-const getRefreshedIncidentOrThrow = async (postId: string) => {
+const INCIDENT_NOT_FOUND = 'Post is not in Firewatch yet';
+
+const requireStoredIncident = async (postId: string) => {
   const normalizedPostId = normalizePostId(postId);
-  const storedIncident = await getIncident(normalizedPostId);
-  if (!storedIncident) throw new Error('Post is not in Firewatch yet');
+  const incident = await getIncident(normalizedPostId);
+  if (!incident) throw new Error(INCIDENT_NOT_FOUND);
+  return { incident, normalizedPostId };
+};
+
+export const getIncidentOrThrow = async (postId: string) => {
+  const { incident } = await requireStoredIncident(postId);
+  return incident;
+};
+
+const getRefreshedIncidentOrThrow = async (postId: string) => {
+  const { incident, normalizedPostId } = await requireStoredIncident(postId);
   return {
-    incident: await refreshIncident(storedIncident),
+    incident: await refreshIncident(incident),
     normalizedPostId,
   };
 };
@@ -382,9 +394,7 @@ export const appendAction = async (
   postId: string,
   action: Omit<IncidentAction, 'id' | 'createdAt'>
 ) => {
-  const normalizedPostId = normalizePostId(postId);
-  const incident = await getIncident(normalizedPostId);
-  if (!incident) throw new Error('Post is not in Firewatch yet');
+  const { incident, normalizedPostId } = await requireStoredIncident(postId);
 
   const nextIncident: Incident = {
     ...incident,
@@ -412,9 +422,7 @@ export const startIncidentAction = async (
     'completedAt' | 'error' | 'id' | 'createdAt' | 'status'
   >
 ) => {
-  const normalizedPostId = normalizePostId(postId);
-  const incident = await getIncident(normalizedPostId);
-  if (!incident) throw new Error('Post is not in Firewatch yet');
+  const { incident } = await requireStoredIncident(postId);
 
   const pendingAction: IncidentAction = {
     ...action,
@@ -452,9 +460,7 @@ export const completeIncidentAction = async (
   >,
   logMessage: string
 ) => {
-  const normalizedPostId = normalizePostId(postId);
-  const incident = await getIncident(normalizedPostId);
-  if (!incident) throw new Error('Post is not in Firewatch yet');
+  const { incident } = await requireStoredIncident(postId);
   if (!incident.actions.some((action) => action.id === actionId)) {
     throw new Error('Action was not found');
   }
@@ -502,17 +508,8 @@ export const failIncidentAction = async (
   );
 };
 
-export const getIncidentOrThrow = async (postId: string) => {
-  const normalizedPostId = normalizePostId(postId);
-  const incident = await getIncident(normalizedPostId);
-  if (!incident) throw new Error('Post is not in Firewatch yet');
-  return incident;
-};
-
 export const claimIncident = async (postId: string) => {
-  const normalizedPostId = normalizePostId(postId);
-  const incident = await getIncident(normalizedPostId);
-  if (!incident) throw new Error('Post is not in Firewatch yet');
+  const { incident, normalizedPostId } = await requireStoredIncident(postId);
 
   const actor = await currentModeratorName();
   if (!actor) throw new Error('Could not identify the current moderator');
@@ -582,9 +579,7 @@ export const claimIncident = async (postId: string) => {
 };
 
 export const unclaimIncident = async (postId: string) => {
-  const normalizedPostId = normalizePostId(postId);
-  const incident = await getIncident(normalizedPostId);
-  if (!incident) throw new Error('Post is not in Firewatch yet');
+  const { incident, normalizedPostId } = await requireStoredIncident(postId);
   if (!incident.claim) throw new Error('Post is not claimed');
 
   const actor = await currentModeratorName();
