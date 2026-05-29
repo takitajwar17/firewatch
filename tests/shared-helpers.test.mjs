@@ -1829,7 +1829,10 @@ test('runtime docs and logs describe reliability-sensitive behavior honestly', (
     'utf8'
   );
 
-  assert.match(readmeSource, /sample reports\s+and comments into Firewatch's review pipeline/);
+  assert.match(
+    readmeSource,
+    /demo drills.*seed realistic incidents for playtesting in a sandbox subreddit/i
+  );
   assert.match(readmeSource, /deterministic signal queue, not a complete abuse detector/);
   assert.match(architectureSource, /automation rules, rule logs, user strikes/);
   assert.doesNotMatch(readmeSource, /automation, and user strike records expire after 30 days/);
