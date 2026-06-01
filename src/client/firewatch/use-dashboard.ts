@@ -54,6 +54,19 @@ export const useDashboard = () => {
         ? current
         : (data.selectedPostId ?? data.incidents[0]?.postId)
     );
+
+    if (data.username) {
+      pendo.identify({
+        visitor: {
+          id: data.username,
+          subredditName: data.subredditName,
+          moderatorPermissions: data.moderatorPermissions,
+        },
+        account: {
+          id: data.subredditName,
+        },
+      });
+    }
   }, []);
 
   const applyAccessDenied = useCallback((data: AccessDeniedResponse) => {

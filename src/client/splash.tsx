@@ -5,6 +5,8 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { RedditQueueIcon } from './firewatch/reddit-icons';
 
+pendo.initialize({ visitor: { id: '' } });
+
 export const Splash = () => {
   const subredditName = context?.subredditName ?? 'firewatch17_dev';
 
