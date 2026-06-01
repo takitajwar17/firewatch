@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+
+declare const pendo: { track: (event: string, properties?: Record<string, unknown>) => void } | undefined;
 import type {
   AccessDeniedResponse,
   AppResetResponse,
@@ -200,7 +202,18 @@ export const useDashboard = () => {
           ? { scenarioId: selectedScenarioIds[0] }
           : undefined;
 
-        return runAction('demo', '/api/demo/incident', body);
+        const result = await runAction('demo', '/api/demo/incident', body);
+        if (result && typeof pendo !== 'undefined') {
+          pendo.track('demo_incident_created', {
+            scenarioIds: selectedScenarioIds,
+            createdCount: 1,
+            failedCount: 0,
+            isBatch: false,
+            moderatorUsername: data.username,
+            subredditName: data.subredditName,
+          });
+        }
+        return result;
       }
 
       setBusyAction('demo');
@@ -219,6 +232,16 @@ export const useDashboard = () => {
         createdIncidents = payload.createdIncidents;
         failedCount = payload.failures.length;
         payload.createdIncidents.forEach(updateIncident);
+        if (typeof pendo !== 'undefined') {
+          pendo.track('demo_incident_created', {
+            scenarioIds: selectedScenarioIds,
+            createdCount: payload.createdIncidents.length,
+            failedCount: payload.failures.length,
+            isBatch: true,
+            moderatorUsername: data.username,
+            subredditName: data.subredditName,
+          });
+        }
       } catch (error) {
         createdIncidents = [];
         failedCount = selectedScenarioIds.length;
@@ -251,7 +274,7 @@ export const useDashboard = () => {
       });
       return undefined;
     },
-    [refresh, runAction, updateIncident]
+    [data.username, data.subredditName, refresh, runAction, updateIncident]
   );
 
   const resetDemoIncidents = useCallback(async () => {
@@ -262,6 +285,13 @@ export const useDashboard = () => {
         method: 'POST',
       });
       applyDashboard(payload);
+      if (typeof pendo !== 'undefined') {
+        pendo.track('demo_data_reset', {
+          resetCount: payload.resetCount,
+          moderatorUsername: data.username,
+          subredditName: data.subredditName,
+        });
+      }
       setNotice({
         type: 'success',
         message:
@@ -280,7 +310,7 @@ export const useDashboard = () => {
     } finally {
       setBusyAction(undefined);
     }
-  }, [applyDashboard]);
+  }, [applyDashboard, data.username, data.subredditName]);
 
   const resetAppData = useCallback(async () => {
     setBusyAction('reset-app');
@@ -290,6 +320,17 @@ export const useDashboard = () => {
         method: 'POST',
       });
       applyDashboard(payload);
+      if (typeof pendo !== 'undefined') {
+        pendo.track('app_data_reset', {
+          deletedKeys: payload.deletedKeys,
+          incidentCount: payload.incidentCount,
+          redditPostDeleteCount: payload.redditPostDeleteCount,
+          redditPostDeleteFailures: payload.redditPostDeleteFailures,
+          userCount: payload.userCount,
+          moderatorUsername: data.username,
+          subredditName: data.subredditName,
+        });
+      }
       setNotice({
         type: 'success',
         message: `Firewatch data reset. Deleted ${payload.deletedKeys} stored record${
@@ -307,7 +348,7 @@ export const useDashboard = () => {
     } finally {
       setBusyAction(undefined);
     }
-  }, [applyDashboard]);
+  }, [applyDashboard, data.username, data.subredditName]);
 
   const saveDashboardConfig = useCallback(async (values: ConfigFormValues) => {
     setBusyAction('config');
@@ -328,6 +369,19 @@ export const useDashboard = () => {
             }
           : current
       );
+      if (typeof pendo !== 'undefined') {
+        const keywords = values.keywords?.split('\n').filter(Boolean) ?? [];
+        const domains = values.suspiciousDomains?.split('\n').filter(Boolean) ?? [];
+        pendo.track('community_config_saved', {
+          keywordCount: keywords.length,
+          suspiciousDomainCount: domains.length,
+          heatThreshold: values.heatThreshold,
+          fireThreshold: values.fireThreshold,
+          wildfireThreshold: values.wildfireThreshold,
+          moderatorUsername: data.username,
+          subredditName: data.subredditName,
+        });
+      }
       setNotice({ type: 'success', message: 'Settings saved.' });
       await refresh({ preserveOnError: true });
     } catch (error) {
@@ -341,7 +395,7 @@ export const useDashboard = () => {
     } finally {
       setBusyAction(undefined);
     }
-  }, [refresh]);
+  }, [data.username, data.subredditName, refresh]);
 
   const applyRulesResponse = useCallback((payload: RulesResponse) => {
     setLoadState((current) =>
@@ -367,6 +421,20 @@ export const useDashboard = () => {
         method: 'POST',
       });
       applyRulesResponse(payload);
+      if (typeof pendo !== 'undefined') {
+        pendo.track('automation_rule_saved', {
+          ruleId: values.id,
+          ruleName: values.name,
+          isNew: !values.id,
+          enabled: values.enabled,
+          triggerType: values.trigger,
+          conditionCount: values.conditions?.length ?? 0,
+          actionCount: values.actions?.length ?? 0,
+          mode: values.mode,
+          moderatorUsername: data.username,
+          subredditName: data.subredditName,
+        });
+      }
       setNotice({ type: 'success', message: 'Automation saved.' });
       await refresh({ preserveOnError: true });
     } catch (error) {
@@ -380,7 +448,7 @@ export const useDashboard = () => {
     } finally {
       setBusyAction(undefined);
     }
-  }, [applyRulesResponse, refresh]);
+  }, [applyRulesResponse, data.username, data.subredditName, refresh]);
 
   const importRuleTemplates = useCallback(async () => {
     setBusyAction('rule-import');
@@ -391,6 +459,13 @@ export const useDashboard = () => {
         { method: 'POST' }
       );
       applyRulesResponse(payload);
+      if (typeof pendo !== 'undefined') {
+        pendo.track('automation_templates_imported', {
+          importedRuleCount: payload.rules?.length ?? 0,
+          moderatorUsername: data.username,
+          subredditName: data.subredditName,
+        });
+      }
       setNotice({
         type: 'success',
         message: 'Automation templates loaded.',
@@ -407,7 +482,7 @@ export const useDashboard = () => {
     } finally {
       setBusyAction(undefined);
     }
-  }, [applyRulesResponse, refresh]);
+  }, [applyRulesResponse, data.username, data.subredditName, refresh]);
 
   const disableAllRules = useCallback(async () => {
     setBusyAction('rule-disable-all');
@@ -418,6 +493,13 @@ export const useDashboard = () => {
         { method: 'POST' }
       );
       applyRulesResponse(payload);
+      if (typeof pendo !== 'undefined') {
+        pendo.track('automations_bulk_disabled', {
+          disabledRuleCount: payload.rules?.length ?? 0,
+          moderatorUsername: data.username,
+          subredditName: data.subredditName,
+        });
+      }
       setNotice({ type: 'success', message: 'All automations disabled.' });
       await refresh({ preserveOnError: true });
     } catch (error) {
@@ -431,7 +513,7 @@ export const useDashboard = () => {
     } finally {
       setBusyAction(undefined);
     }
-  }, [applyRulesResponse, refresh]);
+  }, [applyRulesResponse, data.username, data.subredditName, refresh]);
 
   const testAutomation = useCallback(async (ruleId: string) => {
     setBusyAction(`rule-test:${ruleId}`);
@@ -441,6 +523,15 @@ export const useDashboard = () => {
         `/api/rules/${ruleId}/test`,
         { method: 'POST' }
       );
+      if (typeof pendo !== 'undefined') {
+        pendo.track('automation_rule_tested', {
+          ruleId,
+          ruleName: payload.ruleName,
+          matchedCount: payload.matchedCount,
+          moderatorUsername: data.username,
+          subredditName: data.subredditName,
+        });
+      }
       setNotice({
         type: 'success',
         message: `${payload.ruleName} matched ${payload.matchedCount} item${
@@ -460,7 +551,7 @@ export const useDashboard = () => {
     } finally {
       setBusyAction(undefined);
     }
-  }, []);
+  }, [data.username, data.subredditName]);
 
   return {
     busyAction,

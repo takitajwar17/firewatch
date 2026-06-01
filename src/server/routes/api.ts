@@ -78,6 +78,7 @@ import {
   userActionPermissions,
 } from './moderation-permissions';
 import { readOptionalJson } from './request';
+import { trackPendoEvent } from './pendo-track';
 
 /**
  * Client-facing API for the Firewatch web view. Every response shape is typed
@@ -117,25 +118,67 @@ api.get('/init', async (c) => {
 api.post('/incidents/:postId/claim', async (c) => {
   return incidentAction(
     c,
-    () => claimIncident(c.req.param('postId')),
+    async () => {
+      const incident = await claimIncident(c.req.param('postId'));
+      trackPendoEvent('incident_claimed', context.username ?? 'unknown', context.subredditName, {
+        postId: incident.postId,
+        incidentLevel: incident.level,
+        incidentScore: incident.score,
+        incidentStatus: incident.status,
+        moderatorUsername: context.username ?? 'unknown',
+        subredditName: context.subredditName,
+        flaggedCommentCount: incident.flaggedComments.length,
+        signalCount: incident.recentSignals.length,
+      });
+      return incident;
+    },
     POST_MODERATION_PERMISSIONS,
     'claim a Firewatch post'
   );
 });
 
 api.post('/incidents/:postId/unclaim', async (c) => {
-  return claimedIncidentAction(c, () => unclaimIncident(c.req.param('postId')));
+  return claimedIncidentAction(c, async () => {
+    const incident = await unclaimIncident(c.req.param('postId'));
+    trackPendoEvent('incident_unclaimed', context.username ?? 'unknown', context.subredditName, {
+      postId: incident.postId,
+      incidentLevel: incident.level,
+      incidentStatus: incident.status,
+      moderatorUsername: context.username ?? 'unknown',
+      subredditName: context.subredditName,
+    });
+    return incident;
+  });
 });
 
 api.post('/incidents/:postId/cool-down', async (c) => {
   return claimedIncidentAction(c, async () => {
     const body = await readOptionalJson<{ reminderText: string }>(c);
-    return coolDownIncident(c.req.param('postId'), body.reminderText);
+    const incident = await coolDownIncident(c.req.param('postId'), body.reminderText);
+    trackPendoEvent('incident_cooled_down', context.username ?? 'unknown', context.subredditName, {
+      postId: incident.postId,
+      incidentLevel: incident.level,
+      incidentScore: incident.score,
+      moderatorUsername: context.username ?? 'unknown',
+      subredditName: context.subredditName,
+      hasReminderText: Boolean(body.reminderText),
+    });
+    return incident;
   });
 });
 
 api.post('/incidents/:postId/lock', async (c) => {
-  return claimedIncidentAction(c, () => lockIncident(c.req.param('postId')));
+  return claimedIncidentAction(c, async () => {
+    const incident = await lockIncident(c.req.param('postId'));
+    trackPendoEvent('incident_locked', context.username ?? 'unknown', context.subredditName, {
+      postId: incident.postId,
+      incidentLevel: incident.level,
+      incidentScore: incident.score,
+      moderatorUsername: context.username ?? 'unknown',
+      subredditName: context.subredditName,
+    });
+    return incident;
+  });
 });
 
 api.post('/incidents/:postId/post-action', async (c) => {
@@ -151,20 +194,56 @@ api.post('/incidents/:postId/post-action', async (c) => {
       postActionPermissions(body.action),
       'perform this post action'
     );
-    return applyNativePostAction(c.req.param('postId'), body);
+    const incident = await applyNativePostAction(c.req.param('postId'), body);
+    trackPendoEvent('post_action_applied', context.username ?? 'unknown', context.subredditName, {
+      postId: incident.postId,
+      action: body.action,
+      incidentLevel: incident.level,
+      incidentScore: incident.score,
+      moderatorUsername: context.username ?? 'unknown',
+      subredditName: context.subredditName,
+      crowdControlLevel: body.crowdControlLevel,
+      reason: body.reason,
+    });
+    return incident;
   });
 });
 
 api.post('/incidents/:postId/escalate', async (c) => {
-  return claimedIncidentAction(c, () =>
-    escalateIncident(c.req.param('postId'))
-  );
+  return claimedIncidentAction(c, async () => {
+    const incident = await escalateIncident(c.req.param('postId'));
+    trackPendoEvent('incident_escalated', context.username ?? 'unknown', context.subredditName, {
+      postId: incident.postId,
+      incidentLevel: incident.level,
+      incidentScore: incident.score,
+      moderatorUsername: context.username ?? 'unknown',
+      subredditName: context.subredditName,
+      actionsTakenCount: incident.actions.length,
+      flaggedCommentCount: incident.flaggedComments.length,
+    });
+    return incident;
+  });
 });
 
 api.post('/incidents/:postId/resolve', async (c) => {
-  return claimedIncidentAction(c, () =>
-    resolveIncident(c.req.param('postId'))
-  );
+  return claimedIncidentAction(c, async () => {
+    const incident = await resolveIncident(c.req.param('postId'));
+    const openedAt = incident.openedAt ?? incident.createdAt;
+    const timeOpenMinutes = Math.round((Date.now() - openedAt) / 60000);
+    trackPendoEvent('incident_resolved', context.username ?? 'unknown', context.subredditName, {
+      postId: incident.postId,
+      incidentLevel: incident.level,
+      incidentScore: incident.score,
+      peakLevel: incident.peakLevel,
+      peakScore: incident.peakScore,
+      moderatorUsername: context.username ?? 'unknown',
+      subredditName: context.subredditName,
+      totalActionsTaken: incident.actions.length,
+      totalFlaggedComments: incident.flaggedComments.length,
+      timeOpenMinutes,
+    });
+    return incident;
+  });
 });
 
 api.post('/incidents/:postId/actions/:actionId/undo', async (c) => {
@@ -178,7 +257,16 @@ api.post('/incidents/:postId/actions/:actionId/undo', async (c) => {
       undoActionPermissions(action.type),
       'undo this action'
     );
-    return undoIncidentAction(c.req.param('postId'), c.req.param('actionId'));
+    const updatedIncident = await undoIncidentAction(c.req.param('postId'), c.req.param('actionId'));
+    trackPendoEvent('mod_action_undone', context.username ?? 'unknown', context.subredditName, {
+      postId: updatedIncident.postId,
+      actionId: c.req.param('actionId'),
+      actionType: action.type,
+      moderatorUsername: context.username ?? 'unknown',
+      subredditName: context.subredditName,
+      incidentLevel: updatedIncident.level,
+    });
+    return updatedIncident;
   });
 });
 
@@ -336,24 +424,51 @@ api.post('/rules/:ruleId/test', async (c) => {
 api.post('/incidents/:postId/comments/:commentId/remove', async (c) => {
   return claimedIncidentAction(c, async () => {
     const body = await readOptionalJson<{ reason: string }>(c);
-    return removeFlaggedComment(
+    const incident = await removeFlaggedComment(
       c.req.param('postId'),
       c.req.param('commentId'),
       body.reason
     );
+    trackPendoEvent('comment_removed', context.username ?? 'unknown', context.subredditName, {
+      postId: incident.postId,
+      commentId: c.req.param('commentId'),
+      reason: body.reason,
+      incidentLevel: incident.level,
+      moderatorUsername: context.username ?? 'unknown',
+      subredditName: context.subredditName,
+    });
+    return incident;
   });
 });
 
 api.post('/incidents/:postId/comments/:commentId/approve', async (c) => {
-  return claimedIncidentAction(c, () =>
-    approveFlaggedComment(c.req.param('postId'), c.req.param('commentId'))
-  );
+  return claimedIncidentAction(c, async () => {
+    const incident = await approveFlaggedComment(c.req.param('postId'), c.req.param('commentId'));
+    trackPendoEvent('comment_approved', context.username ?? 'unknown', context.subredditName, {
+      postId: incident.postId,
+      commentId: c.req.param('commentId'),
+      incidentLevel: incident.level,
+      moderatorUsername: context.username ?? 'unknown',
+      subredditName: context.subredditName,
+    });
+    return incident;
+  });
 });
 
 api.post('/incidents/:postId/comments/bulk-review', async (c) => {
   return claimedIncidentAction(c, async () => {
     const body = await readOptionalJson<BulkCommentReviewInput>(c);
-    return bulkReviewComments(c.req.param('postId'), body);
+    const incident = await bulkReviewComments(c.req.param('postId'), body);
+    trackPendoEvent('bulk_comment_review_completed', context.username ?? 'unknown', context.subredditName, {
+      postId: incident.postId,
+      action: body.action,
+      commentCount: body.commentIds?.length ?? 0,
+      reason: body.reason,
+      incidentLevel: incident.level,
+      moderatorUsername: context.username ?? 'unknown',
+      subredditName: context.subredditName,
+    });
+    return incident;
   });
 });
 
@@ -361,11 +476,21 @@ api.post('/incidents/:postId/comments/:commentId/native-action', async (c) => {
   return claimedIncidentAction(c, async () => {
     const body: { action: NativeCommentAction; reason?: string } =
       await c.req.json();
-    return applyNativeCommentAction(
+    const incident = await applyNativeCommentAction(
       c.req.param('postId'),
       c.req.param('commentId'),
       body
     );
+    trackPendoEvent('comment_native_action_applied', context.username ?? 'unknown', context.subredditName, {
+      postId: incident.postId,
+      commentId: c.req.param('commentId'),
+      action: body.action,
+      reason: body.reason,
+      incidentLevel: incident.level,
+      moderatorUsername: context.username ?? 'unknown',
+      subredditName: context.subredditName,
+    });
+    return incident;
   });
 });
 
@@ -379,12 +504,23 @@ api.post('/incidents/:postId/users/:username/ban', async (c) => {
       durationDays: number;
       reason: string;
     }>(c);
-    return banUserAndRemoveComments(
+    const incident = await banUserAndRemoveComments(
       c.req.param('postId'),
       c.req.param('username'),
       body.reason,
       body.durationDays
     );
+    trackPendoEvent('user_banned', context.username ?? 'unknown', context.subredditName, {
+      postId: incident.postId,
+      username: c.req.param('username'),
+      durationDays: body.durationDays,
+      reason: body.reason,
+      isPermanent: !body.durationDays || body.durationDays === 0,
+      incidentLevel: incident.level,
+      moderatorUsername: context.username ?? 'unknown',
+      subredditName: context.subredditName,
+    });
+    return incident;
   });
 });
 
@@ -396,11 +532,20 @@ api.post('/incidents/:postId/users/:username/native-action', async (c) => {
       userActionPermissions(body.action),
       'perform this user action'
     );
-    return applyNativeUserAction(
+    const incident = await applyNativeUserAction(
       c.req.param('postId'),
       c.req.param('username'),
       body
     );
+    trackPendoEvent('user_native_action_applied', context.username ?? 'unknown', context.subredditName, {
+      postId: incident.postId,
+      username: c.req.param('username'),
+      action: body.action,
+      incidentLevel: incident.level,
+      moderatorUsername: context.username ?? 'unknown',
+      subredditName: context.subredditName,
+    });
+    return incident;
   });
 });
 
@@ -415,12 +560,21 @@ api.post('/incidents/:postId/rules/:ruleId/run', async (c) => {
       'run prepared automation actions'
     );
     const body = await readOptionalJson<{ targetId: string }>(c);
-    return runPreparedRuleActions(
+    const incident = await runPreparedRuleActions(
       c.req.param('postId'),
       c.req.param('ruleId'),
       undefined,
       body.targetId
     );
+    trackPendoEvent('automation_rule_executed', context.username ?? 'unknown', context.subredditName, {
+      postId: incident.postId,
+      ruleId: c.req.param('ruleId'),
+      targetId: body.targetId,
+      incidentLevel: incident.level,
+      moderatorUsername: context.username ?? 'unknown',
+      subredditName: context.subredditName,
+    });
+    return incident;
   });
 });
 
@@ -441,12 +595,22 @@ api.post('/incidents/:postId/rules/:ruleId/dismiss', async (c) => {
       throw validationError('Automation match target was missing');
     }
 
-    return dismissMatchedRule(c.req.param('postId'), {
+    const incident = await dismissMatchedRule(c.req.param('postId'), {
       ruleId: c.req.param('ruleId'),
       ruleUpdatedAt: body.ruleUpdatedAt,
       targetId: body.targetId,
       targetType: body.targetType,
     });
+    trackPendoEvent('automation_rule_dismissed', context.username ?? 'unknown', context.subredditName, {
+      postId: incident.postId,
+      ruleId: c.req.param('ruleId'),
+      targetId: body.targetId,
+      targetType: body.targetType,
+      incidentLevel: incident.level,
+      moderatorUsername: context.username ?? 'unknown',
+      subredditName: context.subredditName,
+    });
+    return incident;
   });
 });
 
@@ -456,10 +620,17 @@ api.post('/incidents/:postId/users/:username/strikes/clear', async (c) => {
       USER_MODERATION_PERMISSIONS,
       'clear user strike summaries'
     );
-    return clearIncidentUserStrikes(
+    const incident = await clearIncidentUserStrikes(
       c.req.param('postId'),
       c.req.param('username')
     );
+    trackPendoEvent('user_strikes_cleared', context.username ?? 'unknown', context.subredditName, {
+      postId: incident.postId,
+      username: c.req.param('username'),
+      moderatorUsername: context.username ?? 'unknown',
+      subredditName: context.subredditName,
+    });
+    return incident;
   });
 });
 
