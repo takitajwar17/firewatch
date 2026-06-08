@@ -20,7 +20,7 @@
     "node": ">=22.2.0"
   },
   "dependencies": {
-    "@devvit/web": "0.13.0",
+    "@devvit/web": "0.13.3",
     "@hono/node-server": "2.0.4",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -38,14 +38,14 @@
     "ws": "8.20.1"
   },
   "devDependencies": {
-    "@devvit/start": "0.13.0",
+    "@devvit/start": "0.13.3",
     "@eslint/js": "10.0.1",
     "@tailwindcss/vite": "4.3.0",
     "@types/node": "^22.19.19",
     "@types/react": "19.2.15",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.2",
-    "devvit": "0.13.0",
+    "devvit": "0.13.3",
     "eslint": "10.4.0",
     "eslint-plugin-react-hooks": "7.1.1",
     "eslint-plugin-react-refresh": "0.5.2",
